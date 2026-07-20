@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --primary-color: #2d8f47;
+  --primary-hover: #247a3b;
+  --primary-light: rgba(45, 143, 71, 0.1);
+  --primary-border: rgba(45, 143, 71, 0.5);
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  color: var(--text-h);
+  background: var(--bg);
+}
+
+.page-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+:deep(.list-with-pagination) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.list-with-pagination__content) {
+  flex: 1;
+  overflow: auto;
+}
+
+.el-button--success {
+  --el-button-bg-color: var(--primary-color);
+  --el-button-border-color: var(--primary-color);
+  --el-button-hover-bg-color: var(--primary-hover);
+  --el-button-hover-border-color: var(--primary-hover);
+}
+
+.el-pagination.is-background .el-pager li.is-active {
+  background-color: var(--primary-color) !important;
+}
