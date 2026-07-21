@@ -1,32 +1,26 @@
 export const menuList = [
   {
-    index: '',
-    title: '工作台',
-    icon: 'HomeFilled',
-    path: '/'
-  },
-  {
     index: 'map',
     title: '地图',
-    icon: 'Location',
+    icon: 'icon-home_ic_foot_map',
     path: '/map'
   },
   {
     index: 'device',
-    title: '设备管理',
-    icon: 'Monitor',
+    title: '设备',
+    icon: 'icon-home_ic_foot_outlet',
     path: '/device'
   },
   {
     index: 'irrigation-group',
     title: '轮灌组',
-    icon: 'Grid',
+    icon: 'icon-home_ic_foot_group',
     path: '/irrigation-group'
   },
   {
     index: 'irrigation-program',
     title: '轮灌程序',
-    icon: 'Timer',
+    icon: 'icon-device_ic_group',
     path: '/irrigation-program'
   }
 ]

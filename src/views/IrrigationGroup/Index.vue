@@ -8,7 +8,12 @@
       >
         <template #header>
           <div class="flex items-center justify-between gap-4 flex-wrap">
-            <el-input v-model="keyword" placeholder="搜索轮灌组名称" clearable style="width: 260px" />
+            <el-input
+              v-model="keyword"
+              placeholder="搜索轮灌组名称"
+              clearable
+              :style="{ width: px2rem(260) }"
+            />
             <el-button type="success">新增轮灌组</el-button>
           </div>
         </template>
@@ -36,6 +41,7 @@
 <script setup>
 import { ref } from 'vue'
 import ListWithPagination from '@/components/ListWithPagination.vue'
+import { px2rem } from '@/utils/rem'
 
 const keyword = ref('')
 const currentPage = ref(1)

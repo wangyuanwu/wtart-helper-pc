@@ -4,7 +4,10 @@ export function getFarmList(data) {
   return request({
     url: '/api/farm/list',
     method: 'GET',
-    params: data
+    params: data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    }
   })
 }
 

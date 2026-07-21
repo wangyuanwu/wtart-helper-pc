@@ -1,61 +1,110 @@
 <template>
-  <div class="login-container">
-    <div class="bg-container">
-      <div class="left-brand">
-        <div class="brand-icon">水</div>
-        <h1>水能手</h1>
-        <p>智慧灌溉 · 设备监控 · 地图可视化</p>
+  <div class="login-page">
+    <h1 class="page-slogan">用上水能手 灌溉好帮手</h1>
+
+    <div class="login-card">
+      <div class="login-tabs">
+        <button
+          type="button"
+          class="login-tab"
+          :class="{ active: activeTab === 'code' }"
+          @click="switchTab('code')"
+        >
+          验证码登录
+        </button>
+        <button
+          type="button"
+          class="login-tab"
+          :class="{ active: activeTab === 'qrcode' }"
+          @click="switchTab('qrcode')"
+        >
+          扫码登录
+        </button>
       </div>
 
-      <div class="login-card">
-        <h3 class="welcome-title">欢迎登录水能手</h3>
-
-        <el-form :model="form" :rules="rules" ref="formRef" label-width="0">
+      <div class="login-body">
+        <el-form
+          v-if="activeTab === 'code'"
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          label-width="0"
+          class="code-form"
+        >
           <el-form-item prop="phoneNumber" class="form-item">
             <el-input
               v-model="form.phoneNumber"
-              placeholder="手机号码"
+              placeholder="手机号"
               maxlength="11"
-              class="login-input"
+              class="login-field"
             />
           </el-form-item>
 
           <el-form-item prop="code" class="form-item">
-            <div class="code-row">
+            <div class="code-field">
               <el-input
                 v-model="form.code"
                 placeholder="验证码"
                 maxlength="6"
-                class="login-input"
+                class="login-field code-input"
                 @keyup.enter="handleLogin"
               />
-              <el-button
-                type="success"
-                plain
+              <button
+                type="button"
+                class="send-code-btn"
                 :disabled="countdown > 0 || sendingCode"
                 @click="handleSendCode"
               >
-                {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
-              </el-button>
+                {{ countdown > 0 ? `${countdown}s 后重发` : '获取短信验证码' }}
+              </button>
             </div>
           </el-form-item>
 
-          <el-form-item prop="isAgree" class="form-item agree-item">
-            <el-checkbox v-model="form.isAgree">
-              已阅读并同意
-              <span class="link-text" @click.prevent="showAgreement('user')">《用户协议》</span>
-              和
-              <span class="link-text" @click.prevent="showAgreement('privacy')">《隐私政策》</span>
-            </el-checkbox>
-          </el-form-item>
-
-          <el-form-item class="form-item">
-            <el-button type="success" :loading="loggingIn" @click="handleLogin" class="login-btn">
+          <div class="submit-wrap">
+            <el-button
+              type="primary"
+              class="submit-btn"
+              :loading="loggingIn"
+              @click="handleLogin"
+            >
               登录
             </el-button>
-          </el-form-item>
+          </div>
         </el-form>
+
+        <div v-else class="qrcode-panel">
+          <div class="qrcode-box" @click="handleQrcodeClick">
+            <img
+              v-if="qrcodeUrl"
+              :src="qrcodeUrl"
+              alt="扫码登录"
+              class="qrcode-image"
+            />
+            <div v-else class="qrcode-loading">二维码加载中...</div>
+          </div>
+          <p class="qrcode-tip">水能手APP扫一扫</p>
+        </div>
       </div>
+
+      <div class="login-footer">
+        <img :src="arcBgUrl" alt="" class="arc-bg" />
+        <div class="brand-text">水 能 手</div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <p class="footer-tip">新用户可直接登录，注册登录即代表同意</p>
+      <p class="footer-links">
+        <span>用户服务</span>
+        <span class="divider">|</span>
+        <span>协议隐私</span>
+        <span class="divider">|</span>
+        <span>政策会员</span>
+        <span class="divider">|</span>
+        <span>服务协议</span>
+        <span class="divider">|</span>
+        <span>授权许可协议</span>
+      </p>
     </div>
   </div>
 </template>
@@ -63,22 +112,26 @@
 <script setup>
 import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { login, sendCode } from '@/api'
+import { ElMessage } from 'element-plus'
+import { login, sendCode, getUser } from '@/api'
 import { useUserStore } from '@/store/user'
+import arcBgUrl from '@/assets/login/arc-bg.png'
+
+const QRCODE_API = 'https://api.qrserver.com/v1/create-qr-code/'
 
 const router = useRouter()
 const formRef = ref(null)
 const userStore = useUserStore()
+const activeTab = ref('code')
 const countdown = ref(0)
 const sendingCode = ref(false)
 const loggingIn = ref(false)
+const qrcodeUrl = ref('')
 let countdownTimer = null
 
 const form = ref({
   phoneNumber: '',
-  code: '',
-  isAgree: false
+  code: ''
 })
 
 const validatePhone = (rule, value, callback) => {
@@ -87,15 +140,21 @@ const validatePhone = (rule, value, callback) => {
   callback()
 }
 
-const validateAgree = (rule, value, callback) => {
-  if (!value) return callback(new Error('请阅读并同意用户协议和隐私政策'))
-  callback()
-}
-
 const rules = {
   phoneNumber: [{ validator: validatePhone, trigger: 'blur' }],
-  code: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
-  isAgree: [{ validator: validateAgree, trigger: 'change' }]
+  code: [{ required: true, message: '请输入验证码', trigger: 'blur' }]
+}
+
+const generateQrcode = () => {
+  const payload = `wtart-pc-login:${Date.now()}`
+  qrcodeUrl.value = `${QRCODE_API}?size=200x200&data=${encodeURIComponent(payload)}`
+}
+
+const switchTab = (tab) => {
+  activeTab.value = tab
+  if (tab === 'qrcode') {
+    generateQrcode()
+  }
 }
 
 const startCountdown = () => {
@@ -139,22 +198,19 @@ const handleLogin = async () => {
 
     const accessToken = res.data?.accessToken || ''
     const refreshTokenValue = res.data?.refreshToken || ''
-    const userInfo = {
-      phone: form.value.phoneNumber,
-      ...(res.data?.userInfo || {})
-    }
 
     userStore.setAuth({
       accessToken,
       refreshToken: refreshTokenValue
     })
-    userStore.setUserInfo(userInfo)
     localStorage.setItem('token', accessToken)
     localStorage.setItem('refreshToken', refreshTokenValue)
-    localStorage.setItem('userInfo', JSON.stringify(userInfo))
+
+    const userRes = await getUser()
+    userStore.setUserInfo(userRes.data || {})
 
     ElMessage.success('登录成功')
-    router.push('/')
+    router.push('/map')
   } catch (e) {
     userStore.logOut()
   } finally {
@@ -162,130 +218,303 @@ const handleLogin = async () => {
   }
 }
 
-const showAgreement = (type) => {
-  const title = type === 'user' ? '用户协议' : '隐私政策'
-  ElMessageBox.alert(`请在移动端查看${title}完整内容。`, title, {
-    confirmButtonText: '我知道了',
-    type: 'info'
-  })
+const handleQrcodeClick = () => {
+  ElMessage.info('研发中')
 }
 
 onUnmounted(() => {
-  if (countdownTimer) {
-    clearInterval(countdownTimer)
-  }
+  if (countdownTimer) clearInterval(countdownTimer)
 })
 </script>
 
 <style scoped>
-.login-container {
-  height: 100vh;
-  background: linear-gradient(135deg, #2d8f47 0%, #3aa858 50%, #5bc47a 100%);
+.login-page {
+  min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 40px 20px 32px;
+  background: linear-gradient(180deg, #eef2fa 0%, #e3eaf6 50%, #d9e2f2 100%);
 }
 
-.bg-container {
-  width: 100%;
-  max-width: 1100px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 50px;
-  gap: 40px;
-}
-
-.left-brand {
-  flex: 1;
-  color: #fff;
-}
-
-.brand-icon {
-  width: 72px;
-  height: 72px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-  font-weight: 700;
-  margin-bottom: 24px;
-}
-
-.left-brand h1 {
-  font-size: 32px;
-  margin-bottom: 12px;
-}
-
-.left-brand p {
-  font-size: 16px;
-  opacity: 0.9;
+.page-slogan {
+  margin: 0 0 36px;
+  font-size: 28px;
+  font-weight: 600;
+  color: #333;
+  letter-spacing: 1px;
 }
 
 .login-card {
-  width: 400px;
-  padding: 40px;
+  width: 480px;
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  border-radius: 32px;
+  border: 2px solid #3d5a9a;
+  box-shadow: 0 6px 24px rgba(61, 90, 154, 0.12);
+  overflow: hidden;
 }
 
-.welcome-title {
-  font-size: 20px;
+.login-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 56px;
+  padding: 32px 24px 0;
+}
+
+.login-tab {
+  position: relative;
+  border: none;
+  background: transparent;
+  padding: 0 0 12px;
+  font-size: 18px;
+  color: #8a96a8;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.login-tab.active {
+  color: #334d8c;
   font-weight: 600;
-  color: #333;
-  margin-bottom: 28px;
-  text-align: center;
+}
+
+.login-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: #334d8c;
+}
+
+.login-body {
+  height: 280px;
+  padding: 28px 40px 16px;
+  box-sizing: border-box;
 }
 
 .form-item {
   margin-bottom: 20px;
-}
-
-.login-input {
   width: 100%;
 }
 
-.code-row {
+.code-form {
+  height: 100%;
   display: flex;
-  gap: 10px;
+  flex-direction: column;
   width: 100%;
 }
 
-.code-row .login-input {
-  flex: 1;
-}
-
-.agree-item {
-  margin-bottom: 8px;
-}
-
-.link-text {
-  color: var(--primary-color);
-  cursor: pointer;
-}
-
-.login-btn {
+.code-form :deep(.el-form-item) {
   width: 100%;
-  height: 42px;
+  margin-bottom: 20px;
+}
+
+.code-form :deep(.el-form-item__content) {
+  width: 100%;
+  line-height: normal;
+}
+
+.code-form :deep(.el-form-item__error) {
+  padding-top: 4px;
+}
+
+.login-field {
+  width: 100%;
+}
+
+.login-field :deep(.el-input) {
+  width: 100%;
+}
+
+.login-field :deep(.el-input__wrapper) {
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: #eef0f4;
+  box-shadow: none;
+  border: none;
+}
+
+.login-field :deep(.el-input__inner) {
   font-size: 16px;
+  color: #333;
+}
+
+.login-field :deep(.el-input__inner::placeholder) {
+  color: #b0b5bf;
+}
+
+.code-field {
+  position: relative;
+  width: 100%;
+}
+
+.code-input :deep(.el-input__wrapper) {
+  padding-right: 130px;
+}
+
+.send-code-btn {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: #334d8c;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.send-code-btn:disabled {
+  color: #a0a7b4;
+  cursor: not-allowed;
+}
+
+.submit-wrap {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.submit-btn {
+  width: 200px;
+  height: 48px;
+  border: none;
+  border-radius: 8px;
+  background: #334d8c;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.submit-btn:hover,
+.submit-btn:focus {
+  background: #2a4075;
+}
+
+.qrcode-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.qrcode-box {
+  width: 200px;
+  height: 200px;
+  padding: 6px;
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+
+.qrcode-box:hover {
+  box-shadow: 0 2px 12px rgba(51, 77, 140, 0.15);
+}
+
+.qrcode-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.qrcode-loading {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 14px;
+}
+
+.qrcode-tip {
+  margin: 16px 0 0;
+  font-size: 16px;
+  color: #666;
+}
+
+.login-footer {
+  position: relative;
+  height: 110px;
+  margin: 0 -2px -2px;
+  width: calc(100% + 4px);
+  overflow: hidden;
+}
+
+.arc-bg {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 106%;
+  height: 100%;
+  transform: translateX(-50%);
+  object-fit: fill;
+  display: block;
+  pointer-events: none;
+}
+
+.brand-text {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.page-footer {
+  margin-top: 28px;
+  text-align: center;
+  color: #999;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.footer-tip {
+  margin: 0;
+}
+
+.footer-links {
+  margin: 4px 0 0;
+}
+
+.footer-links .divider {
+  margin: 0 8px;
+  color: #ccc;
 }
 
 @media (max-width: 768px) {
-  .bg-container {
-    flex-direction: column;
-    padding: 20px;
-  }
-
-  .left-brand {
-    text-align: center;
+  .page-slogan {
+    font-size: 22px;
+    margin-bottom: 24px;
   }
 
   .login-card {
     width: 100%;
-    max-width: 400px;
+    max-width: 480px;
+    border-radius: 24px;
+  }
+
+  .login-body {
+    height: 280px;
+    padding: 24px 24px 12px;
+  }
+
+  .login-tabs {
+    gap: 36px;
   }
 }
 </style>

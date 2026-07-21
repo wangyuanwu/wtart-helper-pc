@@ -1,7 +1,7 @@
 <template>
   <div class="breadcrumb">
     <el-breadcrumb separator="/">
-      <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+      <el-breadcrumb-item :to="{ path: '/map' }">首页</el-breadcrumb-item>
       <template v-for="(item, index) in breadcrumbItems" :key="index">
         <el-breadcrumb-item v-if="item.path" :to="{ path: item.path }">
           {{ item.title }}

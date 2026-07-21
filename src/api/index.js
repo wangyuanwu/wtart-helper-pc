@@ -35,3 +35,13 @@ export function refreshToken(data) {
     skipAuth: true
   })
 }
+
+export function getUser() {
+  return request({
+    url: '/api/user',
+    method: 'GET',
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    }
+  })
+}

@@ -7,6 +7,7 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import 'lib-flexible-computer'
 import './style.css'
+import './assets/iconfont/iconfont.css'
 import router from './router'
 import App from './App.vue'
 

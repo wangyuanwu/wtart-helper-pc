@@ -20,9 +20,7 @@ const routes = [
     children: [
       {
         path: '',
-        name: 'Dashboard',
-        component: () => import('../views/Dashboard/Index.vue'),
-        meta: { title: '工作台', requiresAuth: true }
+        redirect: '/map'
       },
       {
         path: 'map',
@@ -79,7 +77,7 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth !== false && !isLoggedIn) {
     next('/login')
   } else if (to.path === '/login' && isLoggedIn) {
-    next('/')
+    next('/map')
   } else {
     next()
   }

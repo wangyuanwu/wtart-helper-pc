@@ -24,7 +24,7 @@ const pageTags = ref([])
 const currentPath = computed(() => route.path)
 
 const generateRouteTitleMap = () => {
-  const map = { '/': '工作台' }
+  const map = { '/map': '地图' }
   router.getRoutes().forEach((item) => {
     item.children?.forEach((child) => {
       if (child.meta?.title) {

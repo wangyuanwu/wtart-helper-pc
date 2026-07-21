@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <el-card style="max-width: 520px">
+    <el-card :style="{ maxWidth: px2rem(520) }">
       <template #header>
         <span>修改密码</span>
       </template>
@@ -10,4 +10,5 @@
 </template>
 
 <script setup>
+import { px2rem } from '@/utils/rem'
 </script>
