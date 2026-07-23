@@ -14,7 +14,10 @@ export function getFarmList(data) {
 export function getFarmInfo(id) {
   return request({
     url: `/api/farm/${id}/full`,
-    method: 'GET'
+    method: 'GET',
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    }
   })
 }
 

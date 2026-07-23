@@ -1,7 +1,7 @@
 <template>
   <div class="map-page">
     <FarmEmpty v-if="showFarmEmpty" />
-    <template v-else>
+    <template v-else-if="showMapContainer">
       <div id="map-container" class="map-container"></div>
       <div v-if="mapError" class="map-error">
         <el-empty :description="mapError" />
@@ -18,14 +18,32 @@ import FarmEmpty from './FarmEmpty.vue'
 const farmStore = useFarmStore()
 const mapInstance = ref(null)
 const mapError = ref('')
-const loading = ref(true)
 let offFarmChange = null
+let fullInfoRequestId = 0
 
-const showFarmEmpty = computed(() => !loading.value && farmStore.isFarmEmpty)
+const showFarmEmpty = computed(
+  () => !farmStore.isFarmLoading && farmStore.isFarmEmpty
+)
+
+const showMapContainer = computed(
+  () => !farmStore.isFarmLoading && !farmStore.isFarmEmpty
+)
+
+const destroyMap = () => {
+  if (mapInstance.value) {
+    mapInstance.value.destroy()
+    mapInstance.value = null
+  }
+}
 
 const initMap = () => {
   if (typeof window.AMap === 'undefined') {
     mapError.value = '地图 SDK 未加载，请在 index.html 中配置高德地图 Key'
+    return false
+  }
+
+  const container = document.getElementById('map-container')
+  if (!container) {
     return false
   }
 
@@ -35,6 +53,7 @@ const initMap = () => {
       center: [116.397428, 39.90923],
       viewMode: '2D'
     })
+    mapError.value = ''
     return true
   } catch (e) {
     mapError.value = '地图初始化失败，请检查高德地图配置'
@@ -51,48 +70,70 @@ const centerMapByFarm = (farm) => {
   }
 }
 
-const handleFarmChange = (payload) => {
-  centerMapByFarm(payload?.selectFarm)
+const loadFarmFullAndCenter = async (farmId) => {
+  const id = farmId ?? farmStore.selectFarm?.id
+  if (id == null || !mapInstance.value) return
+
+  const requestId = ++fullInfoRequestId
+  try {
+    const farmInfo = await farmStore.fetchFarmFullInfo(id)
+    if (requestId !== fullInfoRequestId) return
+    centerMapByFarm(farmInfo)
+  } catch (e) {
+    if (requestId !== fullInfoRequestId) return
+    console.error('获取农场详情失败', e)
+    centerMapByFarm(farmStore.selectFarm)
+  }
 }
 
-const setupMap = async () => {
-  if (farmStore.isFarmEmpty) return
+const setupMap = async (farmId) => {
+  if (farmStore.isFarmEmpty || farmStore.isFarmLoading) {
+    if (farmStore.isFarmEmpty) destroyMap()
+    return
+  }
 
   await nextTick()
-  const mapReady = initMap()
-  if (!mapReady) return
+  await nextTick()
 
-  centerMapByFarm(farmStore.selectFarm)
+  if (!document.getElementById('map-container')) return
+
+  if (!mapInstance.value) {
+    const mapReady = initMap()
+    if (!mapReady) return
+  }
+
+  await loadFarmFullAndCenter(farmId)
+}
+
+const handleFarmChange = async (payload) => {
+  if (farmStore.isFarmEmpty) {
+    destroyMap()
+    mapError.value = ''
+    farmStore.fetchFarmFullInfo(null)
+    return
+  }
+  if (farmStore.isFarmLoading) return
+  await setupMap(payload?.selectFarm?.id)
 }
 
 onMounted(async () => {
   offFarmChange = farmStore.onFarmChange(handleFarmChange)
 
-  try {
-    await farmStore.fetchFarmList()
-    if (!farmStore.isFarmEmpty) {
-      await setupMap()
-    }
-  } catch (e) {
-    console.error('获取农场列表失败', e)
-  } finally {
-    loading.value = false
+  // 布局壳已拉完农场数据时，仅在此处初始化一次
+  if (!farmStore.isFarmLoading && !farmStore.isFarmEmpty) {
+    await setupMap()
   }
 })
 
-watch(
-  () => farmStore.selectFarm,
-  (farm) => {
-    centerMapByFarm(farm)
+watch(showMapContainer, (visible) => {
+  if (!visible) {
+    destroyMap()
   }
-)
+})
 
 onUnmounted(() => {
   offFarmChange?.()
-  if (mapInstance.value) {
-    mapInstance.value.destroy()
-    mapInstance.value = null
-  }
+  destroyMap()
 })
 </script>
 

@@ -23,7 +23,12 @@ export function logout(data) {
   return request({
     url: '/api/login/logout',
     method: 'POST',
-    data
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    },
+    loading: true,
+    loadingText: '退出中...'
   })
 }
 

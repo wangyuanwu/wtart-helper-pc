@@ -20,7 +20,7 @@ export const menuList = [
   {
     index: 'irrigation-program',
     title: '轮灌程序',
-    icon: 'icon-device_ic_group',
+    icon: 'icon-home_ic_foot_program',
     path: '/irrigation-program'
   }
 ]

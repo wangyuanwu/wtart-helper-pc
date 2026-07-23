@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import { getFarmList } from '@/api/map'
+import { getFarmList, getFarmInfo } from '@/api/map'
 
 const farmChangeListeners = new Set()
 
@@ -9,8 +9,10 @@ export const useFarmStore = defineStore(
   () => {
     const s_farm_list = ref([])
     const isFarmEmpty = ref(true)
+    const isFarmLoading = ref(false)
     const selectFarm = ref(null)
     const s_selectFarm = ref(null)
+    const s_farm_info = ref(null)
 
     function syncSelectFarm(farmList) {
       if (!farmList.length) {
@@ -34,29 +36,48 @@ export const useFarmStore = defineStore(
     }
 
     async function fetchFarmList(searchText = '') {
+      isFarmLoading.value = true
+      const keyword = typeof searchText === 'string' ? searchText.trim() : ''
+      const isSearching = !!keyword
       try {
-        const params = searchText ? { searchText } : {}
+        const params = isSearching ? { searchText: keyword } : {}
         const res = await getFarmList(params)
         const farmList = Array.isArray(res.data) ? res.data : []
 
         if (!farmList.length) {
-          isFarmEmpty.value = true
           s_farm_list.value = []
-          selectFarm.value = null
-          farmChange()
+          // 搜索无结果只清空列表展示，不影响当前选中农场与空农场状态
+          if (!isSearching) {
+            isFarmEmpty.value = true
+            selectFarm.value = null
+            s_farm_info.value = null
+            isFarmLoading.value = false
+            farmChange()
+          }
           return farmList
         }
 
         isFarmEmpty.value = false
         s_farm_list.value = farmList
-        syncSelectFarm(farmList)
-        farmChange()
+        if (!isSearching) {
+          syncSelectFarm(farmList)
+          // 先结束 loading，再通知子模块，确保地图容器已可渲染
+          isFarmLoading.value = false
+          farmChange()
+        }
         return farmList
       } catch (e) {
-        isFarmEmpty.value = true
-        s_farm_list.value = []
-        selectFarm.value = null
+        if (!isSearching) {
+          isFarmEmpty.value = true
+          s_farm_list.value = []
+          selectFarm.value = null
+          s_farm_info.value = null
+          isFarmLoading.value = false
+          farmChange()
+        }
         throw e
+      } finally {
+        isFarmLoading.value = false
       }
     }
 
@@ -65,6 +86,16 @@ export const useFarmStore = defineStore(
       selectFarm.value = { ...farm }
       s_selectFarm.value = { ...farm }
       farmChange()
+    }
+
+    async function fetchFarmFullInfo(id) {
+      if (id == null || id === '') {
+        s_farm_info.value = null
+        return null
+      }
+      const res = await getFarmInfo(id)
+      s_farm_info.value = res.data || null
+      return s_farm_info.value
     }
 
     function farmChange() {
@@ -87,14 +118,18 @@ export const useFarmStore = defineStore(
       isFarmEmpty.value = true
       selectFarm.value = null
       s_selectFarm.value = null
+      s_farm_info.value = null
     }
 
     return {
       s_farm_list,
       isFarmEmpty,
+      isFarmLoading,
       selectFarm,
       s_selectFarm,
+      s_farm_info,
       fetchFarmList,
+      fetchFarmFullInfo,
       setSelectFarm,
       farmChange,
       onFarmChange,
