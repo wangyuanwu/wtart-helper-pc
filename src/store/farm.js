@@ -8,6 +8,8 @@ export const useFarmStore = defineStore(
   'farm',
   () => {
     const s_farm_list = ref([])
+    /** 全量农场列表缓存（不受搜索过滤影响，不持久化） */
+    const s_farm_list_all = ref([])
     const isFarmEmpty = ref(true)
     const isFarmLoading = ref(false)
     const selectFarm = ref(null)
@@ -35,6 +37,14 @@ export const useFarmStore = defineStore(
       s_selectFarm.value = { ...farmList[0] }
     }
 
+    function restoreFarmList() {
+      if (s_farm_list_all.value.length) {
+        s_farm_list.value = s_farm_list_all.value.map((item) => ({ ...item }))
+        return true
+      }
+      return false
+    }
+
     async function fetchFarmList(searchText = '') {
       isFarmLoading.value = true
       const keyword = typeof searchText === 'string' ? searchText.trim() : ''
@@ -48,6 +58,7 @@ export const useFarmStore = defineStore(
           s_farm_list.value = []
           // 搜索无结果只清空列表展示，不影响当前选中农场与空农场状态
           if (!isSearching) {
+            s_farm_list_all.value = []
             isFarmEmpty.value = true
             selectFarm.value = null
             s_farm_info.value = null
@@ -60,6 +71,7 @@ export const useFarmStore = defineStore(
         isFarmEmpty.value = false
         s_farm_list.value = farmList
         if (!isSearching) {
+          s_farm_list_all.value = farmList.map((item) => ({ ...item }))
           syncSelectFarm(farmList)
           // 先结束 loading，再通知子模块，确保地图容器已可渲染
           isFarmLoading.value = false
@@ -70,6 +82,7 @@ export const useFarmStore = defineStore(
         if (!isSearching) {
           isFarmEmpty.value = true
           s_farm_list.value = []
+          s_farm_list_all.value = []
           selectFarm.value = null
           s_farm_info.value = null
           isFarmLoading.value = false
@@ -98,12 +111,18 @@ export const useFarmStore = defineStore(
       return s_farm_info.value
     }
 
+    function setFarmInfo(info) {
+      s_farm_info.value = info || null
+    }
+
     function farmChange() {
       const payload = {
         topic: 'farmChange',
         data: '农场更新',
         selectFarm: selectFarm.value,
-        farmList: s_farm_list.value
+        farmList: s_farm_list_all.value.length
+          ? s_farm_list_all.value
+          : s_farm_list.value
       }
       farmChangeListeners.forEach((listener) => listener(payload))
     }
@@ -115,7 +134,9 @@ export const useFarmStore = defineStore(
 
     function resetFarm() {
       s_farm_list.value = []
+      s_farm_list_all.value = []
       isFarmEmpty.value = true
+      isFarmLoading.value = false
       selectFarm.value = null
       s_selectFarm.value = null
       s_farm_info.value = null
@@ -123,6 +144,7 @@ export const useFarmStore = defineStore(
 
     return {
       s_farm_list,
+      s_farm_list_all,
       isFarmEmpty,
       isFarmLoading,
       selectFarm,
@@ -130,7 +152,9 @@ export const useFarmStore = defineStore(
       s_farm_info,
       fetchFarmList,
       fetchFarmFullInfo,
+      setFarmInfo,
       setSelectFarm,
+      restoreFarmList,
       farmChange,
       onFarmChange,
       resetFarm

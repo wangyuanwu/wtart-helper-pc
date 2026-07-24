@@ -285,13 +285,17 @@ const handleFarmSearch = async () => {
 
 const handleFarmSearchInput = () => {
   if (farmSearchText.value === '') {
-    handleFarmSearch()
+    if (!farmStore.restoreFarmList()) {
+      handleFarmSearch()
+    }
   }
 }
 
 const clearFarmSearch = async () => {
   farmSearchText.value = ''
-  await handleFarmSearch()
+  if (!farmStore.restoreFarmList()) {
+    await handleFarmSearch()
+  }
 }
 
 const handleSelectFarm = (farm) => {
@@ -299,8 +303,8 @@ const handleSelectFarm = (farm) => {
   farmStore.setSelectFarm(farm)
   farmPopoverVisible.value = false
   farmSearchText.value = ''
-  // 选中后恢复完整列表，避免搜索过滤态残留
-  farmStore.fetchFarmList('').catch(() => {})
+  // 有搜索过滤时本地恢复全量列表，不重复请求 /api/farm/list
+  farmStore.restoreFarmList()
 }
 
 const handleSelect = (key) => {
@@ -364,6 +368,12 @@ onMounted(async () => {
     await farmStore.fetchFarmList()
   } catch (e) {
     console.error('获取农场列表失败', e)
+  }
+})
+
+watch(farmPopoverVisible, (visible) => {
+  if (visible && !farmSearchText.value) {
+    farmStore.restoreFarmList()
   }
 })
 
