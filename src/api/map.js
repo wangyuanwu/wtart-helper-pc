@@ -36,3 +36,14 @@ export function getLandDetail(data) {
     params: data
   })
 }
+
+/** 删除地块 DELETE /api/land-plot/{id} */
+export function deleteLand(id) {
+  return request({
+    url: `/api/land-plot/${id}`,
+    method: 'DELETE',
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    }
+  })
+}

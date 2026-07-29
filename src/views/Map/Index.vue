@@ -106,20 +106,67 @@
         v-model="landEmptyVisible"
         @create="handleCreateLand"
       />
+      <WaterDvPopup
+        ref="waterDvPopupRef"
+        v-model="waterDvPopupVisible"
+        :device="activeWaterDv"
+        @close="onWaterDvPopupClose"
+      />
+      <FarmPopup
+        v-model="farmPopupVisible"
+        :farm="clickedFarm"
+        :farm-detail="clickedFarmDetail"
+        :is-current-farm="isClickedCurrentFarm"
+        :loading="farmPopupLoading"
+        @close="onFarmPopupClose"
+        @enter="onEnterClickedFarm"
+      />
+      <LandPopup
+        v-model="landPopupVisible"
+        :land="clickedLand"
+        :farm-info="farmInfo"
+        @close="onLandPopupClose"
+        @edit="onEditLand"
+      />
+      <LandEditPopup
+        v-model="landEditPopupVisible"
+        :land-edit="editingLand"
+        @close="onLandEditClose"
+        @back="onLandEditBack"
+        @delete="onLandEditDelete"
+        @save="onLandEditSave"
+        @edit-area="onLandEditArea"
+      />
+      <LandGroupPopup
+        v-model="landGroupPopupVisible"
+        :group="clickedLandGroup"
+        @close="onLandGroupPopupClose"
+      />
     </template>
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useFarmStore } from '@/store/farm'
 import { prepareFarmMapResources } from '@/utils/farmMapData'
 import { createFarmMarkerDrawer } from '@/utils/farmMapMarker'
 import { createLandPolygonDrawer } from '@/utils/farmMapLand'
+import { createLandGroupPolygonDrawer } from '@/utils/farmMapLandGroup'
+import { createWaterDvMarkerDrawer } from '@/utils/farmMapWaterDv'
 import FarmEmpty from './FarmEmpty.vue'
 import LandEmptyDialog from './LandEmptyDialog.vue'
+import WaterDvPopup from './WaterDvPopup.vue'
+import FarmPopup from './FarmPopup.vue'
+import LandPopup from './LandPopup.vue'
+import LandEditPopup from './LandEditPopup.vue'
+import LandGroupPopup from './LandGroupPopup.vue'
 import locatePinIcon from '@/assets/map/locate-pin.png'
+import { px2rem } from '@/utils/rem'
+import { getFarmWaterOutletStatus } from '@/api/device'
+import { getGroupList } from '@/api/irrigationGroup'
+import { deleteLand, getFarmInfo } from '@/api/map'
 
 /** 默认图层配置：进入地图全部勾选显示，不受缩放级别限制 */
 const DEFAULT_LAYER_OPTIONS = [
@@ -169,14 +216,239 @@ const DEFAULT_LAYER_OPTIONS = [
 
 const farmStore = useFarmStore()
 
-/** 预留：农场 Marker 点击业务（弹窗、切换农场等） */
-function logic_farmClick(farmItem) {
-  console.log('[Map] logic_farmClick 预留出口', farmItem)
+const selectedWaterDvIndex = ref(-1)
+/** 出水桩弹窗（对齐移动端 pop_device_control） */
+const waterDvPopupVisible = ref(false)
+const activeWaterDv = ref(null)
+const waterDvPopupRef = ref(null)
+
+/** 农场点击弹窗（左上角详情卡） */
+const farmPopupVisible = ref(false)
+const farmPopupLoading = ref(false)
+const clickedFarm = ref(null)
+const clickedFarmDetail = ref(null)
+let farmClickRequestId = 0
+
+/** 地块点击弹窗（对齐移动端 pop_land_info） */
+const landPopupVisible = ref(false)
+const clickedLand = ref(null)
+const landEditPopupVisible = ref(false)
+const editingLand = ref(null)
+const landGroupPopupVisible = ref(false)
+const clickedLandGroup = ref(null)
+
+const isClickedCurrentFarm = computed(() => {
+  const currentId = farmStore.selectFarm?.id
+  const clickId = clickedFarm.value?.id
+  if (currentId == null || clickId == null) return false
+  return String(currentId) === String(clickId)
+})
+
+/** 农场出水桩状态轮询（对齐移动端 status-by-farm，3s） */
+const FARM_DEVICE_STATUS_POLL_MS = 3000
+let farmDeviceStatusTimer = null
+let farmDeviceStatusRequestId = 0
+
+/** 农场轮灌组状态轮询（对齐移动端 getGroupList，15s） */
+const FARM_GROUP_STATUS_POLL_MS = 15000
+let farmGroupStatusTimer = null
+let farmGroupStatusRequestId = 0
+
+/** 农场 Marker 点击：轻量卡 + 左上角详情弹窗 */
+async function logic_farmClick(farmItem) {
+  console.log('[Map] logic_farmClick', farmItem)
+  if (!farmItem?.id) return
+
+  // 关闭出水桩/地块弹窗，保留农场轻量卡由 marker 侧展示
+  waterDvPopupVisible.value = false
+  activeWaterDv.value = null
+  selectedWaterDvIndex.value = -1
+  waterDvMarkerDrawer.resetAllWaterDvMarkers()
+  landPopupVisible.value = false
+  clickedLand.value = null
+  landEditPopupVisible.value = false
+  editingLand.value = null
+  landGroupPopupVisible.value = false
+  clickedLandGroup.value = null
+  landPolygonDrawer.resetAllLandBorder()
+  landGroupPolygonDrawer.resetAllLandGroupBorder()
+
+  clickedFarm.value = farmItem
+  clickedFarmDetail.value = null
+  farmPopupVisible.value = true
+  farmPopupLoading.value = true
+
+  const isCurrent =
+    farmStore.selectFarm?.id != null &&
+    String(farmStore.selectFarm.id) === String(farmItem.id)
+
+  farmMarkerDrawer.updateFarmInfoCard(farmItem.id, {
+    title: isCurrent ? '当前农场' : farmItem.name || '未知农场',
+    totalAreaMu: farmItem.totalAreaMu || '0.00',
+    deviceCount: farmItem.deviceCount ?? 0,
+    visible: true
+  })
+
+  const requestId = ++farmClickRequestId
+  try {
+    // 仅用于弹窗展示，不覆盖当前地图农场的 store.s_farm_info
+    const res = await getFarmInfo(farmItem.id)
+    if (requestId !== farmClickRequestId) return
+    const fullData = res?.data || null
+    if (!fullData) {
+      farmPopupLoading.value = false
+      return
+    }
+
+    const prepared = prepareFarmMapResources(fullData)
+    clickedFarmDetail.value = prepared.farmInfo
+
+    farmMarkerDrawer.updateFarmInfoCard(farmItem.id, {
+      title: isCurrent ? '当前农场' : prepared.farmInfo?.name || farmItem.name,
+      totalAreaMu: prepared.farmInfo?.totalAreaMu || '0.00',
+      deviceCount: prepared.farmInfo?.deviceCount ?? 0,
+      visible: true
+    })
+  } catch (e) {
+    if (requestId !== farmClickRequestId) return
+    console.error('[Map] 获取点击农场详情失败', e)
+    ElMessage.error('获取农场信息失败')
+  } finally {
+    if (requestId === farmClickRequestId) {
+      farmPopupLoading.value = false
+    }
+  }
 }
 
-/** 预留：地块点击业务（弹窗、选中描边等） */
+/** 地块点击：打开地块信息弹窗（对齐移动端 openPoup(farmInfo, land)） */
 function logic_landClick(landItem, index) {
-  console.log('[Map] logic_landClick 预留出口', landItem, index)
+  console.log('[Map] logic_landClick', landItem, index)
+  if (!landItem) return
+
+  // 关闭其它业务弹窗，保留地块选中描边
+  waterDvPopupVisible.value = false
+  activeWaterDv.value = null
+  selectedWaterDvIndex.value = -1
+  waterDvMarkerDrawer.resetAllWaterDvMarkers()
+  farmPopupVisible.value = false
+  clickedFarm.value = null
+  clickedFarmDetail.value = null
+  farmMarkerDrawer.hideAllFarmInfoCards()
+  farmMarkerDrawer.resetAllFarmMarkers(
+    farmList.value,
+    farmStore.selectFarm?.id
+  )
+  landGroupPopupVisible.value = false
+  clickedLandGroup.value = null
+  landGroupPolygonDrawer.resetAllLandGroupBorder()
+
+  // 优先用 farmInfo.lands 中的原始地块（含完整 area / deviceIds）
+  let land = landItem
+  const originLands = farmInfo.value?.lands
+  if (Array.isArray(originLands) && landItem.id != null) {
+    const matched = originLands.find(
+      (item) => String(item.id) === String(landItem.id)
+    )
+    if (matched) {
+      land = {
+        ...landItem,
+        ...matched,
+        // 保留绘制层 deviceIds（已按 landId 绑定）
+        deviceIds:
+          Array.isArray(matched.deviceIds) && matched.deviceIds.length
+            ? matched.deviceIds
+            : landItem.deviceIds
+      }
+    }
+  }
+
+  landEditPopupVisible.value = false
+  editingLand.value = null
+  clickedLand.value = land
+  landPopupVisible.value = true
+}
+
+/** 轮灌组点击：打开详情弹窗（对齐移动端 popGroup.openPoup） */
+function logic_landGroupClick(groupItem, index) {
+  console.log('[Map] logic_landGroupClick', groupItem, index)
+  if (!groupItem?.id) return
+
+  // 关闭其它业务弹窗，保留轮灌组选中描边
+  waterDvPopupVisible.value = false
+  activeWaterDv.value = null
+  selectedWaterDvIndex.value = -1
+  waterDvMarkerDrawer.resetAllWaterDvMarkers()
+  farmPopupVisible.value = false
+  clickedFarm.value = null
+  clickedFarmDetail.value = null
+  farmMarkerDrawer.hideAllFarmInfoCards()
+  farmMarkerDrawer.resetAllFarmMarkers(
+    farmList.value,
+    farmStore.selectFarm?.id
+  )
+  landPopupVisible.value = false
+  clickedLand.value = null
+  landEditPopupVisible.value = false
+  editingLand.value = null
+  landPolygonDrawer.resetAllLandBorder()
+
+  // 优先合并 list 轮询注入的运行态 / farmInfo.groupStatus
+  let group = { ...groupItem }
+  const statusMap = farmInfo.value?.groupStatus
+  if (statusMap && groupItem.id != null) {
+    const statusItem =
+      statusMap[groupItem.id] ||
+      statusMap[String(groupItem.id)] ||
+      Object.values(statusMap).find(
+        (item) => String(item?.id) === String(groupItem.id)
+      )
+    if (statusItem) {
+      group = {
+        ...group,
+        ...statusItem,
+        // 保留绘制用几何字段
+        landPoint: groupItem.landPoint || group.landPoint,
+        fillColor: groupItem.fillColor || group.fillColor,
+        areaMu: groupItem.areaMu || group.areaMu
+      }
+    }
+  }
+
+  clickedLandGroup.value = group
+  landGroupPopupVisible.value = true
+}
+
+/** 预留：出水桩点击业务（写 Store / 控制弹窗等） */
+function logic_clickSingleWaterDv(payload) {
+  console.log('[Map] logic_clickSingleWaterDv', payload)
+  if (payload?.index != null) {
+    selectedWaterDvIndex.value = payload.index
+  }
+  const device = payload?.device || null
+  if (!device?.id) {
+    console.warn('[Map] 出水桩缺少 id，无法打开弹窗')
+    return
+  }
+  // 打开出水桩弹窗时关闭农场/地块/轮灌组弹窗
+  farmPopupVisible.value = false
+  clickedFarm.value = null
+  clickedFarmDetail.value = null
+  farmMarkerDrawer.hideAllFarmInfoCards()
+  landPopupVisible.value = false
+  clickedLand.value = null
+  landPolygonDrawer.resetAllLandBorder()
+  landEditPopupVisible.value = false
+  editingLand.value = null
+  landGroupPopupVisible.value = false
+  clickedLandGroup.value = null
+  landGroupPolygonDrawer.resetAllLandGroupBorder()
+  activeWaterDv.value = device
+  waterDvPopupVisible.value = true
+}
+
+/** 预留：出水桩绘制完成（点位/定位等后续处理） */
+function logic_waterDvDrawFinish() {
+  console.log('[Map] logic_waterDvDrawFinish 预留出口')
 }
 
 /** 农场 Marker 绘制器（对齐移动端 drawAllFarmMarker / createFarmMarker / clearFarmMark） */
@@ -188,6 +460,358 @@ const farmMarkerDrawer = createFarmMarkerDrawer({
 const landPolygonDrawer = createLandPolygonDrawer({
   onLandClick: logic_landClick
 })
+
+/** 轮灌组 Polygon 绘制器（对齐移动端 drawLandGroupPolygon） */
+const landGroupPolygonDrawer = createLandGroupPolygonDrawer({
+  onLandGroupClick: logic_landGroupClick
+})
+
+/** 出水桩 Marker 绘制器（对齐移动端 drawAllWaterDvMarker） */
+const waterDvMarkerDrawer = createWaterDvMarkerDrawer({
+  onWaterDvClick: logic_clickSingleWaterDv,
+  onWaterDvDrawFinish: logic_waterDvDrawFinish
+})
+
+/**
+ * 对齐移动端 resetAllPopups：取消农场/地块/出水桩/轮灌组选中态，恢复普通态
+ * 由地图空白区域点击触发（不作用于缩放、图层等 HTML 控件）
+ */
+const resetAllPopups = () => {
+  selectedWaterDvIndex.value = -1
+  waterDvPopupVisible.value = false
+  activeWaterDv.value = null
+  farmPopupVisible.value = false
+  farmPopupLoading.value = false
+  clickedFarm.value = null
+  clickedFarmDetail.value = null
+  landPopupVisible.value = false
+  clickedLand.value = null
+  landEditPopupVisible.value = false
+  editingLand.value = null
+  landGroupPopupVisible.value = false
+  clickedLandGroup.value = null
+  farmClickRequestId += 1
+  farmMarkerDrawer.resetAllFarmMarkers(
+    farmList.value,
+    farmStore.selectFarm?.id
+  )
+  waterDvMarkerDrawer.resetAllWaterDvMarkers()
+  landPolygonDrawer.resetAllLandBorder()
+  landGroupPolygonDrawer.resetAllLandGroupBorder()
+}
+
+const onWaterDvPopupClose = () => {
+  waterDvPopupVisible.value = false
+  activeWaterDv.value = null
+}
+
+const onFarmPopupClose = () => {
+  farmPopupVisible.value = false
+  farmPopupLoading.value = false
+  clickedFarm.value = null
+  clickedFarmDetail.value = null
+  farmClickRequestId += 1
+  farmMarkerDrawer.hideAllFarmInfoCards()
+  farmMarkerDrawer.resetAllFarmMarkers(
+    farmList.value,
+    farmStore.selectFarm?.id
+  )
+}
+
+const onLandPopupClose = () => {
+  landPopupVisible.value = false
+  clickedLand.value = null
+  landPolygonDrawer.resetAllLandBorder()
+}
+
+const onLandGroupPopupClose = () => {
+  landGroupPopupVisible.value = false
+  clickedLandGroup.value = null
+  landGroupPolygonDrawer.resetAllLandGroupBorder()
+}
+
+/** 打开编辑地块弹窗（关闭信息弹窗，保留地块选中描边） */
+const onEditLand = (payload) => {
+  console.log('[Map] onEditLand', payload)
+  landPopupVisible.value = false
+  editingLand.value = payload || null
+  landEditPopupVisible.value = true
+}
+
+const onLandEditClose = () => {
+  landEditPopupVisible.value = false
+  editingLand.value = null
+}
+
+/** 返回地块信息弹窗 */
+const onLandEditBack = () => {
+  landEditPopupVisible.value = false
+  editingLand.value = null
+  if (clickedLand.value) {
+    landPopupVisible.value = true
+  }
+}
+
+/** 编辑地块区域：预留业务出口 */
+const onLandEditArea = (payload) => {
+  console.log('[Map] onLandEditArea 预留出口', payload)
+}
+
+/** 删除地块：确认后调用 DELETE /api/land-plot/{id}（对齐移动端 deleteLandHttp） */
+const onLandEditDelete = async (payload) => {
+  const landId = payload?.id ?? editingLand.value?.id
+  if (landId == null) {
+    ElMessage.warning('地块信息不完整，无法删除')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm('请确认是否删除地块？', '删除地块', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+
+  try {
+    await deleteLand(landId)
+    ElMessage.success('操作成功')
+    landEditPopupVisible.value = false
+    editingLand.value = null
+    landPopupVisible.value = false
+    clickedLand.value = null
+    landPolygonDrawer.resetAllLandBorder()
+    // 刷新农场 full，重绘地块/设备等资源
+    await getFarmInfoHttp()
+  } catch (e) {
+    // 业务错误（如 49980 地块下存在设备）已由 request 拦截器提示
+    console.error('[Map] 删除地块失败', e)
+  }
+}
+
+/** 保存地块：预留业务出口 */
+const onLandEditSave = (payload) => {
+  console.log('[Map] onLandEditSave 预留出口', payload)
+}
+
+/** 进入其它农场（对齐系统左上角切换农场） */
+const onEnterClickedFarm = (farm) => {
+  const target = farm || clickedFarm.value
+  if (!target?.id) return
+  if (
+    farmStore.selectFarm?.id != null &&
+    String(farmStore.selectFarm.id) === String(target.id)
+  ) {
+    onFarmPopupClose()
+    return
+  }
+  farmPopupVisible.value = false
+  farmStore.setSelectFarm(target)
+}
+
+/**
+ * 对齐移动端 syncDeviceRealStatus：把 status-by-farm 实时状态写入 waterDvList
+ */
+const syncDeviceRealStatus = (farmDeviceStatusList) => {
+  if (
+    !Array.isArray(waterDvList.value) ||
+    !waterDvList.value.length ||
+    !Array.isArray(farmDeviceStatusList) ||
+    !farmDeviceStatusList.length
+  ) {
+    return
+  }
+
+  farmDeviceStatusList.forEach((realDev) => {
+    const target = waterDvList.value.find(
+      (dev) => String(dev.id) === String(realDev.id)
+    )
+    if (!target) return
+
+    target.isOnline = realDev.isOnline
+    if (realDev.batteryPercent != null) {
+      target.batteryPercent = realDev.batteryPercent
+    }
+    if (realDev.name) target.name = realDev.name
+
+    if (!target.specificData) target.specificData = {}
+    if (!target.specificData.waterOutletPile) {
+      target.specificData.waterOutletPile = {
+        ...(realDev.waterOutletPile || {}),
+        ports: Array.isArray(realDev.waterOutletPile?.ports)
+          ? realDev.waterOutletPile.ports.map((p) => ({ ...p }))
+          : []
+      }
+      return
+    }
+
+    const originPorts = target.specificData.waterOutletPile.ports
+    const realPorts = realDev.waterOutletPile?.ports
+    if (!Array.isArray(originPorts) || !Array.isArray(realPorts)) return
+
+    realPorts.forEach((realPort) => {
+      const originPort = originPorts.find(
+        (p) => String(p.id) === String(realPort.id)
+      )
+      if (!originPort) return
+      originPort.currentOpening = realPort.currentOpening
+      originPort.pressure = realPort.pressure
+    })
+  })
+
+  // 同步 farmInfo.devices（与 waterDvList 可能同引用，再保险写一遍）
+  if (Array.isArray(farmInfo.value?.devices)) {
+    farmInfo.value.devices = waterDvList.value
+  }
+
+  waterDvMarkerDrawer.refreshWaterDvMarkerStatus(waterDvList.value, {
+    activeDvId: activeWaterDv.value?.id ?? null,
+    map: mapInstance.value,
+    layerOptions: layerOptions.value
+  })
+
+  if (waterDvPopupVisible.value && activeWaterDv.value?.id != null) {
+    const live = waterDvList.value.find(
+      (d) => String(d.id) === String(activeWaterDv.value.id)
+    )
+    waterDvPopupRef.value?.mergeFromFarmDevice?.(live)
+  }
+}
+
+/** 对齐移动端 getFarmDeviceStatusHttp */
+const getFarmDeviceStatusHttp = async () => {
+  const farmId =
+    farmStore.selectFarm?.id ?? farmInfo.value?.id ?? null
+  if (farmId == null || !mapInited.value) return
+
+  const requestId = ++farmDeviceStatusRequestId
+  try {
+    const res = await getFarmWaterOutletStatus(farmId)
+    if (requestId !== farmDeviceStatusRequestId) return
+    if (Array.isArray(res?.data)) {
+      syncDeviceRealStatus(res.data)
+    }
+  } catch (e) {
+    if (requestId !== farmDeviceStatusRequestId) return
+    console.warn('[Map] 获取农场出水桩状态失败', e)
+  }
+}
+
+const clearFarmDeviceStatusTimer = () => {
+  if (farmDeviceStatusTimer) {
+    clearInterval(farmDeviceStatusTimer)
+    farmDeviceStatusTimer = null
+  }
+  farmDeviceStatusRequestId += 1
+}
+
+/**
+ * 对齐移动端 getGroupListHttp：
+ * 写入 farmInfo.groupStatus，并把运行态注入 landGroupList 后重绘
+ */
+const syncLandGroupStatus = (groupListFromApi) => {
+  if (!farmInfo.value || !Array.isArray(groupListFromApi)) return
+
+  const groupStatus = {}
+  groupListFromApi.forEach((groupItem) => {
+    if (groupItem?.id == null) return
+    groupStatus[groupItem.id] = groupItem
+  })
+  farmInfo.value.groupStatus = groupStatus
+
+  if (!Array.isArray(landGroupList.value) || !landGroupList.value.length) {
+    return
+  }
+
+  landGroupList.value = landGroupList.value.map((landGroup) => {
+    const statusItem = groupListFromApi.find(
+      (item) => String(item.id) === String(landGroup.id)
+    )
+    if (!statusItem) return landGroup
+    return {
+      ...landGroup,
+      isRunning: statusItem.deviceRuntime?.isRunning || false,
+      protTotal: statusItem.protTotal,
+      portOpeningCnt: statusItem.portOpeningCnt,
+      deviceRuntime: statusItem.deviceRuntime,
+      deviceNexRunTime: statusItem.deviceNexRunTime,
+      name: statusItem.name || landGroup.name,
+      area: statusItem.area != null ? statusItem.area : landGroup.area
+    }
+  })
+
+  // 对齐移动端 render_updateLandGroupStatus → 重绘轮灌组
+  drawLandGroupPolygon()
+}
+
+/** 对齐移动端 getGroupListHttp */
+const getGroupListHttp = async () => {
+  const farmId = farmInfo.value?.id ?? farmStore.selectFarm?.id ?? null
+  if (farmId == null || !mapInited.value) return
+  // 农场详情未就绪时跳过（对齐移动端 if (!this.farmInfo) return）
+  if (!farmInfo.value) return
+
+  const requestId = ++farmGroupStatusRequestId
+  try {
+    const res = await getGroupList({ farmId }, { silent: true })
+    if (requestId !== farmGroupStatusRequestId) return
+    if (Array.isArray(res?.data)) {
+      syncLandGroupStatus(res.data)
+    }
+  } catch (e) {
+    if (requestId !== farmGroupStatusRequestId) return
+    console.warn('[Map] 获取轮灌组列表失败', e)
+  }
+}
+
+const clearFarmGroupStatusTimer = () => {
+  if (farmGroupStatusTimer) {
+    clearInterval(farmGroupStatusTimer)
+    farmGroupStatusTimer = null
+  }
+  farmGroupStatusRequestId += 1
+}
+
+/** 对齐移动端 setTimer 中的轮灌组 15s 轮询 */
+const setFarmGroupStatusTimer = () => {
+  clearFarmGroupStatusTimer()
+  if (!mapInited.value) return
+  if (farmStore.selectFarm?.id == null && farmInfo.value?.id == null) return
+
+  getGroupListHttp()
+  farmGroupStatusTimer = setInterval(() => {
+    if (farmInfo.value != null) {
+      getGroupListHttp()
+    }
+  }, FARM_GROUP_STATUS_POLL_MS)
+}
+
+/** 对齐移动端 setTimer：进入地图 / 切换农场后轮询 status-by-farm */
+const setFarmDeviceStatusTimer = () => {
+  clearFarmDeviceStatusTimer()
+  if (!mapInited.value) return
+  if (farmStore.selectFarm?.id == null && farmInfo.value?.id == null) return
+
+  getFarmDeviceStatusHttp()
+  farmDeviceStatusTimer = setInterval(() => {
+    if (farmInfo.value != null || farmStore.selectFarm?.id != null) {
+      getFarmDeviceStatusHttp()
+    }
+  }, FARM_DEVICE_STATUS_POLL_MS)
+}
+
+/** 启动地图侧实时状态轮询（出水桩 + 轮灌组） */
+const setMapStatusTimers = () => {
+  setFarmDeviceStatusTimer()
+  setFarmGroupStatusTimer()
+}
+
+const clearMapStatusTimers = () => {
+  clearFarmDeviceStatusTimer()
+  clearFarmGroupStatusTimer()
+}
 
 /** ---- 地图引擎状态（本地，不进 Store） ---- */
 const mapInstance = ref(null)
@@ -206,10 +830,9 @@ const farmInfo = ref(null)
 const waterDvList = ref([])
 const landList = ref([])
 const landGroupList = ref([])
-/** 图层勾选配置（默认全部显示；当前仅农场 Marker 已绘制并响应显隐） */
+/** 图层勾选配置（默认全部显示；农场不受缩放限制，地块/出水桩需 zoom≥13） */
 const layerOptions = ref(DEFAULT_LAYER_OPTIONS.map((item) => ({ ...item })))
 const layerPanelExpanded = ref(false)
-const selectedWaterDvIndex = ref(-1)
 /** 当前农场无地块提示弹窗（对齐移动端 noLandPop / pop_polt_empty） */
 const landEmptyVisible = ref(false)
 /** full 接口尚未返回、但地图已就绪时的占位；或农场切换时的防抖序号 */
@@ -261,6 +884,24 @@ const drawLandPolygon = () => {
   })
 }
 
+const drawLandGroupPolygon = () => {
+  if (!mapInstance.value || !mapInited.value) return
+  landGroupPolygonDrawer.drawLandGroupPolygon(
+    mapInstance.value,
+    landGroupList.value,
+    { layerOptions: layerOptions.value }
+  )
+}
+
+const drawAllWaterDvMarker = () => {
+  if (!mapInstance.value || !mapInited.value) return
+  waterDvMarkerDrawer.drawAllWaterDvMarker(
+    mapInstance.value,
+    waterDvList.value,
+    { layerOptions: layerOptions.value }
+  )
+}
+
 const refreshAllLayerVisible = () => {
   if (!mapInstance.value) return
   farmMarkerDrawer.refreshFarmLayerVisible(
@@ -269,6 +910,16 @@ const refreshAllLayerVisible = () => {
     true
   )
   landPolygonDrawer.refreshLandLayerVisible(
+    mapInstance.value,
+    layerOptions.value,
+    true
+  )
+  landGroupPolygonDrawer.refreshLandGroupLayerVisible(
+    mapInstance.value,
+    layerOptions.value,
+    true
+  )
+  waterDvMarkerDrawer.refreshWaterDvLayerVisible(
     mapInstance.value,
     layerOptions.value,
     true
@@ -283,14 +934,30 @@ const syncFarmListFromStore = () => {
 }
 
 const resetFarmMapResources = () => {
+  clearMapStatusTimers()
   farmInfo.value = null
   waterDvList.value = []
   landList.value = []
   landGroupList.value = []
   selectedWaterDvIndex.value = -1
+  waterDvPopupVisible.value = false
+  activeWaterDv.value = null
+  farmPopupVisible.value = false
+  farmPopupLoading.value = false
+  clickedFarm.value = null
+  clickedFarmDetail.value = null
+  landPopupVisible.value = false
+  clickedLand.value = null
+  landEditPopupVisible.value = false
+  editingLand.value = null
+  landGroupPopupVisible.value = false
+  clickedLandGroup.value = null
+  farmClickRequestId += 1
   farmStore.setFarmInfo(null)
   landEmptyVisible.value = false
   landPolygonDrawer.clearAllLandPolygon(mapInstance.value)
+  landGroupPolygonDrawer.clearAllLandGroupPolygon(mapInstance.value)
+  waterDvMarkerDrawer.clearWaterDvMark(mapInstance.value)
 }
 
 /**
@@ -335,10 +1002,14 @@ const clearUserLocationMark = () => {
 }
 
 const destroyMap = () => {
+  clearMapStatusTimers()
   clearUserLocationMark()
   farmMarkerDrawer.destroy(mapInstance.value)
   landPolygonDrawer.destroy(mapInstance.value)
+  landGroupPolygonDrawer.destroy(mapInstance.value)
+  waterDvMarkerDrawer.destroy(mapInstance.value)
   if (mapInstance.value) {
+    mapInstance.value.off('click', onMapBlankClick)
     mapInstance.value.off('zoomchange', refreshAllLayerVisible)
     mapInstance.value.destroy()
     mapInstance.value = null
@@ -348,11 +1019,14 @@ const destroyMap = () => {
   mapLoading.value = true
 }
 
+/** 进入地图 / 切换农场时适配视野层级 */
+const FARM_VIEW_ZOOM = 16
+
 const centerMapByFarm = (farm) => {
   if (!farm || !mapInstance.value) return
   const { longitude, latitude } = farm
   if (longitude != null && latitude != null) {
-    mapInstance.value.setZoomAndCenter(14, [longitude, latitude])
+    mapInstance.value.setZoomAndCenter(FARM_VIEW_ZOOM, [longitude, latitude])
   }
 }
 
@@ -364,6 +1038,32 @@ const handleZoomIn = () => {
 const handleZoomOut = () => {
   if (!mapInstance.value) return
   mapInstance.value.zoomOut()
+}
+
+/**
+ * 是否为业务覆盖物（农场/出水桩 Marker、地块/轮灌组 Polygon、中心 Text）
+ * 空白点击时 e.target 常为 Map 或卫星/标注 TileLayer，不能用 !== map 判断
+ */
+const isBusinessMapOverlay = (target) => {
+  if (!target || typeof window.AMap === 'undefined') return false
+  const AMap = window.AMap
+  return (
+    (AMap.Marker && target instanceof AMap.Marker) ||
+    (AMap.Polygon && target instanceof AMap.Polygon) ||
+    (AMap.Text && target instanceof AMap.Text) ||
+    (AMap.Polyline && target instanceof AMap.Polyline) ||
+    (AMap.Circle && target instanceof AMap.Circle)
+  )
+}
+
+/**
+ * 地图空白点击：取消选中（对齐移动端 map.on('click') → resetAllPopups）
+ * 点到业务覆盖物时不处理；缩放/图层等为页面 HTML，不会触发地图 click
+ */
+const onMapBlankClick = (e) => {
+  if (!mapInstance.value) return
+  if (isBusinessMapOverlay(e?.target)) return
+  resetAllPopups()
 }
 
 const toggleLayerPanel = () => {
@@ -410,10 +1110,10 @@ const drawUserPoint = (lng, lat) => {
   dom.style.cssText =
     'display:flex;flex-direction:column;align-items:center;pointer-events:none;transform:translateY(0);'
   dom.innerHTML = `
-    <div style="background:rgba(45,45,45,0.88);color:#fff;font-size:14px;line-height:1.2;padding:5px 10px;border-radius:4px;white-space:nowrap;margin-bottom:6px;box-shadow:0 2px 6px rgba(0,0,0,0.25);">
+    <div style="background:rgba(45,45,45,0.88);color:#fff;font-size:${px2rem(14)};line-height:1.2;padding:${px2rem(5)} ${px2rem(10)};border-radius:${px2rem(4)};white-space:nowrap;margin-bottom:${px2rem(6)};box-shadow:0 2px 6px rgba(0,0,0,0.25);">
       ${labelText}
     </div>
-    <img src="${locatePinIcon}" alt="" style="width:28px;height:36px;display:block;object-fit:contain;" />
+    <img src="${locatePinIcon}" alt="" style="width:${px2rem(28)};height:${px2rem(36)};max-width:none;display:block;object-fit:contain;" />
   `
 
   nowMark = new window.AMap.Marker({
@@ -475,6 +1175,7 @@ const getFarmInfoHttp = async (farmId) => {
   }
   if (!mapInited.value || !mapInstance.value) return null
 
+  clearMapStatusTimers()
   const requestId = ++fullInfoRequestId
   try {
     const fullData = await farmStore.fetchFarmFullInfo(id)
@@ -484,10 +1185,15 @@ const getFarmInfoHttp = async (farmId) => {
     centerMapByFarm(prepared.farmInfo || farmStore.selectFarm)
     drawAllFarmMarker()
     drawLandPolygon()
+    drawLandGroupPolygon()
+    drawAllWaterDvMarker()
+    // 对齐移动端 setTimer：full 就绪后轮询出水桩 + 轮灌组
+    setMapStatusTimers()
     return prepared
   } catch (e) {
     if (requestId !== fullInfoRequestId) return null
     console.error('获取农场详情失败', e)
+    clearMapStatusTimers()
     resetFarmMapResources()
     centerMapByFarm(farmStore.selectFarm)
     return null
@@ -557,6 +1263,8 @@ const initMap = () => {
     mapInstance.value.setFeatures(['point'])
 
     mapInstance.value.on('complete', onMapComplete)
+    // 空白点击取消业务图形选中态（对齐移动端 resetAllPopups）
+    mapInstance.value.on('click', onMapBlankClick)
     // 地块等图层：跟随缩放刷新显隐（zoom >= 13）
     mapInstance.value.on('zoomchange', refreshAllLayerVisible)
     return true
@@ -601,6 +1309,9 @@ const setupMap = async () => {
 const handleFarmChange = async (payload) => {
   syncFarmListFromStore()
 
+  // 切换农场时关闭未关的出水桩弹窗，并清除业务图形选中态
+  resetAllPopups()
+
   if (farmStore.isFarmEmpty) {
     destroyMap()
     mapError.value = ''
@@ -643,6 +1354,7 @@ watch(showMapContainer, (visible) => {
 
 onUnmounted(() => {
   offFarmChange?.()
+  clearMapStatusTimers()
   destroyMap()
   resetFarmMapResources()
 })
@@ -659,14 +1371,33 @@ defineExpose({
   landGroupList,
   layerOptions,
   selectedWaterDvIndex,
+  waterDvPopupVisible,
+  activeWaterDv,
+  farmPopupVisible,
+  clickedFarm,
+  clickedFarmDetail,
+  landPopupVisible,
+  clickedLand,
+  landEditPopupVisible,
+  editingLand,
+  landGroupPopupVisible,
+  clickedLandGroup,
   currentMapType,
   mapLoading,
   farmMarkerDrawer,
   landPolygonDrawer,
+  landGroupPolygonDrawer,
+  waterDvMarkerDrawer,
   drawAllFarmMarker,
   drawLandPolygon,
+  drawLandGroupPolygon,
+  drawAllWaterDvMarker,
   logic_farmClick,
   logic_landClick,
+  logic_landGroupClick,
+  logic_clickSingleWaterDv,
+  logic_waterDvDrawFinish,
+  resetAllPopups,
   handleLocate,
   drawUserPoint
 })

@@ -1,10 +1,15 @@
 import request from '../utils/request'
 
-export function getGroupList(data) {
+export function getGroupList(params = {}, config = {}) {
   return request({
     url: '/api/irrigation-group/list',
     method: 'GET',
-    params: data
+    params,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true
   })
 }
 
@@ -16,11 +21,17 @@ export function getGroupListByLandId(data) {
   })
 }
 
-export function getGroupDetail(data) {
+/** 轮灌组详情 GET /api/irrigation-group/{id} */
+export function getGroupDetail(id, config = {}) {
   return request({
-    url: '/api/irrigation-group',
+    url: `/api/irrigation-group/${id}`,
     method: 'GET',
-    params: data
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
   })
 }
 

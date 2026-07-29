@@ -2,6 +2,7 @@
  * 地块 Polygon / Text 绘制（对齐移动端 drawLandPolygon）
  * 本阶段只绘制图形，业务点击预留 logic_landClick 出口
  */
+import { px2rem } from '@/utils/rem'
 
 const LAND_MIN_SHOW_ZOOM = 13
 const LAND_TEXT_ZOOMS = [16, 26]
@@ -68,6 +69,7 @@ const calcAreaMu = (item, path) => {
 export function createLandPolygonDrawer(hooks = {}) {
   const landPolygonList = []
   const landTextList = []
+  let selectedLandIndex = -1
   let layerShowState = { land: null }
 
   const clearAllLandPolygon = (map) => {
@@ -89,7 +91,18 @@ export function createLandPolygonDrawer(hooks = {}) {
     })
     landPolygonList.length = 0
     landTextList.length = 0
+    selectedLandIndex = -1
     layerShowState = { land: null }
+  }
+
+  const resetAllLandBorder = () => {
+    selectedLandIndex = -1
+    landPolygonList.forEach((poly) => {
+      poly.setOptions({
+        strokeColor: '#ffffff',
+        strokeWeight: 1
+      })
+    })
   }
 
   const refreshLandLayerVisible = (map, layerOptions = [], force = false) => {
@@ -152,14 +165,14 @@ export function createLandPolygonDrawer(hooks = {}) {
         zooms: LAND_TEXT_ZOOMS,
         style: {
           color: '#ffffff',
-          fontSize: '10px',
+          fontSize: px2rem(10),
           fontWeight: '500',
           textAlign: 'center',
           verticalAlign: 'middle',
           backgroundColor: 'transparent',
           border: 'none',
           textShadow: '0 0 4px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.8)',
-          lineHeight: '22px',
+          lineHeight: px2rem(22),
           padding: '0'
         },
         zIndex: 101,
@@ -179,7 +192,14 @@ export function createLandPolygonDrawer(hooks = {}) {
           clickHandled = false
         }, 100)
 
-        // 预留业务出口：地块弹窗 / 选中描边等后续处理
+        resetAllLandBorder()
+        selectedLandIndex = index
+        polygon.setOptions({
+          strokeColor: '#007aff',
+          strokeWeight: 4
+        })
+
+        // 预留业务出口：地块弹窗等后续处理
         hooks.onLandClick?.(item, index)
       }
 
@@ -197,7 +217,11 @@ export function createLandPolygonDrawer(hooks = {}) {
   return {
     landPolygonList,
     landTextList,
+    get selectedLandIndex() {
+      return selectedLandIndex
+    },
     clearAllLandPolygon,
+    resetAllLandBorder,
     drawLandPolygon,
     refreshLandLayerVisible,
     destroy

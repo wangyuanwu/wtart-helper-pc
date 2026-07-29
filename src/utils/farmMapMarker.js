@@ -1,5 +1,6 @@
 import farmMarkerSelect from '@/assets/map/farm-marker-select.svg'
 import farmMarkerNormal from '@/assets/map/farm-marker-normal.svg'
+import { px2rem } from '@/utils/rem'
 
 /** 农场 Marker 图标：选中=组4433，普通=组4434 */
 export const FARM_MARKER_IMAGES = {
@@ -57,7 +58,6 @@ export function createFarmMarkerDrawer(hooks = {}) {
           ? FARM_MARKER_IMAGES.select
           : FARM_MARKER_IMAGES.normal
       }
-      // 当前农场初始放大；其它农场默认尺寸（点击放大由点击逻辑处理）
       dom.style.transform = isActive ? 'scale(1.1)' : 'scale(1)'
       if (infoCard) infoCard.style.display = 'none'
     })
@@ -66,7 +66,6 @@ export function createFarmMarkerDrawer(hooks = {}) {
   const refreshFarmLayerVisible = (map, layerOptions = [], force = false) => {
     if (!map) return
     const farmShow = getLayerVisible(layerOptions, 'farm', true)
-    // force：重绘后必须按当前勾选重新同步，避免「隐藏态下新建 Marker 仍挂到地图」
     if (!force && farmShow === layerShowState.farm) return
 
     layerShowState.farm = farmShow
@@ -86,7 +85,6 @@ export function createFarmMarkerDrawer(hooks = {}) {
     const markerImg = isActive
       ? FARM_MARKER_IMAGES.select
       : FARM_MARKER_IMAGES.normal
-    // 当前农场初始 scale(1.1)，其它农场 scale(1)
     const initScale = isActive ? 'scale(1.1)' : 'scale(1)'
 
     const ICON_SIZE = farmMarkerSize
@@ -97,11 +95,12 @@ export function createFarmMarkerDrawer(hooks = {}) {
     const totalAreaMu = farmItem.totalAreaMu || '0.00'
     const deviceCount = farmItem.deviceCount ?? 0
 
+    // 内联 style 需 px2rem，与弹窗等 CSS（postcss-pxtorem）同尺度
     const dom = document.createElement('div')
     dom.style.cssText = [
       'position:relative',
-      `width:${Math.max(ICON_SIZE, 120)}px`,
-      `height:${ICON_SIZE + Math.abs(LABEL_GAP) + LABEL_FONT_SIZE}px`,
+      `width:${px2rem(Math.max(ICON_SIZE, 120))}`,
+      `height:${px2rem(ICON_SIZE + Math.abs(LABEL_GAP) + LABEL_FONT_SIZE)}`,
       'cursor:pointer',
       'transition:0.2s',
       'z-index:15000',
@@ -120,10 +119,10 @@ export function createFarmMarkerDrawer(hooks = {}) {
     const iconContainer = document.createElement('div')
     iconContainer.style.cssText = [
       'position:relative',
-      `width:${ICON_SIZE + 20}px`,
-      `height:${ICON_SIZE}px`,
-      `margin-top:${ANCHOR_OFFSET_Y}px`,
-      `margin-bottom:${LABEL_GAP}px`,
+      `width:${px2rem(ICON_SIZE + 20)}`,
+      `height:${px2rem(ICON_SIZE)}`,
+      `margin-top:${px2rem(ANCHOR_OFFSET_Y)}`,
+      `margin-bottom:${px2rem(LABEL_GAP)}`,
       'display:flex !important',
       'align-items:center',
       'justify-content:center',
@@ -131,17 +130,17 @@ export function createFarmMarkerDrawer(hooks = {}) {
     ].join(';')
 
     iconContainer.innerHTML = `
-      <img class="farm-marker-img" src="${markerImg}" style="width:${ICON_SIZE}px;height:${ICON_SIZE}px;object-fit:contain;pointer-events:none;visibility:visible !important;display:block !important;">
-      <div class="farm-info-card" style="display:none;position:absolute;bottom:110%;left:50%;transform:translateX(-50%);background:#fff;border-radius:6px;overflow:hidden;width:fit-content;white-space:nowrap;z-index:100000;">
-        <div style="background-color:#3377ff;color:#fff;font-size:12px;font-weight:bold;text-align:center;padding:5px 12px;">
-          ${farmItem.name || '未知农场'}
+      <img class="farm-marker-img" src="${markerImg}" style="width:${px2rem(ICON_SIZE)};height:${px2rem(ICON_SIZE)};max-width:none;object-fit:contain;pointer-events:none;visibility:visible !important;display:block !important;">
+      <div class="farm-info-card" style="display:none;position:absolute;bottom:110%;left:50%;transform:translateX(-50%);background:#fff;border-radius:${px2rem(6)};overflow:hidden;width:fit-content;white-space:nowrap;z-index:100000;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+        <div class="farm-info-card-title" style="background-color:#3377ff;color:#fff;font-size:${px2rem(12)};font-weight:bold;text-align:center;padding:${px2rem(5)} ${px2rem(12)};">
+          ${isActive ? '当前农场' : farmItem.name || '未知农场'}
         </div>
-        <div style="display:flex;justify-content:space-between;padding:6px 12px;gap:16px;line-height:1.4;">
-          <div style="font-size:12px;color:#333;">
-            面积 <span style="font-weight:600;">${totalAreaMu}亩</span>
+        <div style="display:flex;justify-content:space-between;padding:${px2rem(6)} ${px2rem(12)};gap:${px2rem(16)};line-height:1.4;">
+          <div style="font-size:${px2rem(12)};color:#333;">
+            面积 <span class="farm-info-card-area" style="font-weight:600;">${totalAreaMu}亩</span>
           </div>
-          <div style="font-size:12px;color:#333;">
-            设备 <span style="font-weight:600;">${deviceCount}个</span>
+          <div style="font-size:${px2rem(12)};color:#333;">
+            设备 <span class="farm-info-card-device" style="font-weight:600;">${deviceCount}个</span>
           </div>
         </div>
       </div>
@@ -154,14 +153,14 @@ export function createFarmMarkerDrawer(hooks = {}) {
       'padding:0',
       'border:none',
       'background:transparent',
-      `font-size:${LABEL_FONT_SIZE}px`,
+      `font-size:${px2rem(LABEL_FONT_SIZE)}`,
       'font-weight:500',
       'z-index:15000',
       'color:#ffffff',
       'white-space:nowrap',
       'text-align:center !important',
-      `line-height:${LABEL_FONT_SIZE}px !important`,
-      `height:${LABEL_FONT_SIZE}px !important`,
+      `line-height:${px2rem(LABEL_FONT_SIZE)} !important`,
+      `height:${px2rem(LABEL_FONT_SIZE)} !important`,
       'text-shadow:0 0 4px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.8)',
       'letter-spacing:0.5px',
       'pointer-events:none',
@@ -179,27 +178,68 @@ export function createFarmMarkerDrawer(hooks = {}) {
       clickable: true,
       visible: true
     })
+    marker.__farmId = farmItem.id
 
     iconContainer.addEventListener('click', (e) => {
       e.stopImmediatePropagation()
       e.preventDefault()
 
-      // 图标始终按「当前选中农场」决定，点击其他农场不切换选中资源
       resetAllFarmMarkers(options.farmList || [], currentSelectFarmId)
 
-      // 当前农场点击 → 1.2；其它农场点击 → 1.1
       const clickScale =
         farmItem.id === currentSelectFarmId ? 'scale(1.2)' : 'scale(1.1)'
       marker.setzIndex(100000)
       dom.style.zIndex = '100000'
       dom.style.transform = clickScale
 
-      // 预留业务出口：农场弹窗等后续在此处理
+      const infoCard = dom.querySelector('.farm-info-card')
+      if (infoCard) infoCard.style.display = 'block'
+
       hooks.onFarmClick?.(farmItem)
     })
 
     marker.setMap(map)
     return marker
+  }
+
+  /** 更新指定农场轻量信息卡标题/面积/设备数 */
+  const updateFarmInfoCard = (farmId, payload = {}) => {
+    const marker = farmMarkers.find(
+      (m) => String(m.__farmId) === String(farmId)
+    )
+    if (!marker) return
+    const dom = marker.getContent?.()
+    if (!dom) return
+
+    const titleEl = dom.querySelector('.farm-info-card-title')
+    const areaEl = dom.querySelector('.farm-info-card-area')
+    const deviceEl = dom.querySelector('.farm-info-card-device')
+
+    if (titleEl && payload.title != null) {
+      titleEl.textContent = payload.title
+    }
+    if (areaEl && payload.totalAreaMu != null) {
+      areaEl.textContent = `${payload.totalAreaMu}亩`
+    }
+    if (deviceEl && payload.deviceCount != null) {
+      deviceEl.textContent = `${payload.deviceCount}个`
+    }
+    if (payload.visible) {
+      const infoCard = dom.querySelector('.farm-info-card')
+      if (infoCard) infoCard.style.display = 'block'
+    }
+  }
+
+  const showFarmInfoCard = (farmId) => {
+    updateFarmInfoCard(farmId, { visible: true })
+  }
+
+  const hideAllFarmInfoCards = () => {
+    farmMarkers.forEach((marker) => {
+      const dom = marker.getContent?.()
+      const infoCard = dom?.querySelector('.farm-info-card')
+      if (infoCard) infoCard.style.display = 'none'
+    })
   }
 
   const drawAllFarmMarker = (map, farmList = [], options = {}) => {
@@ -265,6 +305,9 @@ export function createFarmMarkerDrawer(hooks = {}) {
     drawAllFarmMarker,
     resetAllFarmMarkers,
     refreshFarmLayerVisible,
+    updateFarmInfoCard,
+    showFarmInfoCard,
+    hideAllFarmInfoCards,
     destroy
   }
 }

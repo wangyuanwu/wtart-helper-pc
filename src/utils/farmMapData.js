@@ -97,11 +97,14 @@ export function prepareFarmMapResources(fullData) {
     .filter((item) => item.areaJson && item.areaJson !== '')
     .map((item) => {
       const areaObj = parseAreaJson(item.areaJson)
+      const areaSqm = Number(item.area) || 0
       return {
         id: item.id,
         name: item.name,
         landPoint: areaObj.landPoint,
-        fillColor: areaObj.fillColor
+        fillColor: areaObj.fillColor,
+        area: item.area,
+        areaMu: areaSqm ? (areaSqm / 666.67).toFixed(2) : undefined
       }
     })
 
