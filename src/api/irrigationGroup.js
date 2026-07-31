@@ -58,18 +58,20 @@ export function deleteGroup(id) {
   })
 }
 
-export function openAllWaterDv(data) {
+export function openAllWaterDv(data, config = {}) {
   return request({
     url: '/api/irrigation-group/batch-open',
     method: 'POST',
-    data
+    data,
+    silent: config.silent === true
   })
 }
 
-export function closeAllWaterDv(data) {
+export function closeAllWaterDv(data, config = {}) {
   return request({
     url: '/api/irrigation-group/batch-close',
     method: 'POST',
-    data
+    data,
+    silent: config.silent === true
   })
 }

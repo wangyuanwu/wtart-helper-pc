@@ -23,7 +23,7 @@
         面积 {{ areaText }}亩
       </span>
       <span class="land-group-popup__meta-item">
-        <i class="iconfont icon-map_ic_restore"></i>
+        <el-icon class="land-group-popup__sync-icon"><Refresh /></el-icon>
         同步: {{ syncTimeText }}
       </span>
     </div>
@@ -40,7 +40,7 @@
           :disabled="syncing"
           @click="onSync(true)"
         >
-          <i class="iconfont icon-map_ic_restore"></i>
+          <el-icon class="land-group-popup__sync-btn-icon"><RefreshRight /></el-icon>
           立即同步
         </button>
         <button
@@ -85,7 +85,8 @@
 
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Refresh, RefreshRight } from '@element-plus/icons-vue'
 import {
   closeAllWaterDv,
   getGroupDetail,
@@ -120,6 +121,14 @@ let runTickTimer = null
 let detailRequestId = 0
 
 const GROUP_DETAIL_POLL_MS = 3000
+/** 批量操作后锁定秒数（对齐移动端 lockTime: 10） */
+const BATCH_LOCK_SECONDS = 10
+/** 计入「已打开」端口的 valveAction（对齐移动端 pop_group_info） */
+const OPEN_VALVE_ACTIONS = [0, 1, 3, 5, 7, 9, 11, 13]
+
+let lockUntil = 0
+/** 操作锁期间保持批量按钮方向，避免轮询覆盖 */
+const batchSwitchLocked = ref(null)
 
 const displayName = computed(
   () => groupDetail.value?.name || props.group?.name || '未命名轮灌组'
@@ -137,11 +146,17 @@ const portCountText = computed(
   () => `${openPortCount.value}/${totalPortCount.value}`
 )
 
-/** true=当前应显示「批量关」（有开度或运行中） */
+/** true=当前应显示「批量关」（有开度或运行中）；锁定期内保持用户操作方向 */
 const batchIsClose = computed(() => {
+  if (lockUntil > Date.now() && batchSwitchLocked.value != null) {
+    return batchSwitchLocked.value
+  }
   const running = !!groupDetail.value?.deviceRuntime?.isRunning
   return openPortCount.value > 0 || running
 })
+
+const isAutoIrrigation = (tiggerObject) =>
+  tiggerObject == 2 || tiggerObject == 3
 
 const pad2 = (n) => String(n).padStart(2, '0')
 
@@ -182,7 +197,7 @@ const calcRunTime = (startUtc) => {
 }
 
 /**
- * 启动方式文案（对齐移动端 getRunText，文案按 PC 设计：手动启动/定时启动）
+ * 启动方式文案（对齐移动端 pop_group_info getRunText；PC 文案按设计稿）
  */
 const getRunText = (item) => {
   if (!item) return '--'
@@ -190,7 +205,7 @@ const getRunText = (item) => {
     if (!src) return null
     const tiggerObject = src.tiggerObject
     const mode = src.mode
-    if (tiggerObject == 3) return '自动轮灌'
+    if (isAutoIrrigation(tiggerObject)) return '自动轮灌'
     if (mode == 0) return '手动启动'
     if (mode == 1) return '定时启动'
     return null
@@ -256,7 +271,7 @@ const infoItems = computed(() => {
     })
   }
 
-  if (isRunning) {
+  if (isRunning && openPortCount.value > 0) {
     items.push({
       key: 'duration',
       label: '灌溉时长',
@@ -274,7 +289,7 @@ const infoItems = computed(() => {
     })
   }
 
-  if (tiggerObject == 3 && programName) {
+  if (isAutoIrrigation(tiggerObject) && programName) {
     items.push({
       key: 'program',
       label: '轮灌程序',
@@ -295,6 +310,13 @@ const infoItems = computed(() => {
   return items
 })
 
+const isPortCountAsOpen = (pile, port) => {
+  if (Number(port?.currentOpening) <= 0) return false
+  const valveAction = pile?.waterOutletPile?.valveAction
+  if (valveAction == null) return true
+  return OPEN_VALVE_ACTIONS.includes(valveAction)
+}
+
 const applyPortStats = (detail) => {
   let total = 0
   let open = 0
@@ -303,11 +325,21 @@ const applyPortStats = (detail) => {
     const ports = pile?.waterOutletPile?.ports || []
     ports.forEach((port) => {
       total += 1
-      if (Number(port.currentOpening) > 0) open += 1
+      if (isPortCountAsOpen(pile, port)) open += 1
     })
   })
   totalPortCount.value = total
   openPortCount.value = open
+}
+
+const clearBatchLock = () => {
+  lockUntil = 0
+  batchSwitchLocked.value = null
+}
+
+const setBatchLock = (switchClose) => {
+  lockUntil = Date.now() + BATCH_LOCK_SECONDS * 1000
+  batchSwitchLocked.value = switchClose
 }
 
 const clearDetailPoll = () => {
@@ -347,6 +379,10 @@ const fetchGroupDetail = async ({ showLoading = false, silent = true } = {}) => 
     groupDetail.value = res?.data || null
     applyPortStats(groupDetail.value)
     syncTimeText.value = formatNowHms()
+    // 端口数始终更新；锁定期结束后恢复由接口驱动的批量按钮方向
+    if (!(lockUntil > Date.now())) {
+      batchSwitchLocked.value = null
+    }
     ensureRunTick()
   } catch (e) {
     if (requestId !== detailRequestId) return
@@ -376,18 +412,50 @@ const onSync = (manual = true) => {
 const onBatchToggle = async () => {
   const id = groupDetail.value?.id || props.group?.id
   if (id == null || batchLoading.value) return
+  if (lockUntil > Date.now()) return
 
+  const prevClose = batchIsClose.value
+  const optimisticClose = !prevClose
+  setBatchLock(optimisticClose)
   batchLoading.value = true
+
   try {
-    if (batchIsClose.value) {
-      await closeAllWaterDv({ id })
+    if (prevClose) {
+      await closeAllWaterDv({ id, force: false }, { silent: true })
     } else {
-      await openAllWaterDv({ groupId: id, openingType: 0 })
+      await openAllWaterDv({ groupId: id, openingType: 0 }, { silent: true })
     }
     ElMessage.success('操作成功')
+    setBatchLock(optimisticClose)
     await fetchGroupDetail({ silent: true })
   } catch (e) {
-    console.error('[Map] 轮灌组批量开关失败', e)
+    const code = e?.code
+    if (prevClose && code === 40102) {
+      try {
+        await ElMessageBox.confirm(
+          `${e?.message || '关闭失败'}，是否强制关闭？`,
+          '提示',
+          {
+            confirmButtonText: '强制关闭',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        )
+        setBatchLock(false)
+        await closeAllWaterDv({ id, force: true }, { silent: true })
+        ElMessage.success('操作成功')
+        setBatchLock(false)
+        await fetchGroupDetail({ silent: true })
+        return
+      } catch {
+        clearBatchLock()
+        batchSwitchLocked.value = prevClose
+      }
+    } else {
+      clearBatchLock()
+      batchSwitchLocked.value = prevClose
+      console.error('[Map] 轮灌组批量开关失败', e)
+    }
   } finally {
     batchLoading.value = false
   }
@@ -401,6 +469,7 @@ const onClose = () => {
 const resetState = () => {
   clearDetailPoll()
   clearRunTick()
+  clearBatchLock()
   groupDetail.value = null
   loading.value = false
   syncing.value = false
@@ -421,6 +490,7 @@ watch(
         syncTimeText.value = '--'
         openPortCount.value = 0
         totalPortCount.value = 0
+        clearBatchLock()
       }
       startDetailPoll()
     } else {
@@ -513,7 +583,7 @@ defineExpose({
   gap: 4px;
 }
 
-.land-group-popup__meta-item .iconfont {
+.land-group-popup__meta-item .land-group-popup__sync-icon {
   color: #2f6bff;
   font-size: 14px;
 }
@@ -559,7 +629,7 @@ defineExpose({
   cursor: not-allowed;
 }
 
-.land-group-popup__sync .iconfont {
+.land-group-popup__sync .land-group-popup__sync-btn-icon {
   font-size: 15px;
 }
 

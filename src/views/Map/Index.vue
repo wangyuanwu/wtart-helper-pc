@@ -1,7 +1,6 @@
 <template>
   <div class="map-page">
-    <FarmEmpty v-if="showFarmEmpty" />
-    <template v-else-if="showMapContainer">
+    <template v-if="showMapContainer">
       <div id="map-container" class="map-container"></div>
       <div class="map-toolbar">
         <div class="map-zoom-controls">
@@ -105,6 +104,7 @@
       <LandEmptyDialog
         v-model="landEmptyVisible"
         @create="handleCreateLand"
+        @close="onLandEmptyClose"
       />
       <WaterDvPopup
         ref="waterDvPopupRef"
@@ -148,14 +148,14 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useFarmStore } from '@/store/farm'
-import { prepareFarmMapResources } from '@/utils/farmMapData'
+import { parseAreaJson, prepareFarmMapResources, formatAreaMu } from '@/utils/farmMapData'
 import { createFarmMarkerDrawer } from '@/utils/farmMapMarker'
 import { createLandPolygonDrawer } from '@/utils/farmMapLand'
 import { createLandGroupPolygonDrawer } from '@/utils/farmMapLandGroup'
 import { createWaterDvMarkerDrawer } from '@/utils/farmMapWaterDv'
-import FarmEmpty from './FarmEmpty.vue'
 import LandEmptyDialog from './LandEmptyDialog.vue'
 import WaterDvPopup from './WaterDvPopup.vue'
 import FarmPopup from './FarmPopup.vue'
@@ -166,7 +166,7 @@ import locatePinIcon from '@/assets/map/locate-pin.png'
 import { px2rem } from '@/utils/rem'
 import { getFarmWaterOutletStatus } from '@/api/device'
 import { getGroupList } from '@/api/irrigationGroup'
-import { deleteLand, getFarmInfo } from '@/api/map'
+import { deleteLand, getFarmInfo, updateLand } from '@/api/map'
 
 /** 默认图层配置：进入地图全部勾选显示，不受缩放级别限制 */
 const DEFAULT_LAYER_OPTIONS = [
@@ -215,6 +215,7 @@ const DEFAULT_LAYER_OPTIONS = [
 ]
 
 const farmStore = useFarmStore()
+const router = useRouter()
 
 const selectedWaterDvIndex = ref(-1)
 /** 出水桩弹窗（对齐移动端 pop_device_control） */
@@ -552,9 +553,59 @@ const onLandEditBack = () => {
   }
 }
 
-/** 编辑地块区域：预留业务出口 */
+/** 从 farmInfo / 弹窗载荷解析完整地块原始数据 */
+const resolveEditingLandRaw = (payload) => {
+  const id = payload?.id ?? editingLand.value?.id
+  if (id == null) return null
+  const fromFarm = farmInfo.value?.lands?.find(
+    (item) => String(item.id) === String(id)
+  )
+  return fromFarm || payload?.land || editingLand.value?.land || null
+}
+
+/** 写入 Store，供圈地页 edit 模式读取（对齐移动端 vuex_land） */
+const buildLandStorePayload = (payload) => {
+  const raw = resolveEditingLandRaw(payload)
+  if (!raw?.id) return null
+  const areaObj = parseAreaJson(raw.areaJson)
+  const name =
+    payload?.name?.trim() || raw.name || editingLand.value?.name || ''
+  return {
+    id: raw.id,
+    name,
+    landName: name,
+    area: raw.area,
+    areaMu: formatAreaMu(raw.area) ?? payload?.areaMu,
+    areaJson: raw.areaJson,
+    address: raw.address || '',
+    longitude: raw.longitude,
+    latitude: raw.latitude,
+    coordinateType: raw.coordinateType ?? 1,
+    deviceIds: raw.deviceIds || [],
+    landPoint: areaObj.landPoint,
+    fillColor: areaObj.fillColor,
+    lng: raw.longitude,
+    lat: raw.latitude
+  }
+}
+
+/** 编辑地块区域 → 圈地页（对齐移动端 onClickArea → map-edit-plot?type=edit&landId=） */
 const onLandEditArea = (payload) => {
-  console.log('[Map] onLandEditArea 预留出口', payload)
+  const landDraft = buildLandStorePayload(payload)
+  if (!landDraft?.id) {
+    ElMessage.warning('地块信息不完整，无法编辑区域')
+    return
+  }
+  farmStore.setLand(landDraft)
+  landEditPopupVisible.value = false
+  editingLand.value = null
+  landPopupVisible.value = false
+  clickedLand.value = null
+  landPolygonDrawer.resetAllLandBorder()
+  router.push({
+    path: '/map/edit-plot',
+    query: { type: 'edit', landId: String(landDraft.id) }
+  })
 }
 
 /** 删除地块：确认后调用 DELETE /api/land-plot/{id}（对齐移动端 deleteLandHttp） */
@@ -591,9 +642,49 @@ const onLandEditDelete = async (payload) => {
   }
 }
 
-/** 保存地块：预留业务出口 */
-const onLandEditSave = (payload) => {
-  console.log('[Map] onLandEditSave 预留出口', payload)
+/** 保存地块名称（对齐移动端 add-edit-land updateLandHttp，仅更新名称等元数据） */
+const onLandEditSave = async (payload) => {
+  const name = payload?.name?.trim()
+  if (!name) {
+    ElMessage.warning('请输入地块名称')
+    return
+  }
+  const raw = resolveEditingLandRaw(payload)
+  if (!raw?.id) {
+    ElMessage.warning('地块信息不完整，无法保存')
+    return
+  }
+  const farmId = farmStore.selectFarm?.id
+  if (farmId == null) {
+    ElMessage.warning('请先选择农场')
+    return
+  }
+
+  try {
+    const res = await updateLand({
+      id: raw.id,
+      farmId,
+      name,
+      area: raw.area,
+      areaJson: raw.areaJson,
+      address: raw.address || '',
+      longitude: raw.longitude,
+      latitude: raw.latitude,
+      coordinateType: raw.coordinateType ?? 1,
+      deviceIds: raw.deviceIds || []
+    })
+    if (res?.code === 200) {
+      ElMessage.success('操作成功')
+      landEditPopupVisible.value = false
+      editingLand.value = null
+      landPopupVisible.value = false
+      clickedLand.value = null
+      landPolygonDrawer.resetAllLandBorder()
+      await getFarmInfoHttp()
+    }
+  } catch (e) {
+    console.error('[Map] 保存地块失败', e)
+  }
 }
 
 /** 进入其它农场（对齐系统左上角切换农场） */
@@ -730,6 +821,8 @@ const syncLandGroupStatus = (groupListFromApi) => {
       (item) => String(item.id) === String(landGroup.id)
     )
     if (!statusItem) return landGroup
+    const area =
+      statusItem.area != null ? statusItem.area : landGroup.area
     return {
       ...landGroup,
       isRunning: statusItem.deviceRuntime?.isRunning || false,
@@ -738,7 +831,8 @@ const syncLandGroupStatus = (groupListFromApi) => {
       deviceRuntime: statusItem.deviceRuntime,
       deviceNexRunTime: statusItem.deviceNexRunTime,
       name: statusItem.name || landGroup.name,
-      area: statusItem.area != null ? statusItem.area : landGroup.area
+      area,
+      areaMu: formatAreaMu(area) ?? landGroup.areaMu
     }
   })
 
@@ -835,13 +929,11 @@ const layerOptions = ref(DEFAULT_LAYER_OPTIONS.map((item) => ({ ...item })))
 const layerPanelExpanded = ref(false)
 /** 当前农场无地块提示弹窗（对齐移动端 noLandPop / pop_polt_empty） */
 const landEmptyVisible = ref(false)
+/** 用户关闭/去新建后，同农场本次停留不再强制弹出无地块提示 */
+let landEmptyDismissedFarmId = null
 /** full 接口尚未返回、但地图已就绪时的占位；或农场切换时的防抖序号 */
 let fullInfoRequestId = 0
 let offFarmChange = null
-
-const showFarmEmpty = computed(
-  () => !farmStore.isFarmLoading && farmStore.isFarmEmpty
-)
 
 const showMapContainer = computed(
   () => !farmStore.isFarmLoading && !farmStore.isFarmEmpty
@@ -955,6 +1047,7 @@ const resetFarmMapResources = () => {
   farmClickRequestId += 1
   farmStore.setFarmInfo(null)
   landEmptyVisible.value = false
+  landEmptyDismissedFarmId = null
   landPolygonDrawer.clearAllLandPolygon(mapInstance.value)
   landGroupPolygonDrawer.clearAllLandGroupPolygon(mapInstance.value)
   waterDvMarkerDrawer.clearWaterDvMark(mapInstance.value)
@@ -972,19 +1065,38 @@ const applyFarmFullResources = (fullData) => {
   farmStore.setFarmInfo(prepared.farmInfo)
   attachFarmStatsToList(prepared)
 
-  // 对齐移动端：lands 为空时弹出无地块提示
+  // 对齐移动端：lands 为空时弹出无地块提示（用户关闭后，同农场本次停留不再强制弹出）
   if (prepared.hasNoLand) {
-    landEmptyVisible.value = true
+    const farmId = prepared.farmInfo?.id ?? farmStore.selectFarm?.id
+    if (
+      farmId == null ||
+      String(landEmptyDismissedFarmId) !== String(farmId)
+    ) {
+      landEmptyVisible.value = true
+    }
   } else {
     landEmptyVisible.value = false
+    landEmptyDismissedFarmId = null
   }
 
   return prepared
 }
 
-/** 预留：跳转新建地块（对齐移动端 toAddLand） */
+/** 跳转新建地块（对齐移动端 toAddLand → map-edit-plot?type=add） */
 const handleCreateLand = () => {
-  console.log('[Map] 新建地块预留出口')
+  markLandEmptyDismissed()
+  landEmptyVisible.value = false
+  router.push({ path: '/map/edit-plot', query: { type: 'add' } })
+}
+
+/** 用户关闭无地块弹窗后，记录当前农场，避免轮询 full 再次强制打开 */
+const markLandEmptyDismissed = () => {
+  landEmptyDismissedFarmId =
+    farmStore.selectFarm?.id ?? farmInfo.value?.id ?? null
+}
+
+const onLandEmptyClose = () => {
+  markLandEmptyDismissed()
 }
 
 const clearUserLocationMark = () => {
@@ -1021,13 +1133,40 @@ const destroyMap = () => {
 
 /** 进入地图 / 切换农场时适配视野层级 */
 const FARM_VIEW_ZOOM = 16
+const DEFAULT_MAP_CENTER = [116.397428, 39.90923]
 
-const centerMapByFarm = (farm) => {
+/** 解析农场经纬度，无效则返回 null */
+const resolveFarmLngLat = (farm) => {
+  if (!farm) return null
+  const longitude = Number(farm.longitude)
+  const latitude = Number(farm.latitude)
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null
+  return [longitude, latitude]
+}
+
+/**
+ * 定位到农场视野。
+ * skipIfSame：坐标/缩放已接近目标时跳过，避免进入地图后 full 返回再 setZoomAndCenter 触发瓦片重载白闪。
+ */
+const centerMapByFarm = (farm, { skipIfSame = false } = {}) => {
   if (!farm || !mapInstance.value) return
-  const { longitude, latitude } = farm
-  if (longitude != null && latitude != null) {
-    mapInstance.value.setZoomAndCenter(FARM_VIEW_ZOOM, [longitude, latitude])
+  const lngLat = resolveFarmLngLat(farm)
+  if (!lngLat) return
+
+  if (skipIfSame) {
+    const currentZoom = mapInstance.value.getZoom?.()
+    const currentCenter = mapInstance.value.getCenter?.()
+    if (
+      currentCenter &&
+      Math.abs(currentZoom - FARM_VIEW_ZOOM) < 0.05 &&
+      Math.abs(currentCenter.lng - lngLat[0]) < 1e-5 &&
+      Math.abs(currentCenter.lat - lngLat[1]) < 1e-5
+    ) {
+      return
+    }
   }
+
+  mapInstance.value.setZoomAndCenter(FARM_VIEW_ZOOM, lngLat)
 }
 
 const handleZoomIn = () => {
@@ -1182,7 +1321,10 @@ const getFarmInfoHttp = async (farmId) => {
     if (requestId !== fullInfoRequestId) return null
 
     const prepared = applyFarmFullResources(fullData)
-    centerMapByFarm(prepared.farmInfo || farmStore.selectFarm)
+    // 进入页时 initMap 已用 selectFarm 定位；坐标未变则跳过，避免瓦片重载白闪
+    centerMapByFarm(prepared.farmInfo || farmStore.selectFarm, {
+      skipIfSame: true
+    })
     drawAllFarmMarker()
     drawLandPolygon()
     drawLandGroupPolygon()
@@ -1195,7 +1337,7 @@ const getFarmInfoHttp = async (farmId) => {
     console.error('获取农场详情失败', e)
     clearMapStatusTimers()
     resetFarmMapResources()
-    centerMapByFarm(farmStore.selectFarm)
+    centerMapByFarm(farmStore.selectFarm, { skipIfSame: true })
     return null
   }
 }
@@ -1247,10 +1389,16 @@ const initMap = () => {
             visible: true
           })
 
+    const farmLngLat =
+      resolveFarmLngLat(farmStore.selectFarm) ||
+      resolveFarmLngLat(farmStore.s_selectFarm)
+    const initialCenter = farmLngLat || DEFAULT_MAP_CENTER
+    const initialZoom = farmLngLat ? FARM_VIEW_ZOOM : 14
+
     mapInstance.value = new window.AMap.Map('map-container', {
-      zoom: 14,
+      zoom: initialZoom,
       zooms: [3, 20],
-      center: [116.397428, 39.90923],
+      center: initialCenter,
       viewMode: '2D',
       layers: [satelliteLayer, labelLayer],
       showLabel: true,

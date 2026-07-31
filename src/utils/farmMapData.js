@@ -1,7 +1,12 @@
 /**
- * 将 /api/farm/{id}/full 返回数据加工为地图业务可用资源
- * 对齐移动端 map.vue getFarmInfoHttp 成功后的处理逻辑
+ * API `area` 字段单位为亩，格式化为展示用字符串
  */
+export function formatAreaMu(area) {
+  if (area == null || area === '') return undefined
+  const num = Number(area)
+  if (!Number.isFinite(num)) return undefined
+  return num.toFixed(2)
+}
 export function parseAreaJson(areaJson) {
   if (!areaJson) {
     return { landPoint: [], fillColor: '#2196F3' }
@@ -51,10 +56,7 @@ export function prepareFarmMapResources(fullData) {
     : []
 
   const totalAreaMu = lands
-    .reduce((sum, land) => {
-      const areaSqm = Number(land.area) || 0
-      return sum + areaSqm / 666.67
-    }, 0)
+    .reduce((sum, land) => sum + (Number(land.area) || 0), 0)
     .toFixed(2)
   const deviceCount = devices.length
 
@@ -81,7 +83,6 @@ export function prepareFarmMapResources(fullData) {
 
   const landList = lands.map((item) => {
     const areaObj = parseAreaJson(item.areaJson)
-    const areaSqm = Number(item.area) || 0
     return {
       id: item.id,
       name: item.name,
@@ -89,7 +90,7 @@ export function prepareFarmMapResources(fullData) {
       fillColor: areaObj.fillColor,
       deviceIds: item.deviceIds || [],
       area: item.area,
-      areaMu: areaSqm ? (areaSqm / 666.67).toFixed(2) : undefined
+      areaMu: formatAreaMu(item.area)
     }
   })
 
@@ -97,14 +98,13 @@ export function prepareFarmMapResources(fullData) {
     .filter((item) => item.areaJson && item.areaJson !== '')
     .map((item) => {
       const areaObj = parseAreaJson(item.areaJson)
-      const areaSqm = Number(item.area) || 0
       return {
         id: item.id,
         name: item.name,
         landPoint: areaObj.landPoint,
         fillColor: areaObj.fillColor,
         area: item.area,
-        areaMu: areaSqm ? (areaSqm / 666.67).toFixed(2) : undefined
+        areaMu: formatAreaMu(item.area)
       }
     })
 

@@ -47,51 +47,59 @@
         >
           <div class="device-land__header">
             <div class="device-land__title">
-              <span class="device-land__name">
-                {{ land.landName || '未命名地块' }}
-              </span>
+              <el-popover
+                :visible="landMenuLandId === String(land.landId)"
+                placement="bottom-start"
+                :width="160"
+                trigger="click"
+                :show-arrow="false"
+                popper-class="device-land-menu-popper"
+                @update:visible="(v) => onLandMenuVisible(land, v)"
+              >
+                <template #reference>
+                  <button
+                    type="button"
+                    class="device-land__name"
+                    @click.stop="toggleLandMenu(land)"
+                  >
+                    {{ land.landName || '未命名地块' }}
+                  </button>
+                </template>
+                <div class="device-land-menu" @click.stop>
+                  <button
+                    type="button"
+                    class="device-land-menu__item"
+                    @click="onEditLand(land)"
+                  >
+                    <i class="iconfont icon-a-device_ic_edit1"></i>
+                    编辑地块
+                  </button>
+                  <button
+                    type="button"
+                    class="device-land-menu__item is-danger"
+                    @click="onDeleteLand(land)"
+                  >
+                    <i class="iconfont icon-land_ic_dele"></i>
+                    删除地块
+                  </button>
+                </div>
+              </el-popover>
               <span class="device-land__running">
                 {{ getLandRunningText(land) }}
               </span>
             </div>
-            <el-popover
-              :visible="landMenuLandId === String(land.landId)"
-              placement="bottom-end"
-              :width="160"
-              trigger="click"
-              :show-arrow="false"
-              popper-class="device-land-menu-popper"
-              @update:visible="(v) => onLandMenuVisible(land, v)"
+            <button
+              v-if="hasMoreDevices(land)"
+              type="button"
+              class="device-land__more"
+              :class="{ 'is-expanded': isLandExpanded(land) }"
+              @click.stop="toggleLandExpand(land)"
             >
-              <template #reference>
-                <button
-                  type="button"
-                  class="device-land__more"
-                  @click.stop="toggleLandMenu(land)"
-                >
-                  更多
-                  <i class="iconfont icon-xiala"></i>
-                </button>
-              </template>
-              <div class="device-land-menu" @click.stop>
-                <button
-                  type="button"
-                  class="device-land-menu__item"
-                  @click="onEditLand(land)"
-                >
-                  <i class="iconfont icon-a-device_ic_edit1"></i>
-                  编辑地块
-                </button>
-                <button
-                  type="button"
-                  class="device-land-menu__item is-danger"
-                  @click="onDeleteLand(land)"
-                >
-                  <i class="iconfont icon-land_ic_dele"></i>
-                  删除地块
-                </button>
-              </div>
-            </el-popover>
+              <span class="device-land__more-text">
+                {{ isLandExpanded(land) ? '收起' : '更多' }}
+              </span>
+              <el-icon class="device-land__more-icon"><ArrowDown /></el-icon>
+            </button>
           </div>
 
           <div class="device-grid">
@@ -106,7 +114,7 @@
             </button>
 
             <div
-              v-for="device in getVisibleDevices(land)"
+              v-for="device in getDisplayDevices(land)"
               :key="device.id"
               class="device-card"
               :class="{
@@ -151,15 +159,25 @@
               <div class="device-card__ports">
                 <div
                   class="device-card__port"
-                  :class="portBarClass(device, portA(device), 'a')"
+                  :class="portSwitchClass(device, portA(device))"
                 >
-                  {{ portOpenText(portA(device)) }}% A
+                  <span class="device-card__port-pct">
+                    {{ portOpenText(portA(device)) }}%
+                  </span>
+                  <span class="device-card__port-name">
+                    {{ portLabel(portA(device), 'A') }}
+                  </span>
                 </div>
                 <div
                   class="device-card__port"
-                  :class="portBarClass(device, portB(device), 'b')"
+                  :class="portSwitchClass(device, portB(device))"
                 >
-                  B {{ portOpenText(portB(device)) }}%
+                  <span class="device-card__port-name">
+                    {{ portLabel(portB(device), 'B') }}
+                  </span>
+                  <span class="device-card__port-pct">
+                    {{ portOpenText(portB(device)) }}%
+                  </span>
                 </div>
               </div>
 
@@ -199,6 +217,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown } from '@element-plus/icons-vue'
 import { useFarmStore } from '@/store/farm'
 import { deleteDevice, getDeviceGroupByLands } from '@/api/device'
 import { deleteLand } from '@/api/map'
@@ -213,7 +232,10 @@ const tabIndex = ref(0)
 const searchText = ref('')
 const actionDeviceId = ref(null)
 const landMenuLandId = ref(null)
+/** 地块设备卡片展开状态（>4 台时点「更多」展开） */
+const expandedLandIds = ref({})
 
+const LAND_CARD_LIMIT = 4
 const POLL_MS = 3000
 const LONG_PRESS_MS = 550
 let pollTimer = null
@@ -277,11 +299,12 @@ const portOpenText = (port) => {
   return Math.round(n)
 }
 
-const portBarClass = (device, port, side) => {
+const portLabel = (port, fallback) => port?.outletName || fallback
+
+/** 开启 #00C970，关闭 #FF2F30；离线置灰 */
+const portSwitchClass = (device, port) => {
   if (!device?.isOnline) return 'is-muted'
-  const open = Number(port?.currentOpening) > 0
-  if (side === 'a') return open ? 'is-a-on' : 'is-a-off'
-  return open ? 'is-b-on' : 'is-b-off'
+  return Number(port?.currentOpening) > 0 ? 'is-open' : 'is-closed'
 }
 
 const batteryClass = (percent) => {
@@ -299,6 +322,19 @@ const getVisibleDevices = (land) => {
   return devices
 }
 
+const hasMoreDevices = (land) =>
+  getVisibleDevices(land).length > LAND_CARD_LIMIT
+
+const isLandExpanded = (land) =>
+  !!expandedLandIds.value[String(land.landId)]
+
+/** 未展开时最多展示 4 张卡片 */
+const getDisplayDevices = (land) => {
+  const devices = getVisibleDevices(land)
+  if (isLandExpanded(land)) return devices
+  return devices.slice(0, LAND_CARD_LIMIT)
+}
+
 const getLandRunningText = (land) => {
   const online = (land?.devices || []).filter((d) => d.isOnline).length
   return `${online}台设备正在运行`
@@ -311,6 +347,7 @@ const clearDeviceAction = () => {
 
 const onChangeTab = () => {
   clearDeviceAction()
+  expandedLandIds.value = {}
 }
 
 const onLandMenuVisible = (land, visible) => {
@@ -320,6 +357,16 @@ const onLandMenuVisible = (land, visible) => {
 const toggleLandMenu = (land) => {
   const id = String(land.landId)
   landMenuLandId.value = landMenuLandId.value === id ? null : id
+  actionDeviceId.value = null
+}
+
+const toggleLandExpand = (land) => {
+  const id = String(land.landId)
+  expandedLandIds.value = {
+    ...expandedLandIds.value,
+    [id]: !expandedLandIds.value[id]
+  }
+  landMenuLandId.value = null
   actionDeviceId.value = null
 }
 
@@ -531,6 +578,7 @@ const startPoll = () => {
 
 const handleFarmChange = () => {
   clearDeviceAction()
+  expandedLandIds.value = {}
   deviceLandList.value = null
   startPoll()
 }
@@ -620,7 +668,7 @@ onUnmounted(() => {
 
 .device-tabs {
   display: inline-flex;
-  align-items: center;
+  align-items: stretch;
   width: 372px;
   height: 58px;
   box-sizing: border-box;
@@ -632,6 +680,10 @@ onUnmounted(() => {
 
 .device-tabs :deep(.el-radio-button) {
   flex: 1;
+  height: auto;
+  margin: 0;
+  display: flex !important;
+  align-items: stretch;
   --el-radio-button-checked-bg-color: #3653a0;
   --el-radio-button-checked-text-color: #fff;
   --el-radio-button-checked-border-color: transparent;
@@ -640,7 +692,8 @@ onUnmounted(() => {
 
 .device-tabs :deep(.el-radio-button__inner) {
   width: 100%;
-  height: 46px;
+  height: 100% !important;
+  min-height: 0;
   padding: 0 12px !important;
   border: 0 !important;
   border-color: transparent !important;
@@ -655,11 +708,12 @@ onUnmounted(() => {
   font-weight: bold;
   line-height: 20px;
   text-align: center;
-  display: inline-flex !important;
+  display: flex !important;
   align-items: center;
   justify-content: center;
   letter-spacing: 0;
   color: #3653a0;
+  vertical-align: middle;
 }
 
 .device-tabs :deep(.el-radio-button__inner:hover) {
@@ -758,57 +812,112 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+  min-height: 40px;
 }
 
 .device-land__title {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   min-width: 0;
 }
 
 .device-land__name {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1a1a1a;
-  line-height: 1.4;
-}
-
-.device-land__running {
-  font-size: 13px;
-  color: #2f6bff;
-  line-height: 1.4;
-}
-
-.device-land__more {
   border: none;
   background: transparent;
   padding: 0;
+  cursor: pointer;
+  font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 20px;
+  font-weight: bold;
+  line-height: 40px;
+  display: flex;
+  align-items: center;
+  letter-spacing: 0;
+  color: #0f172a;
+}
+
+.device-land__name:hover {
+  color: #3653a0;
+}
+
+.device-land__running {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: #edf1f7;
+  font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 24px;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  font-size: 13px;
-  color: #909399;
-  cursor: pointer;
+  letter-spacing: 0;
+  color: #3653a0;
+  white-space: nowrap;
+}
+
+.device-land__more {
+  width: 111px;
+  height: 46px;
+  border-radius: 24px;
+  opacity: 1;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  gap: 8px;
+  box-sizing: border-box;
+  border: 1px solid rgba(54, 83, 160, 0.1);
+  background: #f7fafc;
   flex-shrink: 0;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 .device-land__more:hover {
-  color: #606266;
+  background: #eef2f7;
 }
 
-.device-land__more .iconfont {
-  font-size: 12px;
+.device-land__more-text {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 20px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  letter-spacing: 0;
+  font-feature-settings: 'kern' on;
+  color: #3653a0;
+}
+
+.device-land__more-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: #3653a0;
+  transition: transform 0.2s ease;
+}
+
+.device-land__more.is-expanded .device-land__more-icon {
+  transform: rotate(180deg);
 }
 
 .device-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+  height: auto;
 }
 
 .device-add-card {
-  min-height: 220px;
+  height: 320px;
   border: 1px dashed #c0c4cc;
   border-radius: 16px;
   background: #fff;
@@ -820,6 +929,7 @@ onUnmounted(() => {
   justify-content: center;
   gap: 8px;
   font-size: 14px;
+  box-sizing: border-box;
 }
 
 .device-add-card .iconfont {
@@ -828,8 +938,8 @@ onUnmounted(() => {
 
 .device-card {
   position: relative;
-  min-height: 240px;
-  padding: 14px;
+  height: 320px;
+  padding: 20px;
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
@@ -837,6 +947,8 @@ onUnmounted(() => {
   cursor: pointer;
   user-select: none;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .device-card__top {
@@ -844,17 +956,21 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .device-card__status {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 12px;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: 9px;
   font-size: 12px;
   font-weight: 600;
+  line-height: 18px;
+  box-sizing: border-box;
 }
 
 .device-card__status.is-online {
@@ -872,15 +988,18 @@ onUnmounted(() => {
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+  flex-shrink: 0;
 }
 
 .device-card__battery {
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  height: 18px;
   font-size: 12px;
   color: #2ecc71;
   font-weight: 600;
+  line-height: 18px;
 }
 
 .device-card__battery.is-low {
@@ -893,62 +1012,116 @@ onUnmounted(() => {
 
 .device-card__battery .iconfont {
   font-size: 14px;
+  line-height: 1;
 }
 
 .device-card__name {
-  margin-top: 10px;
+  margin-top: 20px;
+  height: 18px;
+  flex-shrink: 0;
   font-size: 15px;
   font-weight: 700;
   color: #1a1a1a;
-  line-height: 1.3;
-  word-break: break-all;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .device-card__body {
-  margin-top: 8px;
-  height: 110px;
+  margin-top: 15px;
+  width: 141px;
+  height: 151px;
+  flex-shrink: 0;
+  align-self: center;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .device-card__img {
-  max-width: 120px;
-  max-height: 100px;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 
 .device-card__ports {
-  margin-top: 8px;
+  margin-top: 22px;
   display: flex;
-  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  gap: 40px;
+  flex-shrink: 0;
 }
 
 .device-card__port {
-  flex: 1;
-  height: 28px;
-  border-radius: 14px;
-  display: flex;
+  width: 100px;
+  height: 35px;
+  border-radius: 16.78px;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
+  justify-content: space-between;
+  padding: 0 6px 0 12px;
+  box-sizing: border-box;
+  gap: 6px;
+}
+
+.device-card__port.is-open {
+  background: #00c970;
   color: #fff;
 }
 
-.device-card__port.is-a-on,
-.device-card__port.is-a-off {
-  background: #2ecc71;
-}
-
-.device-card__port.is-b-on,
-.device-card__port.is-b-off {
-  background: #f56c6c;
+.device-card__port.is-closed {
+  background: #ff2f30;
+  color: #fff;
 }
 
 .device-card__port.is-muted {
   background: #e9ecf0;
   color: #a8abb2;
+}
+
+.device-card__port-pct {
+  font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.device-card__port-name {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.device-card__port.is-open .device-card__port-name {
+  color: #00c970;
+}
+
+.device-card__port.is-closed .device-card__port-name {
+  color: #ff2f30;
+}
+
+.device-card__port.is-muted .device-card__port-name {
+  background: #f5f6f8;
+  color: #a8abb2;
+}
+
+.device-card__port:nth-child(2) {
+  padding: 0 12px 0 6px;
 }
 
 .device-card.is-offline .device-card__name {

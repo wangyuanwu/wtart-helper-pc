@@ -49,7 +49,7 @@ const calcAreaMu = (item, path) => {
     return Number(item.areaMu).toFixed(2)
   }
   if (item.area != null && item.area !== '') {
-    return (Number(item.area) / 666.67).toFixed(2)
+    return Number(item.area).toFixed(2)
   }
   try {
     const util = window.AMap?.GeometryUtil
@@ -129,6 +129,8 @@ export function createLandPolygonDrawer(hooks = {}) {
 
     if (!Array.isArray(landArr) || !landArr.length) return
 
+    const readOnly = !!options.readOnly
+
     landArr.forEach((item, index) => {
       if (!item?.landPoint?.length) return
 
@@ -146,12 +148,12 @@ export function createLandPolygonDrawer(hooks = {}) {
       const polygon = new window.AMap.Polygon({
         path,
         fillColor: item.fillColor || '#2196F3',
-        fillOpacity: 0.1,
-        strokeColor: '#ffffff',
-        strokeWeight: 1,
+        fillOpacity: readOnly ? 0.3 : 0.1,
+        strokeColor: readOnly ? '#ffffff' : '#ffffff',
+        strokeWeight: readOnly ? 1 : 1,
         strokeOpacity: 0.5,
-        zIndex: 100,
-        clickable: true
+        zIndex: readOnly ? 10 : 100,
+        clickable: !readOnly
       })
       polygon.setMap(map)
       landPolygonList.push(polygon)
@@ -175,11 +177,13 @@ export function createLandPolygonDrawer(hooks = {}) {
           lineHeight: px2rem(22),
           padding: '0'
         },
-        zIndex: 101,
-        clickable: true
+        zIndex: readOnly ? 11 : 101,
+        clickable: !readOnly
       })
       label.setMap(map)
       landTextList.push(label)
+
+      if (readOnly) return
 
       let clickHandled = false
       let lastClickTime = 0

@@ -107,8 +107,7 @@ const areaText = computed(() => {
     return props.farm?.totalAreaMu || '0.00'
   }
   const areaMu = lands.reduce((sum, land) => {
-    const areaSqm = Number(land.area) || 0
-    return sum + areaSqm / 666.67
+    return sum + (Number(land.area) || 0)
   }, 0)
   return areaMu.toFixed(2)
 })

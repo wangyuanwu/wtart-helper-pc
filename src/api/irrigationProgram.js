@@ -1,10 +1,15 @@
 import request from '../utils/request'
 
-export function getGroupProList(data) {
+export function getGroupProList(data, config = {}) {
   return request({
     url: '/api/irrigation-program/page',
     method: 'GET',
-    params: data
+    params: data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true
   })
 }
 
@@ -38,18 +43,30 @@ export function deleteGroupPro(id) {
   })
 }
 
-export function openGroupPro(data) {
+export function openGroupPro(data, config = {}) {
   return request({
     url: '/api/irrigation-program/open',
     method: 'POST',
-    data
+    data,
+    silent: config.silent === true
   })
 }
 
-export function enableGroupPro(data) {
+export function enableGroupPro(data, config = {}) {
   return request({
     url: '/api/irrigation-program/enable',
     method: 'POST',
-    data
+    data,
+    silent: config.silent === true
+  })
+}
+
+/** 停止轮灌程序 POST /api/irrigation-program/stop */
+export function closeGroupPro(data, config = {}) {
+  return request({
+    url: '/api/irrigation-program/stop',
+    method: 'POST',
+    data,
+    silent: config.silent === true
   })
 }

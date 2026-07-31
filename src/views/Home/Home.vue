@@ -3,7 +3,7 @@
     <div class="sidebar" :class="{ collapsed: isCollapsed }">
       <div class="sidebar-header">
         <div class="sidebar-logo-row">
-          <img class="sidebar-logo-img" src="@/assets/logo.png" alt="水能手" />
+          <img class="sidebar-logo-img" src="@/assets/logo.svg" alt="水能手" />
           <div v-if="!farmStore.isFarmEmpty" class="sidebar-farm-info">
             <div class="farm-name-row">
               <span class="farm-name" :title="farmStore.selectFarm?.name">
@@ -66,7 +66,7 @@
                 </div>
               </el-popover>
             </div>
-            <div class="farm-setting-row">
+            <div class="farm-setting-row" @click="goEditFarm">
               <i class="iconfont icon-shezhi farm-setting-icon"></i>
               <span class="farm-setting-text">设置农场</span>
             </div>
@@ -212,7 +212,11 @@
         <PageTags />
       </div>
       <div class="content">
-        <router-view />
+        <div v-if="!farmBootstrapDone" class="content-state">加载中...</div>
+        <FarmEmpty
+          v-else-if="showShellFarmEmpty"
+        />
+        <router-view v-else />
       </div>
     </div>
   </div>
@@ -229,12 +233,12 @@ import {
 } from '@element-plus/icons-vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import PageTags from '@/components/PageTags.vue'
+import FarmEmpty from '@/views/Map/FarmEmpty.vue'
 import { menuList as staticMenuList } from '@/menuData.js'
 import { useUserStore } from '@/store/user'
 import { useFarmStore } from '@/store/farm'
 import { logout } from '@/api/index'
-import defaultAvatar from '@/assets/avatar-default.png'
-import avatarHd from '@/assets/user/avatar-hd.png'
+import defaultAvatar from '@/assets/my_img_01.svg'
 import iconLang from '@/assets/user/icon-lang.png'
 import iconAbout from '@/assets/user/icon-about.png'
 import iconAvatar from '@/assets/user/icon-avatar.png'
@@ -248,6 +252,20 @@ const farmStore = useFarmStore()
 
 const isCollapsed = ref(false)
 const showPageTags = false
+/** 首次农场列表请求完成前不展示空态，避免 isFarmEmpty 初始 true 闪屏 */
+const farmBootstrapDone = ref(false)
+
+/** 新建/选点农场流程页：无农场时也要渲染 router-view */
+const isFarmCreateRoute = computed(
+  () => !!route.meta?.farmCreate
+)
+
+const showShellFarmEmpty = computed(
+  () =>
+    !farmStore.isFarmLoading &&
+    farmStore.isFarmEmpty &&
+    !isFarmCreateRoute.value
+)
 const showBreadcrumb = false
 const activeIndex = ref('')
 const menuList = ref(staticMenuList)
@@ -261,7 +279,7 @@ const avatarUrl = computed(
   () => userStore.userInfo?.avatarUrl || defaultAvatar
 )
 const menuAvatarUrl = computed(
-  () => userStore.userInfo?.avatarUrl || avatarHd
+  () => userStore.userInfo?.avatarUrl || defaultAvatar
 )
 const displayUserName = computed(
   () =>
@@ -305,6 +323,14 @@ const handleSelectFarm = (farm) => {
   farmSearchText.value = ''
   // 有搜索过滤时本地恢复全量列表，不重复请求 /api/farm/list
   farmStore.restoreFarmList()
+}
+
+const goEditFarm = () => {
+  if (!farmStore.selectFarm?.id) {
+    ElMessage.warning('请先选择农场')
+    return
+  }
+  router.push('/farm/edit')
 }
 
 const handleSelect = (key) => {
@@ -368,6 +394,8 @@ onMounted(async () => {
     await farmStore.fetchFarmList()
   } catch (e) {
     console.error('获取农场列表失败', e)
+  } finally {
+    farmBootstrapDone.value = true
   }
 })
 
@@ -430,9 +458,9 @@ watch(
 }
 
 .sidebar-logo-img {
-  width: 52px;
-  height: 52px;
-  border-radius: 10px;
+  width: 54px;
+  height: 54px;
+  border-radius: 0;
   flex-shrink: 0;
   object-fit: contain;
 }
@@ -503,8 +531,8 @@ watch(
 }
 
 .sidebar.collapsed .sidebar-logo-img {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
 }
 
 .main {
@@ -754,6 +782,25 @@ watch(
   flex: 1;
   overflow: auto;
   background: #f5f7fa;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.content-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  font-size: 14px;
+  background: #fff;
+}
+
+.content :deep(.farm-empty),
+.content > :deep(*) {
+  flex: 1;
+  min-height: 0;
 }
 
 /* ---- El-Menu 基础重置 ---- */

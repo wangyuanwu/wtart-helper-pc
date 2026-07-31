@@ -28,6 +28,36 @@ const routes = [
         meta: { title: '地图', requiresAuth: true }
       },
       {
+        path: 'map/chose-farm',
+        component: () => import('../views/Map/MapChoseFarm.vue'),
+        meta: { title: '新建农场', requiresAuth: true, farmCreate: true }
+      },
+      {
+        path: 'map/edit-plot',
+        component: () => import('../views/Map/MapEditPlot.vue'),
+        meta: { title: '新建地块', requiresAuth: true }
+      },
+      {
+        path: 'map/add-edit-land',
+        component: () => import('../views/Map/AddEditLand.vue'),
+        meta: { title: '保存地块', requiresAuth: true }
+      },
+      {
+        path: 'farm/add',
+        component: () => import('../views/Farm/AddFarm.vue'),
+        meta: { title: '新建农场', requiresAuth: true, farmCreate: true }
+      },
+      {
+        path: 'farm/edit',
+        component: () => import('../views/Farm/EditFarm.vue'),
+        meta: { title: '农场设置', requiresAuth: true }
+      },
+      {
+        path: 'farm/edit-member',
+        component: () => import('../views/Farm/EditFarmMember.vue'),
+        meta: { title: '农场成员', requiresAuth: true }
+      },
+      {
         path: 'device',
         component: () => import('../views/Device/Index.vue'),
         meta: { title: '设备管理', requiresAuth: true }

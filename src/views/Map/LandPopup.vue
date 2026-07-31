@@ -72,15 +72,13 @@ const farmName = computed(
   () => props.farmInfo?.name || props.farmInfo?.farmName || '未知农场'
 )
 
-/** 面积：优先用 area（㎡）换算亩，与地图加工逻辑一致 */
+/** 面积：直接使用 API area 字段（单位：亩） */
 const areaText = computed(() => {
   const land = props.land
   if (!land) return '0.00'
   if (land.area != null && land.area !== '') {
-    const areaSqm = Number(land.area)
-    if (Number.isFinite(areaSqm)) {
-      return (areaSqm / 666.67).toFixed(2)
-    }
+    const num = Number(land.area)
+    if (Number.isFinite(num)) return num.toFixed(2)
   }
   if (land.areaMu != null && land.areaMu !== '') {
     return Number(land.areaMu).toFixed(2)

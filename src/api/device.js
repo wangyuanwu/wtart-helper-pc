@@ -74,3 +74,62 @@ export function getFarmWaterOutletStatus(farmId) {
     }
   })
 }
+
+/** 立即同步出水桩状态（对齐移动端 syncStatus） */
+export function syncWaterOutletStatus(params = {}, config = {}) {
+  return request({
+    url: '/api/water-outlet-pile/sync-status',
+    method: 'GET',
+    params,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true
+  })
+}
+
+/** 打开出水口（对齐移动端 openWaterDv） */
+export function openWaterDv(data, config = {}) {
+  return request({
+    url: '/api/water-outlet-pile/turn-on',
+    method: 'POST',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+/** 关闭出水口（对齐移动端 closeWaterDv） */
+export function closeWaterDv(data, config = {}) {
+  return request({
+    url: '/api/water-outlet-pile/turn-off',
+    method: 'POST',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+/** 退出手动模式等（对齐移动端 closeRestartDv） */
+export function closeRestartDv(data, config = {}) {
+  return request({
+    url: '/api/water-outlet-pile/set-dev',
+    method: 'POST',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}

@@ -25,7 +25,7 @@ const calcAreaMu = (item, path) => {
     return Number(item.areaMu).toFixed(2)
   }
   if (item.area != null && item.area !== '') {
-    return (Number(item.area) / 666.67).toFixed(2)
+    return Number(item.area).toFixed(2)
   }
   try {
     const util = window.AMap?.GeometryUtil

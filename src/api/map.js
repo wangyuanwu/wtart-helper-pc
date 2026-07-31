@@ -47,3 +47,50 @@ export function deleteLand(id) {
     }
   })
 }
+
+/** 新建农场 POST /api/farm */
+export function addFarm(data) {
+  return request({
+    url: '/api/farm',
+    method: 'POST',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    }
+  })
+}
+
+/** 新建地块 POST /api/land-plot */
+export function addPlot(data) {
+  return request({
+    url: '/api/land-plot',
+    method: 'POST',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    }
+  })
+}
+
+/** 更新地块 PUT /api/land-plot */
+export function updateLand(data) {
+  return request({
+    url: '/api/land-plot',
+    method: 'PUT',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    }
+  })
+}
+
+/** 地块详情 GET /api/land-plot/{id} */
+export function getLandPlotById(id) {
+  return request({
+    url: `/api/land-plot/${id}`,
+    method: 'GET',
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    }
+  })
+}

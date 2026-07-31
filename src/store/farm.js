@@ -15,6 +15,14 @@ export const useFarmStore = defineStore(
     const selectFarm = ref(null)
     const s_selectFarm = ref(null)
     const s_farm_info = ref(null)
+    /** 选点页确认的位置，对齐移动端 vuex_locaiton */
+    const s_location = ref(null)
+    /** 圈地页保存的地块草稿，对齐移动端 vuex_land */
+    const s_land = ref(null)
+    /** 农场设置页成员编辑缓存，对齐移动端 vuex_member_info */
+    const s_member_info = ref(null)
+    /** 农场设置页地块列表缓存，对齐移动端 vuex_land_list */
+    const s_land_list = ref([])
 
     function syncSelectFarm(farmList) {
       if (!farmList.length) {
@@ -111,6 +119,30 @@ export const useFarmStore = defineStore(
       return s_farm_info.value
     }
 
+    function setLocation(location) {
+      s_location.value = location
+        ? {
+            lng: location.lng,
+            lat: location.lat,
+            address: location.address || ''
+          }
+        : null
+    }
+
+    function setLand(land) {
+      s_land.value = land ? { ...land } : null
+    }
+
+    function setMemberInfo(info) {
+      s_member_info.value = info ? { ...info } : null
+    }
+
+    function setLandList(list) {
+      s_land_list.value = Array.isArray(list)
+        ? list.map((item) => ({ ...item }))
+        : []
+    }
+
     function setFarmInfo(info) {
       s_farm_info.value = info || null
     }
@@ -140,6 +172,10 @@ export const useFarmStore = defineStore(
       selectFarm.value = null
       s_selectFarm.value = null
       s_farm_info.value = null
+      s_location.value = null
+      s_land.value = null
+      s_member_info.value = null
+      s_land_list.value = []
     }
 
     return {
@@ -150,9 +186,17 @@ export const useFarmStore = defineStore(
       selectFarm,
       s_selectFarm,
       s_farm_info,
+      s_location,
+      s_land,
+      s_member_info,
+      s_land_list,
       fetchFarmList,
       fetchFarmFullInfo,
       setFarmInfo,
+      setLocation,
+      setLand,
+      setMemberInfo,
+      setLandList,
       setSelectFarm,
       restoreFarmList,
       farmChange,

@@ -28,110 +28,159 @@
         </p>
       </div>
 
-      <div class="water-dv-popup__metrics">
-        <div class="water-dv-popup__metric">
-          <i class="iconfont icon-map_ic_temperature"></i>
-          <span>{{ temperatureText }}</span>
+      <div
+        class="water-dv-popup__body"
+        :class="{ 'is-offline': !isOnline, 'is-valve-busy': valveBusy }"
+      >
+        <div class="water-dv-popup__metrics">
+          <div class="water-dv-popup__metric">
+            <i class="iconfont icon-map_ic_temperature"></i>
+            <span>{{ temperatureText }}</span>
+          </div>
+          <span class="water-dv-popup__metric-sep" aria-hidden="true">|</span>
+          <div class="water-dv-popup__metric">
+            <i class="iconfont icon-map_ic_signal"></i>
+            <span>{{ signalText }}</span>
+            <span v-if="snrText" class="water-dv-popup__snr">{{ snrText }}</span>
+          </div>
+          <span class="water-dv-popup__metric-sep" aria-hidden="true">|</span>
+          <div class="water-dv-popup__metric">
+            <i class="iconfont icon-map_ic_battery"></i>
+            <span :class="{ 'is-good': batteryPercent >= 50, 'is-charging': isCharging }">
+              {{ batteryText }}
+            </span>
+          </div>
         </div>
-        <span class="water-dv-popup__metric-sep" aria-hidden="true">|</span>
-        <div class="water-dv-popup__metric">
-          <i class="iconfont icon-map_ic_signal"></i>
-          <span>{{ signalText }}</span>
-        </div>
-        <span class="water-dv-popup__metric-sep" aria-hidden="true">|</span>
-        <div class="water-dv-popup__metric">
-          <i class="iconfont icon-map_ic_battery"></i>
-          <span :class="{ 'is-good': batteryPercent >= 50 }">
-            {{ batteryText }}
-          </span>
-        </div>
+
+        <!-- 有水桩数据：设备图 + 压力/流量 + 控制区 -->
+        <template v-if="hasWaterOutletPile">
+          <div class="water-dv-popup__device">
+            <img
+              class="water-dv-popup__device-img"
+              :src="deviceOnlineImg"
+              alt=""
+            />
+            <span
+              class="water-dv-popup__outlet-marker is-left"
+              :class="{ 'is-on': isPortOpen(portA) }"
+            >
+              {{ portA?.outletName || 'A' }}
+            </span>
+            <span
+              class="water-dv-popup__outlet-marker is-right"
+              :class="{ 'is-on': isPortOpen(portB) }"
+            >
+              {{ portB?.outletName || 'B' }}
+            </span>
+            <div class="water-dv-popup__pressure is-left">
+              <span class="water-dv-popup__pressure-val">{{ formatPressure(portA) }}</span>
+              <span class="water-dv-popup__pressure-unit">bar</span>
+            </div>
+            <div class="water-dv-popup__pressure is-right">
+              <span class="water-dv-popup__pressure-val">{{ formatPressure(portB) }}</span>
+              <span class="water-dv-popup__pressure-unit">bar</span>
+            </div>
+            <div class="water-dv-popup__flow">
+              {{ flowText }}
+              <span class="water-dv-popup__flow-unit">m³/h</span>
+            </div>
+            <i
+              v-if="isDvAlarm"
+              class="iconfont icon-lujing-1 water-dv-popup__alarm"
+              aria-hidden="true"
+            ></i>
+            <button
+              v-if="isManualMode"
+              type="button"
+              class="water-dv-popup__manual-exit"
+              @click="onExitManualMode"
+            >
+              退出
+            </button>
+          </div>
+
+          <div class="water-dv-popup__controls">
+            <div class="water-dv-popup__pod">
+              <div class="water-dv-popup__pod-label">
+                <span
+                  class="water-dv-popup__port-dot"
+                  :class="{ 'is-on': isPortOpen(portA) }"
+                >
+                  {{ portA?.outletName || 'A' }}
+                </span>
+                <span>出水口</span>
+              </div>
+              <div
+                class="water-dv-popup__port-switch"
+                :class="{ 'is-busy': valveBusy }"
+              >
+                <el-switch
+                  :model-value="isPortOpen(portA)"
+                  :disabled="valveBusy || portToggleLoading"
+                  inline-prompt
+                  :active-text="portOpenText(portA)"
+                  inactive-text="关"
+                  active-color="#22c55e"
+                  inactive-color="#ef4444"
+                  @change="(val) => onPortSwitchChange(portA, val)"
+                />
+              </div>
+            </div>
+
+            <div
+              class="water-dv-popup__pod water-dv-popup__pod--gauge"
+              :class="{ 'is-disabled': valveBusy }"
+              @click="onEditOpen"
+            >
+              <div class="water-dv-popup__pod-title">默认开度</div>
+              <div class="water-dv-popup__gauge">
+                <span class="is-a">{{ defaultOpenText(portA) }}</span>
+                <i class="iconfont icon-map_ic_opening water-dv-popup__gauge-icon"></i>
+                <span class="is-b">{{ defaultOpenText(portB) }}</span>
+              </div>
+            </div>
+
+            <div class="water-dv-popup__pod">
+              <div class="water-dv-popup__pod-label">
+                <span
+                  class="water-dv-popup__port-dot"
+                  :class="{ 'is-on': isPortOpen(portB) }"
+                >
+                  {{ portB?.outletName || 'B' }}
+                </span>
+                <span>出水口</span>
+              </div>
+              <div
+                class="water-dv-popup__port-switch"
+                :class="{ 'is-busy': valveBusy }"
+              >
+                <el-switch
+                  :model-value="isPortOpen(portB)"
+                  :disabled="valveBusy || portToggleLoading"
+                  inline-prompt
+                  :active-text="portOpenText(portB)"
+                  inactive-text="关"
+                  active-color="#22c55e"
+                  inactive-color="#ef4444"
+                  @change="(val) => onPortSwitchChange(portB, val)"
+                />
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- 无水桩数据：空态 -->
+        <template v-else>
+          <div class="water-dv-popup__offline-body">
+            <img
+              class="water-dv-popup__device-img is-offline"
+              :src="deviceOfflineImg"
+              alt=""
+            />
+            <p class="water-dv-popup__offline-tip">设备暂无出水桩数据</p>
+          </div>
+        </template>
       </div>
-
-      <!-- 在线：设备图 + 压力/流量 + 控制区 -->
-      <template v-if="isOnline">
-        <div class="water-dv-popup__device">
-          <img
-            class="water-dv-popup__device-img"
-            :src="deviceOnlineImg"
-            alt=""
-          />
-          <div class="water-dv-popup__pressure is-left">
-            <span class="water-dv-popup__pressure-val">{{ formatPressure(portA) }}</span>
-            <span class="water-dv-popup__pressure-unit">bar</span>
-          </div>
-          <div class="water-dv-popup__pressure is-right">
-            <span class="water-dv-popup__pressure-val">{{ formatPressure(portB) }}</span>
-            <span class="water-dv-popup__pressure-unit">bar</span>
-          </div>
-          <div class="water-dv-popup__flow">
-            {{ flowText }}
-            <span class="water-dv-popup__flow-unit">m³/h</span>
-          </div>
-        </div>
-
-        <div class="water-dv-popup__controls">
-          <div class="water-dv-popup__pod">
-            <div class="water-dv-popup__pod-label">
-              <span
-                class="water-dv-popup__port-dot"
-                :class="{ 'is-on': isPortOpen(portA) }"
-              >
-                {{ portA?.outletName || 'A' }}
-              </span>
-              <span>出水口</span>
-            </div>
-            <button
-              type="button"
-              class="water-dv-popup__switch"
-              :class="{ 'is-on': isPortOpen(portA), 'is-off': !isPortOpen(portA) }"
-              @click="onPortToggle(portA)"
-            >
-              {{ portOpenText(portA) }}
-            </button>
-          </div>
-
-          <div class="water-dv-popup__pod water-dv-popup__pod--gauge" @click="onEditOpen">
-            <div class="water-dv-popup__pod-title">默认开度</div>
-            <div class="water-dv-popup__gauge">
-              <span class="is-a">{{ defaultOpenText(portA) }}</span>
-              <i class="iconfont icon-map_ic_opening water-dv-popup__gauge-icon"></i>
-              <span class="is-b">{{ defaultOpenText(portB) }}</span>
-            </div>
-          </div>
-
-          <div class="water-dv-popup__pod">
-            <div class="water-dv-popup__pod-label">
-              <span
-                class="water-dv-popup__port-dot"
-                :class="{ 'is-on': isPortOpen(portB) }"
-              >
-                {{ portB?.outletName || 'B' }}
-              </span>
-              <span>出水口</span>
-            </div>
-            <button
-              type="button"
-              class="water-dv-popup__switch"
-              :class="{ 'is-on': isPortOpen(portB), 'is-off': !isPortOpen(portB) }"
-              @click="onPortToggle(portB)"
-            >
-              {{ portOpenText(portB) }}
-            </button>
-          </div>
-        </div>
-      </template>
-
-      <!-- 离线：下部空态（上部与在线一致） -->
-      <template v-else>
-        <div class="water-dv-popup__offline-body">
-          <img
-            class="water-dv-popup__device-img is-offline"
-            :src="deviceOfflineImg"
-            alt=""
-          />
-          <p class="water-dv-popup__offline-tip">设备暂无出水桩数据</p>
-        </div>
-      </template>
     </template>
 
     <div v-else class="water-dv-popup__empty">暂无设备数据</div>
@@ -140,10 +189,20 @@
 
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import { getWaterOutletPileStatus } from '@/api/device'
+import { ElMessage, ElMessageBox, ElSwitch } from 'element-plus'
+import { getAlarmList } from '@/api/alarm'
+import {
+  closeRestartDv,
+  closeWaterDv,
+  getWaterOutletPileStatus,
+  openWaterDv,
+  syncWaterOutletStatus
+} from '@/api/device'
+import { useFarmStore } from '@/store/farm'
 import deviceOnlineImg from '@/assets/map/outlet-device-online.svg'
 import deviceOfflineImg from '@/assets/map/outlet-device-offline.svg'
+
+const POLL_MS = 3000
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -158,12 +217,25 @@ const visible = computed({
   set: (v) => emit('update:modelValue', v)
 })
 
+const farmStore = useFarmStore()
+
 const loading = ref(false)
+const portToggleLoading = ref(false)
 const statusInfo = ref(null)
+const alarmingList = ref([])
+const controlWaterOutletList = ref({})
+const closeOpenOrderCache = ref(null)
+const controlWaterOutletCache = ref(null)
+
 let pollTimer = null
 let requestSeq = 0
 
 const isOnline = computed(() => !!statusInfo.value?.isOnline)
+const hasWaterOutletPile = computed(() => !!statusInfo.value?.waterOutletPile)
+const valveAction = computed(() => statusInfo.value?.waterOutletPile?.valveAction ?? 0)
+const valveBusy = computed(() => valveAction.value !== 0)
+const isManualMode = computed(() => Number(statusInfo.value?.ds) === 9)
+const isCharging = computed(() => Number(statusInfo.value?.chargingStatus) === 1)
 
 const portA = computed(() => findPort(1))
 const portB = computed(() => findPort(2))
@@ -180,7 +252,10 @@ const batteryPercent = computed(() => {
   return v == null ? 0 : Number(v)
 })
 
-const batteryText = computed(() => `${batteryPercent.value}%`)
+const batteryText = computed(() => {
+  if (isCharging.value) return '充电中'
+  return `${batteryPercent.value}%`
+})
 
 const signalText = computed(() => {
   const signal = statusInfo.value?.signal
@@ -190,6 +265,21 @@ const signalText = computed(() => {
   if (level >= 2) return '中'
   if (level >= 1) return '弱'
   return `${signal}dBm`
+})
+
+const snrText = computed(() => {
+  const snr = statusInfo.value?.snr
+  if (snr == null || snr === '') return ''
+  return `(${snr})`
+})
+
+const isDvAlarm = computed(() => {
+  const deviceId = statusInfo.value?.id ?? props.device?.id
+  if (deviceId == null) return false
+  return alarmingList.value.some(
+    (item) =>
+      String(item.deviceId) === String(deviceId) && Number(item.status) === 0
+  )
 })
 
 const syncTimeText = computed(() =>
@@ -258,15 +348,124 @@ function clearPoll() {
   }
 }
 
-async function fetchStatus() {
+function getWaterOutletId() {
+  return (
+    statusInfo.value?.waterOutletPile?.id ||
+    props.device?.specificData?.waterOutletPile?.id ||
+    null
+  )
+}
+
+function getReplace0(oldWaterOut, waterOut) {
+  if (!Array.isArray(waterOut.ports) || waterOut.ports.length < 2) return false
+  const portA = waterOut.ports[0]
+  const portB = waterOut.ports[1]
+  const action = oldWaterOut.valveAction
+
+  if (action === 1) {
+    return Math.round(portA.currentOpening || 0) >= Math.round(portA.defaultOpening || 0)
+  }
+  if (action === 3) {
+    return Math.round(portB.currentOpening || 0) >= Math.round(portB.defaultOpening || 0)
+  }
+  if (action === 2) {
+    return Math.round(portA.currentOpening || 0) <= 0
+  }
+  if (action === 4) {
+    return Math.round(portB.currentOpening || 0) <= 0
+  }
+  if (action === 99) return true
+  return false
+}
+
+function mergeStatusData(oldDev, newDev) {
+  if (!oldDev || !newDev) return
+  if (!newDev.waterOutletPile) return
+
+  const waterOut = newDev.waterOutletPile
+  const oldWaterOut = controlWaterOutletList.value[waterOut.id]
+
+  if (oldWaterOut) {
+    if (oldWaterOut.valveAction !== 0 && waterOut.valveAction === 0) {
+      let isReplace = false
+      if (waterOut.outletType === 0) {
+        isReplace = getReplace0(oldWaterOut, waterOut)
+      }
+      if (isReplace) {
+        Object.assign(oldDev, newDev)
+        delete controlWaterOutletList.value[waterOut.id]
+      }
+    } else {
+      const oldPorts = oldDev.waterOutletPile?.ports
+      if (!Array.isArray(waterOut.ports) || !Array.isArray(oldPorts)) return
+      waterOut.ports.forEach((newPort) => {
+        const oldPort = oldPorts.find((p) => p.outletNo === newPort.outletNo)
+        if (oldPort) {
+          oldPort.currentOpening = newPort.currentOpening
+          oldPort.pressure = newPort.pressure
+        }
+      })
+      if (oldDev.waterOutletPile) {
+        oldDev.waterOutletPile.valveAction = waterOut.valveAction
+        oldDev.waterOutletPile.flow = waterOut.flow
+      }
+    }
+  } else {
+    Object.assign(oldDev, newDev)
+  }
+}
+
+function applyPortOpenFlags() {
+  const pile = statusInfo.value?.waterOutletPile
+  if (!pile || pile.outletType !== 0) return
+  if (controlWaterOutletList.value[pile.id]) return
+  const a = findPort(1)
+  const b = findPort(2)
+  if (a) a.isOpen = isPortOpen(a)
+  if (b) b.isOpen = isPortOpen(b)
+}
+
+async function fetchAlarms() {
+  const farmId = farmStore.selectFarm?.id
+  if (farmId == null) return
+  try {
+    const res = await getAlarmList(
+      { FarmId: farmId, IsHandled: false },
+      { silent: true }
+    )
+    alarmingList.value = Array.isArray(res?.data?.result)
+      ? res.data.result
+      : []
+  } catch {
+    /* 告警列表失败不影响弹窗主流程 */
+  }
+}
+
+async function fetchStatus(options = {}) {
+  const { showLoading = false, isRefresh = false } = options
   const id = props.device?.id
   if (id == null) return
+
   const seq = ++requestSeq
-  loading.value = true
+  if (showLoading) loading.value = true
+
   try {
+    fetchAlarms()
     const res = await getWaterOutletPileStatus(id)
     if (seq !== requestSeq) return
-    statusInfo.value = res?.data || null
+
+    const data = res?.data || null
+    if (!data) return
+
+    if (!statusInfo.value || isRefresh) {
+      statusInfo.value = data
+    } else {
+      mergeStatusData(statusInfo.value, data)
+    }
+
+    if (data.waterOutletPile) {
+      applyPortOpenFlags()
+    }
   } catch (e) {
     if (seq !== requestSeq) return
     console.error('[WaterDvPopup] 获取出水桩状态失败', e)
@@ -274,22 +473,34 @@ async function fetchStatus() {
       ElMessage.error('获取出水桩状态失败')
     }
   } finally {
-    if (seq === requestSeq) loading.value = false
+    if (seq === requestSeq && showLoading) loading.value = false
   }
 }
 
 function startPoll() {
-  // 农场级状态由 Index 的 status-by-farm 轮询维护；
-  // 本弹窗仅在点击时用 {id}/status 拉一次详情，不再轮询
+  clearPoll()
+  pollTimer = setInterval(() => {
+    if (visible.value && props.device?.id != null) {
+      fetchStatus({ silent: true })
+    }
+  }, POLL_MS)
 }
 
 function openWithDevice() {
+  controlWaterOutletList.value = {}
+  closeOpenOrderCache.value = null
+  controlWaterOutletCache.value = null
+  alarmingList.value = []
   statusInfo.value = null
-  fetchStatus()
+  fetchStatus({ showLoading: true, isRefresh: true })
+  startPoll()
 }
 
 function closePopup() {
   clearPoll()
+  controlWaterOutletList.value = {}
+  closeOpenOrderCache.value = null
+  controlWaterOutletCache.value = null
   statusInfo.value = null
   visible.value = false
   emit('close')
@@ -299,16 +510,184 @@ function onViewDetail() {
   ElMessage.info('查看详情功能开发中')
 }
 
-function onSync() {
-  ElMessage.info('同步数据功能开发中')
-}
-
-function onPortToggle() {
-  ElMessage.info('出水口控制功能开发中')
+async function onSync() {
+  const waterOutletId = getWaterOutletId()
+  if (waterOutletId == null) {
+    ElMessage.warning('设备信息异常')
+    return
+  }
+  try {
+    await syncWaterOutletStatus({ waterOutletId }, { silent: true })
+    ElMessage.success('操作成功')
+  } catch (e) {
+    ElMessage.error(e?.message || '同步失败')
+  }
 }
 
 function onEditOpen() {
+  if (!hasWaterOutletPile.value) {
+    ElMessage.warning('暂无设备数据')
+    return
+  }
+  if (valveBusy.value) {
+    ElMessage.warning('阀门开关过程中，无法修改默认开度')
+    return
+  }
   ElMessage.info('默认开度设置功能开发中')
+}
+
+async function onExitManualMode() {
+  const waterOutletId = getWaterOutletId()
+  if (waterOutletId == null) return
+  try {
+    await ElMessageBox.confirm(
+      '退出手动模式后，将无法进行手动操作。是否退出手动模式？',
+      '提示',
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    )
+    await closeRestartDv({ waterOutletId, oper: 3 }, { loading: true, silent: true })
+    ElMessage.success('操作成功')
+    await fetchStatus({ isRefresh: true })
+  } catch (e) {
+    if (e === 'cancel' || e?.message === 'cancel') return
+    ElMessage.error(e?.message || '操作失败')
+  }
+}
+
+function controlWaterOutType0(controlWaterOutlet, portId, status) {
+  const ports = controlWaterOutlet.ports
+  if (!Array.isArray(ports) || ports.length < 2) return
+
+  const portA = ports.find((p) => Number(p.outletNo) === 1) || ports[0]
+  const portB = ports.find((p) => Number(p.outletNo) === 2) || ports[1]
+  let controlPort = null
+  let otherPort = null
+
+  if (String(portA.id) === String(portId)) {
+    controlPort = portA
+    otherPort = portB
+  } else if (String(portB.id) === String(portId)) {
+    controlPort = portB
+    otherPort = portA
+  }
+  if (!controlPort) return
+
+  controlWaterOutletList.value[controlWaterOutlet.id] = controlWaterOutlet
+
+  if (status) {
+    controlPort.isOpen = true
+    if (otherPort) otherPort.isOpen = false
+    controlWaterOutlet.valveAction = Number(controlPort.outletNo) === 1 ? 1 : 3
+    const order = {
+      force: false,
+      waterOutletId: controlWaterOutlet.id,
+      outPorts: [{
+        outletNo: controlPort.outletNo,
+        opening: controlPort.defaultOpening || 0
+      }]
+    }
+    openWaterDvHttp(order, controlWaterOutlet)
+  } else {
+    controlPort.isOpen = false
+    controlWaterOutlet.valveAction = Number(controlPort.outletNo) === 1 ? 2 : 4
+    const order = {
+      force: false,
+      waterOutletId: controlWaterOutlet.id,
+      outPorts: [{ outletNo: controlPort.outletNo }]
+    }
+    closeWaterDvHttp(order, controlWaterOutlet)
+  }
+}
+
+function onPortSwitchChange(port, nextOpen) {
+  if (!port || valveBusy.value || portToggleLoading.value) return
+  const pile = statusInfo.value?.waterOutletPile
+  if (!pile) {
+    ElMessage.warning('设备数据异常，无法操作')
+    return
+  }
+  if (nextOpen === isPortOpen(port)) return
+  if (pile.outletType === 0) {
+    controlWaterOutType0(pile, port.id, nextOpen)
+  }
+}
+
+async function openWaterDvHttp(order, controlWaterOutlet) {
+  closeOpenOrderCache.value = order
+  controlWaterOutletCache.value = controlWaterOutlet
+  portToggleLoading.value = true
+  try {
+    await openWaterDv(order, { loading: true, silent: true })
+    ElMessage.success('操作成功')
+  } catch (e) {
+    if (e?.code === 40102) {
+      try {
+        await ElMessageBox.confirm(
+          '系统监测到该地块下其它出水口处于关闭状态，仍打开当前出水口可能会出现爆管风险。是否强制打开？',
+          '提示',
+          { confirmButtonText: '强制打开', cancelButtonText: '取消', type: 'warning' }
+        )
+        const retryOrder = { ...closeOpenOrderCache.value, force: true }
+        await openWaterDv(retryOrder, { loading: true, silent: true })
+        ElMessage.success('操作成功')
+      } catch (err) {
+        if (err !== 'cancel' && err?.message !== 'cancel') {
+          ElMessage.error(err?.message || '操作失败')
+        }
+        delete controlWaterOutletList.value[controlWaterOutlet.id]
+        if (statusInfo.value?.waterOutletPile) {
+          statusInfo.value.waterOutletPile.valveAction = 0
+        }
+      }
+    } else {
+      delete controlWaterOutletList.value[controlWaterOutlet.id]
+      if (statusInfo.value?.waterOutletPile) {
+        statusInfo.value.waterOutletPile.valveAction = 0
+      }
+      ElMessage.error(e?.message || '操作失败')
+    }
+  } finally {
+    portToggleLoading.value = false
+  }
+}
+
+async function closeWaterDvHttp(order, controlWaterOutlet) {
+  closeOpenOrderCache.value = order
+  controlWaterOutletCache.value = controlWaterOutlet
+  portToggleLoading.value = true
+  try {
+    await closeWaterDv(order, { loading: true, silent: true })
+    ElMessage.success('操作成功')
+  } catch (e) {
+    if (e?.code === 40102) {
+      try {
+        await ElMessageBox.confirm(
+          `${e?.message || '关闭失败'}，是否强制关闭？`,
+          '提示',
+          { confirmButtonText: '强制关闭', cancelButtonText: '取消', type: 'warning' }
+        )
+        const retryOrder = { ...closeOpenOrderCache.value, force: true }
+        await closeWaterDv(retryOrder, { loading: true, silent: true })
+        ElMessage.success('操作成功')
+      } catch (err) {
+        if (err !== 'cancel' && err?.message !== 'cancel') {
+          ElMessage.error(err?.message || '操作失败')
+        }
+        delete controlWaterOutletList.value[controlWaterOutlet.id]
+        if (statusInfo.value?.waterOutletPile) {
+          statusInfo.value.waterOutletPile.valveAction = 0
+        }
+      }
+    } else {
+      delete controlWaterOutletList.value[controlWaterOutlet.id]
+      if (statusInfo.value?.waterOutletPile) {
+        statusInfo.value.waterOutletPile.valveAction = 0
+      }
+      ElMessage.error(e?.message || '操作失败')
+    }
+  } finally {
+    portToggleLoading.value = false
+  }
 }
 
 watch(
@@ -318,7 +697,10 @@ watch(
       openWithDevice()
     } else {
       clearPoll()
-      if (!show) statusInfo.value = null
+      if (!show) {
+        controlWaterOutletList.value = {}
+        statusInfo.value = null
+      }
     }
   },
   { immediate: true }
@@ -326,7 +708,6 @@ watch(
 
 /**
  * 农场 status-by-farm 轮询后，把开度/压力/在线态合并进当前弹窗
- * （不对齐 {id}/status 轮询）
  */
 function mergeFromFarmDevice(device) {
   if (!statusInfo.value || !device) return
@@ -338,24 +719,35 @@ function mergeFromFarmDevice(device) {
   }
   if (device.name) statusInfo.value.name = device.name
 
-  const livePorts =
-    device.specificData?.waterOutletPile?.ports ||
-    device.waterOutletPile?.ports
-  const statusPorts = statusInfo.value.waterOutletPile?.ports
+  const livePile =
+    device.specificData?.waterOutletPile || device.waterOutletPile
+  if (!livePile || !statusInfo.value.waterOutletPile) return
+
+  const livePorts = livePile.ports
+  const statusPorts = statusInfo.value.waterOutletPile.ports
   if (!Array.isArray(livePorts) || !Array.isArray(statusPorts)) return
 
-  livePorts.forEach((livePort) => {
-    const target = statusPorts.find(
-      (p) => String(p.id) === String(livePort.id)
-    )
-    if (!target) return
-    if (livePort.currentOpening != null) {
-      target.currentOpening = livePort.currentOpening
+  const pileId = statusInfo.value.waterOutletPile.id
+  const inControl = controlWaterOutletList.value[pileId]
+
+  if (inControl && inControl.valveAction !== 0) {
+    livePorts.forEach((livePort) => {
+      const target = statusPorts.find((p) => String(p.id) === String(livePort.id))
+      if (!target) return
+      if (livePort.currentOpening != null) target.currentOpening = livePort.currentOpening
+      if (livePort.pressure != null) target.pressure = livePort.pressure
+    })
+  } else {
+    livePorts.forEach((livePort) => {
+      const target = statusPorts.find((p) => String(p.id) === String(livePort.id))
+      if (!target) return
+      if (livePort.currentOpening != null) target.currentOpening = livePort.currentOpening
+      if (livePort.pressure != null) target.pressure = livePort.pressure
+    })
+    if (livePile.valveAction != null) {
+      statusInfo.value.waterOutletPile.valveAction = livePile.valveAction
     }
-    if (livePort.pressure != null) {
-      target.pressure = livePort.pressure
-    }
-  })
+  }
 }
 
 onUnmounted(() => {
@@ -401,6 +793,28 @@ defineExpose({
 
 .water-dv-popup__header {
   flex-shrink: 0;
+}
+
+.water-dv-popup__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.water-dv-popup__body.is-offline {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+@keyframes water-dv-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
 }
 
 .water-dv-popup__title-row {
@@ -498,6 +912,17 @@ defineExpose({
   font-weight: 600;
 }
 
+.water-dv-popup__metric .is-charging {
+  color: #2f6bff;
+  font-weight: 600;
+}
+
+.water-dv-popup__snr {
+  margin-left: 2px;
+  font-size: 11px;
+  color: #999;
+}
+
 .water-dv-popup__device {
   position: relative;
   flex: 1;
@@ -521,6 +946,63 @@ defineExpose({
   width: 180px;
   height: 180px;
   opacity: 0.85;
+}
+
+.water-dv-popup__outlet-marker {
+  position: absolute;
+  top: 18%;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #bbb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  z-index: 2;
+  user-select: none;
+  pointer-events: none;
+}
+
+.water-dv-popup__outlet-marker.is-left {
+  left: 34%;
+}
+
+.water-dv-popup__outlet-marker.is-right {
+  right: 34%;
+}
+
+.water-dv-popup__outlet-marker.is-on {
+  background: #2f6bff;
+}
+
+.water-dv-popup__alarm {
+  position: absolute;
+  right: 24px;
+  bottom: 38px;
+  font-size: 18px;
+  color: #ef4444;
+  line-height: 1;
+  z-index: 2;
+}
+
+.water-dv-popup__manual-exit {
+  position: absolute;
+  bottom: 8px;
+  right: 24px;
+  border: none;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
 }
 
 .water-dv-popup__pressure {
@@ -595,6 +1077,11 @@ defineExpose({
   cursor: pointer;
 }
 
+.water-dv-popup__pod--gauge.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .water-dv-popup__pod-label {
   display: flex;
   align-items: center;
@@ -628,24 +1115,48 @@ defineExpose({
   background: #2f6bff;
 }
 
-.water-dv-popup__switch {
-  border: none;
-  border-radius: 16px;
+.water-dv-popup__port-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.water-dv-popup__port-switch.is-busy :deep(.el-switch) {
+  animation: water-dv-blink 1s ease-in-out infinite;
+}
+
+.water-dv-popup__port-switch :deep(.el-switch) {
+  --el-switch-on-color: #22c55e;
+  --el-switch-off-color: #ef4444;
+  height: 28px;
+}
+
+.water-dv-popup__port-switch :deep(.el-switch__core) {
   min-width: 56px;
   height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
+  border-radius: 16px;
+}
+
+.water-dv-popup__port-switch :deep(.el-switch.is-checked .el-switch__core .el-switch__inner) {
+  padding-left: 6px;
+  padding-right: 22px;
+}
+
+.water-dv-popup__port-switch :deep(.el-switch__core .el-switch__inner) {
+  padding-right: 6px;
+  padding-left: 22px;
+}
+
+.water-dv-popup__port-switch :deep(.el-switch__core .el-switch__inner .is-text) {
+  font-size: 11px;
   font-weight: 600;
-  cursor: pointer;
   color: #fff;
 }
 
-.water-dv-popup__switch.is-on {
-  background: #22c55e;
-}
-
-.water-dv-popup__switch.is-off {
-  background: #ef4444;
+.water-dv-popup__port-switch :deep(.el-switch__core .el-switch__action) {
+  width: 22px;
+  height: 22px;
 }
 
 .water-dv-popup__gauge {

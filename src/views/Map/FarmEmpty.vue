@@ -8,12 +8,14 @@
 </template>
 
 <script setup>
-import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import sloganImg from '@/assets/farm/slogan.png'
 import mascotImg from '@/assets/farm/mascot.png'
 
+const router = useRouter()
+
 const handleCreateFarm = () => {
-  ElMessage.info('新建农场功能开发中')
+  router.push({ path: '/map/chose-farm', query: { type: 'add' } })
 }
 </script>
 
@@ -23,9 +25,12 @@ const handleCreateFarm = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 60px);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   padding: 40px 20px;
   background: #fff;
+  box-sizing: border-box;
 }
 
 .farm-empty__slogan {
