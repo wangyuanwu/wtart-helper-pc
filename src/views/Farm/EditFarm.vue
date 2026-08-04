@@ -34,64 +34,68 @@
     <template v-else-if="farmInfo">
       <!-- 农场信息 -->
       <section class="edit-farm-section">
-        <h2 class="edit-farm-section__title">农场信息</h2>
         <div class="edit-farm-info-card">
-          <div class="edit-farm-info-card__form">
-            <div class="edit-farm-field">
-              <label class="edit-farm-field__label">农场名称</label>
-              <div class="edit-farm-field__input-wrap">
-                <input
-                  v-model="farmInfo.name"
-                  class="edit-farm-field__input"
-                  type="text"
-                  placeholder="请输入农场名称"
-                  maxlength="50"
-                />
-                <button
-                  v-if="farmInfo.name"
-                  type="button"
-                  class="edit-farm-field__clear"
-                  @click="farmInfo.name = ''"
-                >
-                  <i class="iconfont icon-farm_ic_erase"></i>
-                </button>
+          <h2 class="edit-farm-info-card__title">农场信息</h2>
+          <div class="edit-farm-info-card__body">
+            <div class="edit-farm-info-card__form">
+              <div class="edit-farm-field-row">
+                <div class="edit-farm-field">
+                  <label class="edit-farm-field__label">农场名称</label>
+                  <div class="edit-farm-field__input-wrap">
+                    <input
+                      v-model="farmInfo.name"
+                      class="edit-farm-field__input"
+                      type="text"
+                      placeholder="请输入农场名称"
+                      maxlength="50"
+                    />
+                    <button
+                      v-if="farmInfo.name"
+                      type="button"
+                      class="edit-farm-field__clear"
+                      @click="farmInfo.name = ''"
+                    >
+                      <i class="iconfont icon-farm_ic_erase"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="edit-farm-field">
+                  <label class="edit-farm-field__label">地理区域</label>
+                  <button
+                    type="button"
+                    class="edit-farm-field__address"
+                    @click="onEditAddress"
+                  >
+                    <span class="edit-farm-field__address-text">
+                      {{ farmInfo.address || '请选择农场地址' }}
+                    </span>
+                    <i class="iconfont icon-farm_ic_locate_02"></i>
+                  </button>
+                </div>
               </div>
             </div>
-            <div class="edit-farm-field">
-              <label class="edit-farm-field__label">地理区域</label>
-              <button
-                type="button"
-                class="edit-farm-field__address"
-                @click="onEditAddress"
-              >
-                <span class="edit-farm-field__address-text">
-                  {{ farmInfo.address || '请选择农场地址' }}
+            <div class="edit-farm-stats">
+              <div class="edit-farm-stat">
+                <span class="edit-farm-stat__label">地块数量</span>
+                <span class="edit-farm-stat__value">
+                  {{ farmInfo.landCount ?? 0 }}
+                  <small>个</small>
                 </span>
-                <i class="iconfont icon-farm_ic_locate_02"></i>
-              </button>
-            </div>
-          </div>
-          <div class="edit-farm-stats">
-            <div class="edit-farm-stat">
-              <span class="edit-farm-stat__label">地块数量</span>
-              <span class="edit-farm-stat__value">
-                {{ farmInfo.landCount ?? 0 }}
-                <small>个</small>
-              </span>
-            </div>
-            <div class="edit-farm-stat">
-              <span class="edit-farm-stat__label">总面积</span>
-              <span class="edit-farm-stat__value">
-                {{ formatArea(farmInfo.area) }}
-                <small>亩</small>
-              </span>
-            </div>
-            <div class="edit-farm-stat">
-              <span class="edit-farm-stat__label">设备数量</span>
-              <span class="edit-farm-stat__value">
-                {{ farmInfo.deviceCount ?? 0 }}
-                <small>个</small>
-              </span>
+              </div>
+              <div class="edit-farm-stat">
+                <span class="edit-farm-stat__label">总面积</span>
+                <span class="edit-farm-stat__value">
+                  {{ formatArea(farmInfo.area) }}
+                  <small>亩</small>
+                </span>
+              </div>
+              <div class="edit-farm-stat">
+                <span class="edit-farm-stat__label">设备数量</span>
+                <span class="edit-farm-stat__value">
+                  {{ farmInfo.deviceCount ?? 0 }}
+                  <small>个</small>
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -204,6 +208,12 @@
           </div>
         </div>
       </section>
+      <FarmLandDeviceDialog
+        v-model="deviceDialogVisible"
+        :land-id="deviceDialogLandId"
+        :dv-type="50"
+        @deleted="onDeviceDeleted"
+      />
     </template>
   </div>
 </template>
@@ -218,10 +228,11 @@ import {
   getMemberList,
   updateFarm
 } from '@/api/farm'
-import { getLandList } from '@/api/map'
+import { getLandList, getLandPlotById } from '@/api/map'
 import { useFarmStore } from '@/store/farm'
 import { useUserStore } from '@/store/user'
 import defaultAvatar from '@/assets/my_img_01.svg'
+import FarmLandDeviceDialog from './FarmLandDeviceDialog.vue'
 
 const router = useRouter()
 const farmStore = useFarmStore()
@@ -233,6 +244,8 @@ const deleting = ref(false)
 const farmInfo = ref(null)
 const memberList = ref([])
 const landList = ref([])
+const deviceDialogVisible = ref(false)
+const deviceDialogLandId = ref(null)
 
 const currentUserId = computed(
   () => userStore.userInfo?.id ?? userStore.userInfo?.userId
@@ -273,7 +286,17 @@ async function loadFarmDetail() {
   try {
     const res = await getFarmDetail(farmId)
     farmInfo.value = res?.data ? { ...res.data } : null
-    if (farmInfo.value) {
+    if (!farmInfo.value) return
+
+    // 选点页 type=edit 返回：优先消费 pending 回填（对齐移动端 locationChange）
+    // 避免重新挂载后用接口旧地址覆盖刚选的位置
+    const pending = farmStore.consumePendingFarmLocation()
+    if (pending) {
+      farmInfo.value.address = pending.address
+      farmInfo.value.longitude = pending.lng
+      farmInfo.value.latitude = pending.lat
+      farmStore.setLocation(pending)
+    } else {
       farmStore.setLocation({
         lng: farmInfo.value.longitude,
         lat: farmInfo.value.latitude,
@@ -341,17 +364,34 @@ function onAddLand() {
   router.push('/map/edit-plot?type=add')
 }
 
-function onLandDetail(land) {
+async function onLandDetail(land) {
   if (!land?.id) return
-  ElMessage.info('地块编辑功能开发中')
+  try {
+    // 对齐移动端 edit_farm getLandDetailHttp → vuex_land → add-edit-land?type=edit
+    const res = await getLandPlotById(land.id)
+    if (res?.data) {
+      farmStore.setLand(res.data)
+      router.push({ path: '/farm/edit-land', query: { type: 'edit' } })
+    }
+  } catch (e) {
+    console.error('[EditFarm] 获取地块详情失败', e)
+    ElMessage.error('获取地块详情失败')
+  }
 }
 
 function onDeviceList(type, landId) {
   if (Number(type) === 50) {
-    router.push({ path: '/device', query: { landId: String(landId) } })
+    // 对齐移动端 device_list?dvType=50&landId=，PC 用弹窗承载
+    deviceDialogLandId.value = landId
+    deviceDialogVisible.value = true
     return
   }
   ElMessage.info('功能开发中')
+}
+
+function onDeviceDeleted() {
+  loadLands()
+  loadFarmDetail()
 }
 
 async function onSave() {
@@ -412,6 +452,23 @@ watch(
   () => farmStore.s_location,
   () => applyLocationFromStore(),
   { deep: true }
+)
+
+/** 壳层切换当前农场时，同步刷新本页农场信息 / 成员 / 地块 */
+watch(
+  () => farmStore.selectFarm?.id,
+  (id, prevId) => {
+    if (id == null) {
+      farmInfo.value = null
+      memberList.value = []
+      landList.value = []
+      return
+    }
+    if (prevId != null && String(id) === String(prevId)) return
+    // 首次挂载由 onMounted 加载；仅在切换农场时重载
+    if (prevId == null) return
+    loadAll()
+  }
 )
 
 onMounted(loadAll)
@@ -526,25 +583,45 @@ onActivated(() => {
 }
 
 .edit-farm-info-card {
-  display: flex;
-  gap: 24px;
   background: #fff;
+  border: 1px solid #e8eaed;
   border-radius: 14px;
-  padding: 24px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  padding: 20px 24px 24px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.edit-farm-info-card__title {
+  margin: 0 0 18px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+}
+
+.edit-farm-info-card__body {
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
 }
 
 .edit-farm-info-card__form {
-  flex: 1;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
-.edit-farm-field {
-  margin-bottom: 20px;
+.edit-farm-field-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: nowrap;
 }
 
-.edit-farm-field:last-child {
-  margin-bottom: 0;
+/* 固定像素宽度：百分比相对父级会因父级由子项撑开而无法解析，导致微调不生效 */
+.edit-farm-field {
+  flex: 0 0 330px;
+  width: 330px;
+  max-width: 330px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .edit-farm-field__label {
@@ -557,19 +634,23 @@ onActivated(() => {
 .edit-farm-field__input-wrap {
   display: flex;
   align-items: center;
-  background: #f5f6f8;
-  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   padding: 0 12px;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .edit-farm-field__input {
   flex: 1;
   border: none;
   background: transparent;
-  height: 44px;
-  font-size: 15px;
+  height: 40px;
+  font-size: 14px;
   color: #111;
   outline: none;
+  min-width: 0;
 }
 
 .edit-farm-field__clear {
@@ -578,6 +659,7 @@ onActivated(() => {
   color: #999;
   cursor: pointer;
   padding: 4px;
+  flex-shrink: 0;
 }
 
 .edit-farm-field__address {
@@ -585,13 +667,14 @@ onActivated(() => {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  background: #f5f6f8;
-  border: none;
-  border-radius: 10px;
+  min-height: 40px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   cursor: pointer;
   text-align: left;
+  box-sizing: border-box;
 }
 
 .edit-farm-field__address-text {
@@ -599,48 +682,65 @@ onActivated(() => {
   font-size: 14px;
   color: #333;
   line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .edit-farm-field__address .iconfont {
   color: #2f6bff;
-  font-size: 20px;
+  font-size: 18px;
   flex-shrink: 0;
   margin-left: 8px;
 }
 
 .edit-farm-stats {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 12px;
-  flex-shrink: 0;
-  width: 160px;
+  /* 吃掉表单左侧固定宽度后的剩余空间，三个卡片随模块一起变宽 */
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  max-width: none;
+  align-items: stretch;
+  box-sizing: border-box;
 }
 
 .edit-farm-stat {
-  background: #eef4ff;
-  border-radius: 12px;
-  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  min-width: 0;
+  background: #f3f4f6;
+  border-radius: 10px;
+  padding: 12px 14px;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .edit-farm-stat__label {
   display: block;
   font-size: 12px;
   color: #666;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  white-space: nowrap;
 }
 
 .edit-farm-stat__value {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   color: #2f6bff;
   line-height: 1.2;
 }
 
 .edit-farm-stat__value small {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   margin-left: 2px;
+  color: #2f6bff;
 }
 
 .edit-farm-member-grid {
@@ -825,17 +925,30 @@ onActivated(() => {
 }
 
 @media (max-width: 900px) {
-  .edit-farm-info-card {
+  .edit-farm-info-card__body {
     flex-direction: column;
   }
 
-  .edit-farm-stats {
+  .edit-farm-field-row {
+    flex-direction: column;
+  }
+
+  .edit-farm-field {
+    flex: 1 1 auto;
     width: 100%;
-    flex-direction: row;
+    max-width: none;
+  }
+
+  .edit-farm-stats {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
   }
 
   .edit-farm-stat {
     flex: 1;
+    min-width: 0;
   }
 
   .edit-farm-page__head {

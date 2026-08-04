@@ -58,9 +58,24 @@ const routes = [
         meta: { title: '农场成员', requiresAuth: true }
       },
       {
+        path: 'farm/edit-land',
+        component: () => import('../views/Farm/EditLand.vue'),
+        meta: { title: '编辑地块', requiresAuth: true }
+      },
+      {
         path: 'device',
         component: () => import('../views/Device/Index.vue'),
         meta: { title: '设备管理', requiresAuth: true }
+      },
+      {
+        path: 'device/control',
+        component: () => import('../views/Device/ControlDevice.vue'),
+        meta: { title: '设备控制', requiresAuth: true }
+      },
+      {
+        path: 'device/detail',
+        component: () => import('../views/Device/DeviceDetail.vue'),
+        meta: { title: '出水桩设置', requiresAuth: true }
       },
       {
         path: 'irrigation-group',

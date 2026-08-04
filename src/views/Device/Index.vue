@@ -47,11 +47,18 @@
         >
           <div class="device-land__header">
             <div class="device-land__title">
+              <span class="device-land__name-text">
+                {{ land.landName || '未命名地块' }}
+              </span>
+              <span class="device-land__running">
+                {{ getLandRunningText(land) }}
+              </span>
               <el-popover
+                v-if="land.landId != null"
                 :visible="landMenuLandId === String(land.landId)"
                 placement="bottom-start"
-                :width="160"
-                trigger="click"
+                :width="168"
+                trigger="manual"
                 :show-arrow="false"
                 popper-class="device-land-menu-popper"
                 @update:visible="(v) => onLandMenuVisible(land, v)"
@@ -59,34 +66,39 @@
                 <template #reference>
                   <button
                     type="button"
-                    class="device-land__name"
+                    class="device-land__more-btn"
                     @click.stop="toggleLandMenu(land)"
                   >
-                    {{ land.landName || '未命名地块' }}
+                    <el-icon><MoreFilled /></el-icon>
                   </button>
                 </template>
                 <div class="device-land-menu" @click.stop>
                   <button
                     type="button"
                     class="device-land-menu__item"
-                    @click="onEditLand(land)"
+                    @click.stop="onSortLand(land)"
+                  >
+                    <el-icon class="device-land-menu__icon"><Operation /></el-icon>
+                    排序
+                  </button>
+                  <button
+                    type="button"
+                    class="device-land-menu__item"
+                    @click.stop="onEditLand(land)"
                   >
                     <i class="iconfont icon-a-device_ic_edit1"></i>
-                    编辑地块
+                    编辑
                   </button>
                   <button
                     type="button"
                     class="device-land-menu__item is-danger"
-                    @click="onDeleteLand(land)"
+                    @click.stop="onDeleteLand(land)"
                   >
                     <i class="iconfont icon-land_ic_dele"></i>
-                    删除地块
+                    删除
                   </button>
                 </div>
               </el-popover>
-              <span class="device-land__running">
-                {{ getLandRunningText(land) }}
-              </span>
             </div>
             <button
               v-if="hasMoreDevices(land)"
@@ -156,27 +168,54 @@
                 />
               </div>
 
-              <div class="device-card__ports">
+              <div
+                v-if="hasWaterPile(device)"
+                class="device-card__ports"
+                :class="{ 'is-valve-busy': isValveBusy(device) }"
+                @click.stop
+              >
                 <div
-                  class="device-card__port"
-                  :class="portSwitchClass(device, portA(device))"
+                  v-if="portA(device)"
+                  class="device-card__port-switch"
+                  :class="[
+                    portSwitchClass(device, portA(device)),
+                    { 'is-blink': isValveBusy(device) }
+                  ]"
                 >
-                  <span class="device-card__port-pct">
-                    {{ portOpenText(portA(device)) }}%
-                  </span>
-                  <span class="device-card__port-name">
+                  <el-switch
+                    :model-value="isPortOpen(portA(device))"
+                    :disabled="isPortSwitchDisabled(device)"
+                    inline-prompt
+                    :active-text="`${portOpenText(portA(device))}%`"
+                    inactive-text="关"
+                    active-color="#00c970"
+                    inactive-color="#ff2f30"
+                    @change="(val) => onPortSwitch(device, portA(device), val)"
+                  />
+                  <span class="device-card__port-badge">
                     {{ portLabel(portA(device), 'A') }}
                   </span>
                 </div>
                 <div
-                  class="device-card__port"
-                  :class="portSwitchClass(device, portB(device))"
+                  v-if="portB(device)"
+                  class="device-card__port-switch"
+                  :class="[
+                    portSwitchClass(device, portB(device)),
+                    { 'is-blink': isValveBusy(device) }
+                  ]"
                 >
-                  <span class="device-card__port-name">
+                  <el-switch
+                    :model-value="isPortOpen(portB(device))"
+                    :disabled="isPortSwitchDisabled(device)"
+                    inline-prompt
+                    :active-text="`${portOpenText(portB(device))}%`"
+                    inactive-text="关"
+                    active-color="#00c970"
+                    inactive-color="#ff2f30"
+                    @change="(val) => onPortSwitch(device, portB(device), val)"
+                  />
+                  <span class="device-card__port-badge">
                     {{ portLabel(portB(device), 'B') }}
-                  </span>
-                  <span class="device-card__port-pct">
-                    {{ portOpenText(portB(device)) }}%
                   </span>
                 </div>
               </div>
@@ -211,20 +250,70 @@
     </template>
 
     <div v-else-if="loading" class="device-loading">加载中...</div>
+
+    <DeviceLandSortDialog
+      v-model="sortDialogVisible"
+      :farm-id="getFarmId()"
+      :land-id="sortLandId"
+      @saved="onSortSaved"
+    />
+
+    <el-dialog
+      v-model="landDeleteConfirmVisible"
+      title="提示"
+      width="420px"
+      append-to-body
+      :close-on-click-modal="false"
+      @closed="onLandDeleteConfirmClosed"
+    >
+      <p class="device-land-delete-desc">
+        删除地块后不能恢复，是否继续？
+      </p>
+      <el-checkbox v-model="landDeleteRiskChecked">
+        已知晓风险，确认删除。
+      </el-checkbox>
+      <template #footer>
+        <el-button @click="landDeleteConfirmVisible = false">取消</el-button>
+        <el-button
+          type="danger"
+          :disabled="!landDeleteRiskChecked"
+          :loading="landDeleting"
+          @click="confirmDeleteLand"
+        >
+          删除
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox, ElSwitch } from 'element-plus'
+import { ArrowDown, MoreFilled, Operation } from '@element-plus/icons-vue'
 import { useFarmStore } from '@/store/farm'
 import { deleteDevice, getDeviceGroupByLands } from '@/api/device'
-import { deleteLand } from '@/api/map'
+import { deleteLand, getLandPlotById } from '@/api/map'
+import { useWaterOutletValve } from '@/composables/useWaterOutletValve'
+import {
+  initDeviceLandListPorts,
+  isPortOpen,
+  mergeDeviceLandList,
+  setOpenStatusOnList
+} from '@/utils/waterOutletMerge'
+import DeviceLandSortDialog from './DeviceLandSortDialog.vue'
 import outletOnlineImg from '@/assets/map/outlet-device-online.svg'
 import outletOfflineImg from '@/assets/map/outlet-device-offline.svg'
 
+const router = useRouter()
 const farmStore = useFarmStore()
+const {
+  controlWaterOutletList,
+  isLockControl,
+  handleSwitchChange,
+  resetControlState
+} = useWaterOutletValve()
 
 const deviceLandList = ref(null)
 const loading = ref(false)
@@ -232,8 +321,13 @@ const tabIndex = ref(0)
 const searchText = ref('')
 const actionDeviceId = ref(null)
 const landMenuLandId = ref(null)
-/** 地块设备卡片展开状态（>4 台时点「更多」展开） */
 const expandedLandIds = ref({})
+const sortDialogVisible = ref(false)
+const sortLandId = ref(null)
+const landDeleteConfirmVisible = ref(false)
+const landDeleteRiskChecked = ref(false)
+const landDeleting = ref(false)
+const pendingDeleteLand = ref(null)
 
 const LAND_CARD_LIMIT = 4
 const POLL_MS = 3000
@@ -248,21 +342,30 @@ const counts = computed(() => {
   let total = 0
   let online = 0
   let offline = 0
+  let lowPower = 0
+  let openCount = 0
+  let closeCount = 0
   const list = deviceLandList.value || []
   list.forEach((land) => {
     ;(land.devices || []).forEach((dev) => {
       total += 1
       if (dev.isOnline) online += 1
       else offline += 1
+      if (isLowPower(dev)) lowPower += 1
+      if (isDeviceOpen(dev)) openCount += 1
+      else closeCount += 1
     })
   })
-  return { total, online, offline }
+  return { total, online, offline, lowPower, openCount, closeCount }
 })
 
 const tabList = computed(() => [
   { key: 'all', label: `全部(${counts.value.total})` },
   { key: 'online', label: `在线(${counts.value.online})` },
-  { key: 'offline', label: `离线(${counts.value.offline})` }
+  { key: 'offline', label: `离线(${counts.value.offline})` },
+  { key: 'lowPower', label: `低电量(${counts.value.lowPower})` },
+  { key: 'open', label: `已打开(${counts.value.openCount})` },
+  { key: 'close', label: `已关闭(${counts.value.closeCount})` }
 ])
 
 /** 无任何设备且非搜索态 → 空态 */
@@ -301,6 +404,35 @@ const portOpenText = (port) => {
 
 const portLabel = (port, fallback) => port?.outletName || fallback
 
+const isLowPower = (dev) => {
+  const bat = dev?.batteryPercent
+  return bat == null || Number(bat) <= 40
+}
+
+const isDeviceOpen = (dev) => {
+  const ports = dev?.specificData?.waterOutletPile?.ports
+  if (!Array.isArray(ports) || !ports.length) return false
+  return ports.some((p) => Number(p.currentOpening) > 0)
+}
+
+const hasWaterPile = (device) => !!device?.specificData?.waterOutletPile
+
+const isValveBusy = (device) =>
+  Number(device?.specificData?.waterOutletPile?.valveAction) !== 0
+
+const isPortSwitchDisabled = (device) => {
+  if (!device?.isOnline) return true
+  if (isLockControl.value) return true
+  return isValveBusy(device)
+}
+
+const onPortSwitch = (device, port, val) => {
+  const pile = device?.specificData?.waterOutletPile
+  if (!pile || !port) return
+  if (val === isPortOpen(port)) return
+  handleSwitchChange(deviceLandList.value, pile.id, port.id, val)
+}
+
 /** 开启 #00C970，关闭 #FF2F30；离线置灰 */
 const portSwitchClass = (device, port) => {
   if (!device?.isOnline) return 'is-muted'
@@ -319,6 +451,9 @@ const getVisibleDevices = (land) => {
   if (tabIndex.value === 0) return devices
   if (tabIndex.value === 1) return devices.filter((d) => !!d.isOnline)
   if (tabIndex.value === 2) return devices.filter((d) => !d.isOnline)
+  if (tabIndex.value === 3) return devices.filter((d) => isLowPower(d))
+  if (tabIndex.value === 4) return devices.filter((d) => isDeviceOpen(d))
+  if (tabIndex.value === 5) return devices.filter((d) => !isDeviceOpen(d))
   return devices
 }
 
@@ -404,7 +539,12 @@ const onDeviceClick = (device) => {
   }
   if (actionDeviceId.value === String(device.id)) return
   clearDeviceAction()
-  console.log('[Device] toControl 预留出口', device)
+  if (!device?.id) return
+  farmStore.setControlDevice(device)
+  router.push({
+    path: '/device/control',
+    query: { id: String(device.id) }
+  })
 }
 
 /** 添加设备：预留业务出口 */
@@ -440,86 +580,68 @@ const onDeleteDevice = async (device) => {
   }
 }
 
-/** 编辑地块：预留业务出口 */
-const onEditLand = (land) => {
-  console.log('[Device] onEditLand 预留出口', land)
+/** 编辑地块：对齐移动端 getLandDetailHttp → add-edit-land?type=edit */
+const onEditLand = async (land) => {
   landMenuLandId.value = null
-  ElMessage.info('编辑地块功能开发中')
+  if (land?.landId == null) return
+  try {
+    const res = await getLandPlotById(land.landId)
+    if (res?.data) {
+      farmStore.setLand(res.data)
+      router.push({ path: '/farm/edit-land', query: { type: 'edit' } })
+    }
+  } catch (e) {
+    console.error('[Device] 获取地块详情失败', e)
+    ElMessage.error('获取地块详情失败')
+  }
 }
 
-const onDeleteLand = async (land) => {
+const onSortLand = (land) => {
+  landMenuLandId.value = null
+  if (land?.landId == null) return
+  sortLandId.value = land.landId
+  sortDialogVisible.value = true
+}
+
+const onSortSaved = async () => {
+  await fetchDeviceList({ silent: false })
+}
+
+const onDeleteLand = (land) => {
   if (land?.landId == null) return
   landMenuLandId.value = null
-  try {
-    await ElMessageBox.confirm('请确认是否删除地块？', '删除地块', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-  } catch {
-    return
-  }
+  pendingDeleteLand.value = land
+  landDeleteRiskChecked.value = false
+  landDeleteConfirmVisible.value = true
+}
+
+const onLandDeleteConfirmClosed = () => {
+  pendingDeleteLand.value = null
+  landDeleteRiskChecked.value = false
+}
+
+const confirmDeleteLand = async () => {
+  const land = pendingDeleteLand.value
+  if (land?.landId == null) return
+  landDeleting.value = true
   try {
     await deleteLand(land.landId)
     ElMessage.success('操作成功')
+    landDeleteConfirmVisible.value = false
+    await farmStore.fetchFarmList()
     await fetchDeviceList({ silent: false })
   } catch (e) {
     console.error('[Device] 删除地块失败', e)
+  } finally {
+    landDeleting.value = false
   }
 }
 
 /**
- * 静默轮询合并：同步在线/电量/开度，保留本地列表结构
+ * 静默轮询合并（对齐移动端 mergeData + controlWaterOutletList）
  */
-const mergeDeviceLandList = (oldList, newList) => {
-  if (!Array.isArray(oldList) || !Array.isArray(newList)) return newList
-  const next = oldList.map((oldLand) => {
-    const newLand = newList.find(
-      (nl) => String(nl.landId) === String(oldLand.landId)
-    )
-    if (!newLand) return oldLand
-    const devices = (oldLand.devices || []).map((oldDev) => {
-      const newDev = (newLand.devices || []).find(
-        (nd) => String(nd.id) === String(oldDev.id)
-      )
-      if (!newDev) return oldDev
-      const merged = {
-        ...oldDev,
-        ...newDev,
-        specificData: {
-          ...(oldDev.specificData || {}),
-          ...(newDev.specificData || {})
-        }
-      }
-      const newPile = newDev.specificData?.waterOutletPile
-      if (newPile) {
-        merged.specificData.waterOutletPile = {
-          ...(oldDev.specificData?.waterOutletPile || {}),
-          ...newPile
-        }
-      }
-      return merged
-    })
-    // 追加新增设备
-    ;(newLand.devices || []).forEach((nd) => {
-      if (!devices.some((d) => String(d.id) === String(nd.id))) {
-        devices.push({ ...nd })
-      }
-    })
-    return {
-      ...oldLand,
-      ...newLand,
-      devices
-    }
-  })
-  // 追加新地块
-  newList.forEach((nl) => {
-    if (!next.some((l) => String(l.landId) === String(nl.landId))) {
-      next.push({ ...nl, devices: [...(nl.devices || [])] })
-    }
-  })
-  return next
-}
+const mergeListAfterPoll = (oldList, newList) =>
+  mergeDeviceLandList(oldList, newList, controlWaterOutletList.value)
 
 const fetchDeviceList = async ({ silent = false } = {}) => {
   const farmId = getFarmId()
@@ -542,15 +664,11 @@ const fetchDeviceList = async ({ silent = false } = {}) => {
     if (requestId !== listRequestId) return
     const data = Array.isArray(res?.data) ? res.data : []
     if (deviceLandList.value == null || !silent) {
-      deviceLandList.value = data.map((land) => ({
-        ...land,
-        devices: Array.isArray(land.devices)
-          ? land.devices.map((d) => ({ ...d }))
-          : []
-      }))
+      deviceLandList.value = initDeviceLandListPorts(data)
     } else {
-      deviceLandList.value = mergeDeviceLandList(deviceLandList.value, data)
+      mergeListAfterPoll(deviceLandList.value, data)
     }
+    setOpenStatusOnList(deviceLandList.value, controlWaterOutletList.value)
   } catch (e) {
     if (requestId !== listRequestId) return
     console.error('[Device] 获取设备列表失败', e)
@@ -579,6 +697,7 @@ const startPoll = () => {
 const handleFarmChange = () => {
   clearDeviceAction()
   expandedLandIds.value = {}
+  resetControlState()
   deviceLandList.value = null
   startPoll()
 }
@@ -592,6 +711,7 @@ onUnmounted(() => {
   offFarmChange?.()
   clearPoll()
   clearLongPressTimer()
+  resetControlState()
 })
 </script>
 
@@ -667,19 +787,22 @@ onUnmounted(() => {
 }
 
 .device-tabs {
+  flex: 1;
+  min-width: 0;
   display: inline-flex;
   align-items: stretch;
-  width: 372px;
   height: 58px;
   box-sizing: border-box;
   padding: 6px;
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 4px 14px rgba(31, 45, 61, 0.08);
+  overflow-x: auto;
 }
 
 .device-tabs :deep(.el-radio-button) {
-  flex: 1;
+  flex: 1 0 auto;
+  min-width: 88px;
   height: auto;
   margin: 0;
   display: flex !important;
@@ -694,7 +817,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100% !important;
   min-height: 0;
-  padding: 0 12px !important;
+  padding: 0 10px !important;
   border: 0 !important;
   border-color: transparent !important;
   border-radius: 0 !important;
@@ -704,7 +827,7 @@ onUnmounted(() => {
   box-shadow: none !important;
   font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
     'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: bold;
   line-height: 20px;
   text-align: center;
@@ -714,6 +837,7 @@ onUnmounted(() => {
   letter-spacing: 0;
   color: #3653a0;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .device-tabs :deep(.el-radio-button__inner:hover) {
@@ -822,24 +946,37 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.device-land__name {
-  border: none;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
+.device-land__name-text {
   font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
     'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-size: 20px;
   font-weight: bold;
   line-height: 40px;
-  display: flex;
-  align-items: center;
-  letter-spacing: 0;
   color: #0f172a;
 }
 
-.device-land__name:hover {
+.device-land__more-btn {
+  border: none;
+  background: transparent;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #606266;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.device-land__more-btn:hover {
   color: #3653a0;
+}
+
+.device-land-delete-desc {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.6;
 }
 
 .device-land__running {
@@ -1050,78 +1187,106 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 40px;
+  gap: 24px;
   flex-shrink: 0;
 }
 
-.device-card__port {
-  width: 100px;
-  height: 35px;
-  border-radius: 16.78px;
+.device-card__port-switch {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 6px 0 12px;
-  box-sizing: border-box;
-  gap: 6px;
 }
 
-.device-card__port.is-open {
-  background: #00c970;
-  color: #fff;
+.device-card__port-switch :deep(.el-switch) {
+  --el-switch-on-color: #00c970;
+  --el-switch-off-color: #ff2f30;
+  height: 35px;
 }
 
-.device-card__port.is-closed {
-  background: #ff2f30;
-  color: #fff;
+.device-card__port-switch :deep(.el-switch__core) {
+  min-width: 100px;
+  height: 35px;
+  border-radius: 17.5px;
 }
 
-.device-card__port.is-muted {
-  background: #e9ecf0;
-  color: #a8abb2;
+/* 隐藏原生滑块，改用自定义 A/B 白色圆 */
+.device-card__port-switch :deep(.el-switch__action) {
+  width: 31px;
+  height: 31px;
+  opacity: 0;
 }
 
-.device-card__port-pct {
-  font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
-    'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 14px;
-  font-weight: bold;
-  line-height: 1;
-  color: inherit;
-  white-space: nowrap;
+.device-card__port-switch:first-child :deep(.el-switch__core) {
+  padding-left: 38px;
 }
 
-.device-card__port-name {
-  width: 24px;
-  height: 24px;
+.device-card__port-switch:nth-child(2) :deep(.el-switch__core) {
+  padding-right: 38px;
+}
+
+.device-card__port-switch.is-muted :deep(.el-switch.is-disabled .el-switch__core) {
+  background: #e9ecf0 !important;
+  border-color: #e9ecf0 !important;
+}
+
+.device-card__port-badge {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  width: 31px;
+  height: 31px;
   border-radius: 50%;
   background: #fff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
   font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
     'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: bold;
   line-height: 1;
+  color: #3653a0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-.device-card__port.is-open .device-card__port-name {
+.device-card__port-switch:first-child .device-card__port-badge {
+  left: 2px;
+}
+
+.device-card__port-switch:nth-child(2) .device-card__port-badge {
+  right: 2px;
+}
+
+.device-card__port-switch.is-open .device-card__port-badge {
   color: #00c970;
 }
 
-.device-card__port.is-closed .device-card__port-name {
+.device-card__port-switch.is-closed .device-card__port-badge {
   color: #ff2f30;
 }
 
-.device-card__port.is-muted .device-card__port-name {
+.device-card__port-switch.is-muted .device-card__port-badge {
   background: #f5f6f8;
   color: #a8abb2;
+  box-shadow: none;
 }
 
-.device-card__port:nth-child(2) {
-  padding: 0 12px 0 6px;
+.device-card__ports.is-valve-busy .device-card__port-switch.is-blink :deep(.el-switch__core) {
+  animation: device-valve-blink 1s ease-in-out infinite;
+}
+
+@keyframes device-valve-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 .device-card.is-offline .device-card__name {
@@ -1195,7 +1360,8 @@ onUnmounted(() => {
   color: #f56c6c;
 }
 
-.device-land-menu__item .iconfont {
+.device-land-menu__item .iconfont,
+.device-land-menu__item .device-land-menu__icon {
   font-size: 16px;
 }
 </style>

@@ -52,14 +52,47 @@ export function deleteDevice(id) {
   })
 }
 
+/** 批量删除设备（对齐移动端 batchDelete） */
+export function batchDeleteDevices(data, config = {}) {
+  return request({
+    url: '/api/device/batch-delete',
+    method: 'POST',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
 /** 出水桩设备状态（点击图标查询详情，不对齐农场轮询） */
-export function getWaterOutletPileStatus(id) {
+export function getWaterOutletPileStatus(id, config = {}) {
   return request({
     url: `/api/water-outlet-pile/${id}/status`,
     method: 'GET',
     headers: {
-      'X-Timezone': 'Asia/Shanghai'
-    }
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+/** 设置默认开度（对齐移动端 updateDefaultOpen） */
+export function updateDefaultOpening(data, config = {}) {
+  return request({
+    url: '/api/water-outlet-pile/set-default-opening',
+    method: 'PUT',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
   })
 }
 
@@ -119,12 +152,56 @@ export function closeWaterDv(data, config = {}) {
   })
 }
 
+/** 地块内设备排序（对齐移动端 deviceSort） */
+export function deviceSort(data, config = {}) {
+  return request({
+    url: '/api/device/sort',
+    method: 'PUT',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
 /** 退出手动模式等（对齐移动端 closeRestartDv） */
 export function closeRestartDv(data, config = {}) {
   return request({
     url: '/api/water-outlet-pile/set-dev',
     method: 'POST',
     data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+/** 出水桩扩展数据（对齐移动端 getWaterDvOtherData → /data） */
+export function getWaterOutletPileData(id, config = {}) {
+  return request({
+    url: `/api/water-outlet-pile/${id}/data`,
+    method: 'GET',
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+/** 设备状态历史曲线（对齐移动端 getDeviceStatusHistory） */
+export function getDeviceStatusHistory(params = {}, config = {}) {
+  return request({
+    url: '/api/deviceStatusHistory/list',
+    method: 'GET',
+    params,
     headers: {
       'X-Timezone': 'Asia/Shanghai',
       ...(config.headers || {})

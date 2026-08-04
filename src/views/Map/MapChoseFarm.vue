@@ -484,6 +484,8 @@ const onConfirmAddress = () => {
     return
   }
 
+  // 对齐移动端 farmEditMsg / locationChange：回填缓冲供 EditFarm 消费
+  farmStore.setPendingFarmLocation({ lng, lat, address })
   ElMessage.success('位置已更新')
   setTimeout(() => {
     router.back()

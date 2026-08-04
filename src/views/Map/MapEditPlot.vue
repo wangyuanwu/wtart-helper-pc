@@ -169,6 +169,10 @@ const farmStore = useFarmStore()
 
 const pageType = computed(() => route.query.type || 'add')
 const landId = computed(() => route.query.landId || '')
+/** 农场设置编辑地块进入圈地页：对齐移动端 edit → dataChange 回写，不在此 PUT */
+const fromFarmEditLand = computed(
+  () => route.query.from === 'farm-edit-land'
+)
 const pageTitle = computed(() => {
   if (pageType.value === 'edit') return '编辑地块'
   return '新建地块'
@@ -735,6 +739,35 @@ const submitEditLand = async (land, address) => {
   const farmId = farmStore.selectFarm?.id
   if (farmId == null) {
     ElMessage.warning('请先选择农场')
+    return
+  }
+
+  // 农场设置流程：仅回写 s_land，由 EditLand 页统一保存（对齐移动端 dataChange）
+  if (fromFarmEditLand.value) {
+    const areaJson = JSON.stringify({
+      landPoint: land.landPoint,
+      fillColor: land.fillColor
+    })
+    farmStore.setLand({
+      ...meta,
+      name: meta.name || meta.landName || '',
+      area: land.areaMu,
+      areaMu: land.areaMu,
+      areaJson,
+      address: address || meta.address || '',
+      longitude: land.lng,
+      latitude: land.lat,
+      lng: land.lng,
+      lat: land.lat,
+      landPoint: land.landPoint,
+      fillColor: land.fillColor,
+      deviceIds: land.deviceIds?.length
+        ? land.deviceIds
+        : meta.deviceIds || []
+    })
+    editingLandRecord = null
+    resetDrawUiState()
+    router.replace({ path: '/farm/edit-land', query: { type: 'edit' } })
     return
   }
 

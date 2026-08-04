@@ -385,6 +385,11 @@ const handleUserMenu = async (command) => {
 }
 
 const syncActiveIndex = (path) => {
+  // 设备子页（如控制页）保持左侧「设备」菜单高亮
+  if (path.startsWith('/device')) {
+    activeIndex.value = 'device'
+    return
+  }
   activeIndex.value = path.replace(/^\//, '') || 'map'
 }
 

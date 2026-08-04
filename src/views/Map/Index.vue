@@ -452,6 +452,29 @@ function logic_waterDvDrawFinish() {
   console.log('[Map] logic_waterDvDrawFinish 预留出口')
 }
 
+/** 控制页「打开地图」：聚焦并打开对应出水桩弹窗 */
+function tryOpenPendingMapDevice() {
+  const pendingId = farmStore.consumePendingMapDeviceId?.()
+  if (pendingId == null) return
+  const index = waterDvList.value.findIndex(
+    (d) => String(d.id) === String(pendingId)
+  )
+  if (index < 0) return
+  const device = waterDvList.value[index]
+  logic_clickSingleWaterDv({ device, index })
+  const lng = device.longitude
+  const lat = device.latitude
+  if (
+    mapInstance.value &&
+    lng != null &&
+    lat != null &&
+    Number.isFinite(Number(lng)) &&
+    Number.isFinite(Number(lat))
+  ) {
+    mapInstance.value.setZoomAndCenter?.(16, [Number(lng), Number(lat)])
+  }
+}
+
 /** 农场 Marker 绘制器（对齐移动端 drawAllFarmMarker / createFarmMarker / clearFarmMark） */
 const farmMarkerDrawer = createFarmMarkerDrawer({
   onFarmClick: logic_farmClick
@@ -1331,6 +1354,8 @@ const getFarmInfoHttp = async (farmId) => {
     drawAllWaterDvMarker()
     // 对齐移动端 setTimer：full 就绪后轮询出水桩 + 轮灌组
     setMapStatusTimers()
+    // 设备控制页跳转地图时打开对应出水桩
+    nextTick(() => tryOpenPendingMapDevice())
     return prepared
   } catch (e) {
     if (requestId !== fullInfoRequestId) return null

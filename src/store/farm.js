@@ -17,12 +17,23 @@ export const useFarmStore = defineStore(
     const s_farm_info = ref(null)
     /** 选点页确认的位置，对齐移动端 vuex_locaiton */
     const s_location = ref(null)
+    /**
+     * 编辑农场地址回填缓冲（对齐移动端 farmEditMsg / locationChange）
+     * 选点页 type=edit 确认后写入；EditFarm 重新挂载消费后回填，避免被详情接口旧地址覆盖
+     */
+    const s_pending_farm_location = ref(null)
     /** 圈地页保存的地块草稿，对齐移动端 vuex_land */
     const s_land = ref(null)
     /** 农场设置页成员编辑缓存，对齐移动端 vuex_member_info */
     const s_member_info = ref(null)
     /** 农场设置页地块列表缓存，对齐移动端 vuex_land_list */
     const s_land_list = ref([])
+    /** 设备控制页当前设备，对齐移动端 vuex_control_device_info */
+    const s_control_device = ref(null)
+    /** 设备控制页状态缓存（默认开度页），对齐移动端 vuex_dv_status_info */
+    const s_dv_status_info = ref(null)
+    /** 控制页「打开地图」待聚焦设备 id，对齐移动端 farmChangeMsg openMap */
+    const s_pending_map_device_id = ref(null)
 
     function syncSelectFarm(farmList) {
       if (!farmList.length) {
@@ -129,6 +140,23 @@ export const useFarmStore = defineStore(
         : null
     }
 
+    /** 对齐移动端 uni.$emit('farmEditMsg', { topic: 'locationChange', data }) */
+    function setPendingFarmLocation(location) {
+      s_pending_farm_location.value = location
+        ? {
+            lng: location.lng,
+            lat: location.lat,
+            address: location.address || ''
+          }
+        : null
+    }
+
+    function consumePendingFarmLocation() {
+      const pending = s_pending_farm_location.value
+      s_pending_farm_location.value = null
+      return pending
+    }
+
     function setLand(land) {
       s_land.value = land ? { ...land } : null
     }
@@ -141,6 +169,24 @@ export const useFarmStore = defineStore(
       s_land_list.value = Array.isArray(list)
         ? list.map((item) => ({ ...item }))
         : []
+    }
+
+    function setControlDevice(device) {
+      s_control_device.value = device ? { ...device } : null
+    }
+
+    function setDvStatusInfo(info) {
+      s_dv_status_info.value = info ? { ...info } : null
+    }
+
+    function setPendingMapDeviceId(id) {
+      s_pending_map_device_id.value = id != null ? id : null
+    }
+
+    function consumePendingMapDeviceId() {
+      const id = s_pending_map_device_id.value
+      s_pending_map_device_id.value = null
+      return id
     }
 
     function setFarmInfo(info) {
@@ -173,9 +219,13 @@ export const useFarmStore = defineStore(
       s_selectFarm.value = null
       s_farm_info.value = null
       s_location.value = null
+      s_pending_farm_location.value = null
       s_land.value = null
       s_member_info.value = null
       s_land_list.value = []
+      s_control_device.value = null
+      s_dv_status_info.value = null
+      s_pending_map_device_id.value = null
     }
 
     return {
@@ -187,16 +237,26 @@ export const useFarmStore = defineStore(
       s_selectFarm,
       s_farm_info,
       s_location,
+      s_pending_farm_location,
       s_land,
       s_member_info,
       s_land_list,
+      s_control_device,
+      s_dv_status_info,
+      s_pending_map_device_id,
       fetchFarmList,
       fetchFarmFullInfo,
       setFarmInfo,
       setLocation,
+      setPendingFarmLocation,
+      consumePendingFarmLocation,
       setLand,
       setMemberInfo,
       setLandList,
+      setControlDevice,
+      setDvStatusInfo,
+      setPendingMapDeviceId,
+      consumePendingMapDeviceId,
       setSelectFarm,
       restoreFarmList,
       farmChange,
