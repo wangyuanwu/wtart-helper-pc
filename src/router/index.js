@@ -33,6 +33,11 @@ const routes = [
         meta: { title: '新建农场', requiresAuth: true, farmCreate: true }
       },
       {
+        path: 'map/edit-group',
+        component: () => import('../views/Map/MapEditGroup.vue'),
+        meta: { title: '新建轮灌组', requiresAuth: true }
+      },
+      {
         path: 'map/edit-plot',
         component: () => import('../views/Map/MapEditPlot.vue'),
         meta: { title: '新建地块', requiresAuth: true }
@@ -68,6 +73,26 @@ const routes = [
         meta: { title: '设备管理', requiresAuth: true }
       },
       {
+        path: 'device/add',
+        component: () => import('../views/Device/AddDevice.vue'),
+        meta: { title: '选择设备类型', requiresAuth: true }
+      },
+      {
+        path: 'device/add-number',
+        component: () => import('../views/Device/AddDeviceNumber.vue'),
+        meta: { title: '添加出水桩', requiresAuth: true }
+      },
+      {
+        path: 'device/add-location',
+        component: () => import('../views/Device/AddDeviceLocation.vue'),
+        meta: { title: '设备定位', requiresAuth: true }
+      },
+      {
+        path: 'map/edit-device',
+        component: () => import('../views/Map/MapEditDevice.vue'),
+        meta: { title: '添加设备', requiresAuth: true }
+      },
+      {
         path: 'device/control',
         component: () => import('../views/Device/ControlDevice.vue'),
         meta: { title: '设备控制', requiresAuth: true }
@@ -81,6 +106,16 @@ const routes = [
         path: 'irrigation-group',
         component: () => import('../views/IrrigationGroup/Index.vue'),
         meta: { title: '轮灌组', requiresAuth: true }
+      },
+      {
+        path: 'irrigation-group/detail',
+        component: () => import('../views/IrrigationGroup/GroupDetail.vue'),
+        meta: { title: '轮灌组详情', requiresAuth: true }
+      },
+      {
+        path: 'irrigation-group/edit',
+        component: () => import('../views/IrrigationGroup/GroupEdit.vue'),
+        meta: { title: '轮灌组编辑', requiresAuth: true }
       },
       {
         path: 'irrigation-program',

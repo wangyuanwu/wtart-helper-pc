@@ -371,7 +371,10 @@ async function onLandDetail(land) {
     const res = await getLandPlotById(land.id)
     if (res?.data) {
       farmStore.setLand(res.data)
-      router.push({ path: '/farm/edit-land', query: { type: 'edit' } })
+      router.push({
+        path: '/farm/edit-land',
+        query: { type: 'edit', from: 'farm-edit' }
+      })
     }
   } catch (e) {
     console.error('[EditFarm] 获取地块详情失败', e)

@@ -70,17 +70,30 @@
  * 与地图页 LandEditPopup 编辑流程互不共用
  */
 import { computed, onActivated, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteLand, updateLand } from '@/api/map'
 import { useFarmStore } from '@/store/farm'
 import { formatAreaMu } from '@/utils/farmMapData'
 
 const router = useRouter()
+const route = useRoute()
 const farmStore = useFarmStore()
 
 const landInfo = ref(null)
 const saving = ref(false)
+
+/** 对齐移动端 navigateBack：按入口来源返回（农场设置 / 轮灌组 / 设备） */
+function resolveReturnPath() {
+  const from = route.query.from
+  if (from === 'irrigation-group') return '/irrigation-group'
+  if (from === 'device') return '/device'
+  return '/farm/edit'
+}
+
+function goAfterAction() {
+  router.replace(resolveReturnPath())
+}
 
 const areaText = computed(() => {
   const mu = formatAreaMu(landInfo.value?.area)
@@ -108,7 +121,7 @@ function syncFromStore() {
 
 function onBack() {
   if (window.history.length > 1) router.back()
-  else router.replace('/farm/edit')
+  else router.replace(resolveReturnPath())
 }
 
 /** 对齐移动端 onClickArea → map-edit-plot?type=edit */
@@ -121,7 +134,9 @@ function onClickArea() {
     query: {
       type: 'edit',
       landId: String(landInfo.value.id),
-      from: 'farm-edit-land'
+      from: 'farm-edit-land',
+      // 圈地返回编辑页时带回原入口，保存后仍回到轮灌组等来源页
+      returnFrom: String(route.query.from || 'farm-edit')
     }
   })
 }
@@ -156,7 +171,7 @@ async function onSave() {
     ElMessage.success('操作成功')
     farmStore.setLand(null)
     farmStore.farmChange()
-    setTimeout(() => router.replace('/farm/edit'), 600)
+    setTimeout(() => goAfterAction(), 600)
   } catch (e) {
     console.error('[FarmEditLand] 保存地块失败', e)
   } finally {
@@ -178,7 +193,7 @@ async function onDelete() {
     ElMessage.success('操作成功')
     farmStore.setLand(null)
     farmStore.farmChange()
-    setTimeout(() => router.replace('/farm/edit'), 600)
+    setTimeout(() => goAfterAction(), 600)
   } catch (e) {
     if (e !== 'cancel' && e?.message !== 'cancel') {
       console.error('[FarmEditLand] 删除地块失败', e)

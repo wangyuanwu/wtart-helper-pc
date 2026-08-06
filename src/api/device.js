@@ -37,6 +37,66 @@ export function addDevice(data) {
   })
 }
 
+/** 添加设备前校验编号（对齐移动端 addCheck） */
+export function addCheck(data, config = {}) {
+  return request({
+    url: '/api/device/add-check',
+    method: 'POST',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+/** 启动北斗定位（对齐移动端 startPositon） */
+export function startPositon(data, config = {}) {
+  return request({
+    url: '/api/water-outlet-pile/start-positioning',
+    method: 'POST',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+/** 查询定位结果（对齐移动端 getPositon） */
+export function getPositon(data, config = {}) {
+  return request({
+    url: '/api/water-outlet-pile/query-position',
+    method: 'POST',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent !== false,
+    loading: config.loading === true
+  })
+}
+
+/** 批量激活出水桩（对齐移动端 batchActivateDevice） */
+export function batchActivateDevice(data, config = {}) {
+  return request({
+    url: '/api/water-outlet-pile/batch-activate',
+    method: 'POST',
+    data,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
 export function updateDevice(data) {
   return request({
     url: '/api/device',

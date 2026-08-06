@@ -13,11 +13,45 @@ export function getGroupList(params = {}, config = {}) {
   })
 }
 
+/** 按地块分组的轮灌组列表 GET /api/irrigation-group/by-Land（对齐移动端 getGroupListLand） */
+export function getGroupListByLand(params = {}, config = {}) {
+  return request({
+    url: '/api/irrigation-group/by-Land',
+    method: 'GET',
+    params,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true
+  })
+}
+
 export function getGroupListByLandId(data) {
   return request({
     url: '/api/irrigation-group/items',
     method: 'GET',
     params: data
+  })
+}
+
+/** 轮灌组排序 PUT /api/irrigation-group/sort（对齐移动端 groupSort） */
+export function groupSort(data, config = {}) {
+  return request({
+    url: '/api/irrigation-group/sort',
+    method: 'PUT',
+    data,
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+export function getWaterOutList(params = {}, config = {}) {
+  return request({
+    url: '/api/water-outlet-pile/port',
+    method: 'GET',
+    params,
+    silent: config.silent === true
   })
 }
 

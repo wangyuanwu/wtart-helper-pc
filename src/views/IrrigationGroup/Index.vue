@@ -1,5 +1,5 @@
 <template>
-  <div class="group-page">
+  <div class="group-page" @click="clearLandMenu">
     <!-- 空态 -->
     <div v-if="showEmpty" class="group-empty">
       <img
@@ -8,13 +8,13 @@
         alt=""
       />
       <p class="group-empty__text">嗨！您还没有轮灌组</p>
-      <button type="button" class="group-empty__btn" @click="onAddGroup">
+      <button type="button" class="group-empty__btn" @click.stop="onAddGroup">
         添加轮灌组
       </button>
     </div>
 
-    <!-- 有数据 -->
-    <template v-else-if="groupList != null">
+    <!-- 有数据：按地块分组 -->
+    <template v-else-if="landList != null">
       <div class="group-toolbar">
         <el-radio-group
           v-model="tabIndex"
@@ -32,7 +32,7 @@
         <el-button
           type="primary"
           class="group-toolbar__add"
-          @click="onAddGroup"
+          @click.stop="onAddGroup"
         >
           <span class="group-toolbar__add-icon">+</span>
           添加轮灌组
@@ -40,114 +40,225 @@
       </div>
 
       <div class="group-scroll">
-        <div class="group-grid">
-          <article
-            v-for="item in filterGroupList"
-            :key="item.id"
-            class="group-card"
-            @click="onGroupClick(item)"
-          >
-            <div class="group-card__header">
-              <div class="group-card__title-wrap">
-                <h3 class="group-card__name">{{ item.name || '未命名轮灌组' }}</h3>
-                <p class="group-card__area">
-                  面积: {{ formatArea(item.area) }} 亩
-                </p>
-              </div>
-              <button
-                type="button"
-                class="group-card__batch"
-                :class="item.localSwitch ? 'is-close' : 'is-open'"
-                :disabled="isBatchLocked(item)"
-                @click.stop="onBatchToggle(item)"
+        <section
+          v-for="land in filterLandList"
+          :key="land.landId ?? land.landName"
+          class="group-land"
+        >
+          <div class="group-land__header">
+            <div class="group-land__title">
+              <span class="group-land__name">
+                {{ land.landName || '未命名地块' }}
+              </span>
+              <el-popover
+                v-if="land.landId != null"
+                :visible="landMenuLandId === String(land.landId)"
+                placement="bottom-start"
+                :width="168"
+                trigger="manual"
+                :show-arrow="false"
+                popper-class="group-land-menu-popper"
+                @update:visible="(v) => onLandMenuVisible(land, v)"
               >
-                <template v-if="item.localSwitch">
-                  <span>{{ item.localPercent }}</span>
-                  <span class="group-card__batch-badge">{{ item.localLetter }}</span>
+                <template #reference>
+                  <button
+                    type="button"
+                    class="group-land__more-btn"
+                    @click.stop="toggleLandMenu(land)"
+                  >
+                    <el-icon><MoreFilled /></el-icon>
+                  </button>
                 </template>
-                <template v-else>
-                  <span class="group-card__batch-badge">{{ item.localLetter }}</span>
-                  <span>{{ item.localPercent }}</span>
-                </template>
-              </button>
+                <div class="group-land-menu" @click.stop>
+                  <button
+                    type="button"
+                    class="group-land-menu__item"
+                    @click.stop="onSortLand(land)"
+                  >
+                    <el-icon class="group-land-menu__icon"><Operation /></el-icon>
+                    排序
+                  </button>
+                  <button
+                    type="button"
+                    class="group-land-menu__item"
+                    @click.stop="onEditLand(land)"
+                  >
+                    <i class="iconfont icon-a-device_ic_edit1"></i>
+                    编辑
+                  </button>
+                  <button
+                    type="button"
+                    class="group-land-menu__item is-danger"
+                    @click.stop="onDeleteLand(land)"
+                  >
+                    <i class="iconfont icon-land_ic_dele"></i>
+                    删除
+                  </button>
+                </div>
+              </el-popover>
             </div>
+          </div>
 
-            <div
-              v-if="isScheduleEmpty(item)"
-              class="group-card__schedule-empty"
+          <div class="group-grid">
+            <article
+              v-for="item in land.groups"
+              :key="item.id"
+              class="group-card"
+              @click="onGroupClick(item)"
             >
-              <i class="iconfont icon-device_ic_calendar group-card__schedule-icon"></i>
-              <span>暂无排期任务</span>
-            </div>
+              <div class="group-card__header">
+                <div class="group-card__title-wrap">
+                  <h3 class="group-card__name">
+                    {{ item.name || '未命名轮灌组' }}
+                  </h3>
+                  <p class="group-card__area">
+                    面积: {{ formatArea(item.area) }} 亩
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  class="group-card__batch"
+                  :class="item.localSwitch ? 'is-close' : 'is-open'"
+                  :disabled="isBatchLocked(item)"
+                  @click.stop="onBatchToggle(item)"
+                >
+                  <template v-if="item.localSwitch">
+                    <span>{{ item.localPercent }}</span>
+                    <span class="group-card__batch-badge">{{
+                      item.localLetter
+                    }}</span>
+                  </template>
+                  <template v-else>
+                    <span class="group-card__batch-badge">{{
+                      item.localLetter
+                    }}</span>
+                    <span>{{ item.localPercent }}</span>
+                  </template>
+                </button>
+              </div>
 
-            <div v-else class="group-card__stats">
               <div
-                v-if="showNextRun(item)"
-                class="group-card__stat"
+                v-if="isScheduleEmpty(item)"
+                class="group-card__schedule-empty"
               >
-                <div class="group-card__stat-label">下次启动时间</div>
-                <div class="group-card__stat-value is-accent">
-                  {{ formatNextRun(item) }}
-                </div>
+                <i
+                  class="iconfont icon-device_ic_calendar group-card__schedule-icon"
+                ></i>
+                <span>暂无排期任务</span>
               </div>
-              <div
-                v-if="showRunDuration(item)"
-                class="group-card__stat"
-              >
-                <div class="group-card__stat-label">灌溉时长</div>
-                <div class="group-card__stat-value is-accent">
-                  {{ getRunTimeText(item) }}
-                </div>
-              </div>
-              <div
-                v-if="showProgram(item)"
-                class="group-card__stat"
-              >
-                <div class="group-card__stat-label">轮灌组</div>
-                <div class="group-card__stat-value">
-                  {{ resolveProgramName(item) }}
-                </div>
-              </div>
-              <div
-                v-if="showModeStat(item)"
-                class="group-card__stat"
-              >
-                <div class="group-card__stat-label">启动方式</div>
-                <div class="group-card__stat-value">
-                  {{ getRunText(item) }}
-                </div>
-              </div>
-            </div>
 
-            <div class="group-card__footer">
-              <span class="group-card__footer-label">启动方式</span>
-              <span class="group-card__footer-value">{{ getRunText(item) }}</span>
-            </div>
-          </article>
-        </div>
+              <div v-else class="group-card__stats">
+                <div v-if="showNextRun(item)" class="group-card__stat">
+                  <div class="group-card__stat-label">下次启动时间</div>
+                  <div class="group-card__stat-value is-accent">
+                    {{ formatNextRun(item) }}
+                  </div>
+                </div>
+                <div v-if="showRunDuration(item)" class="group-card__stat">
+                  <div class="group-card__stat-label">灌溉时长</div>
+                  <div class="group-card__stat-value is-accent">
+                    {{ getRunTimeText(item) }}
+                  </div>
+                </div>
+                <div v-if="showProgram(item)" class="group-card__stat">
+                  <div class="group-card__stat-label">轮灌程序</div>
+                  <div class="group-card__stat-value">
+                    {{ resolveProgramName(item) }}
+                  </div>
+                </div>
+                <div v-if="showModeStat(item)" class="group-card__stat">
+                  <div class="group-card__stat-label">启动方式</div>
+                  <div class="group-card__stat-value">
+                    {{ getRunText(item) }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="group-card__footer">
+                <span class="group-card__footer-label">启动方式</span>
+                <span class="group-card__footer-value">{{
+                  getRunText(item)
+                }}</span>
+              </div>
+            </article>
+          </div>
+        </section>
       </div>
     </template>
 
     <div v-else-if="loading" class="group-loading">加载中...</div>
+
+    <GroupOrderDialog
+      v-model="sortDialogVisible"
+      :farm-id="getFarmId()"
+      :land-id="sortLandId"
+      @saved="onSortSaved"
+    />
+
+    <el-dialog
+      v-model="landDeleteConfirmVisible"
+      title="提示"
+      width="420px"
+      append-to-body
+      :close-on-click-modal="false"
+      @closed="onLandDeleteConfirmClosed"
+    >
+      <p class="group-land-delete-desc">删除地块后不能恢复，是否继续？</p>
+      <el-checkbox v-model="landDeleteRiskChecked">
+        已知晓风险，确认删除。
+      </el-checkbox>
+      <template #footer>
+        <el-button @click="landDeleteConfirmVisible = false">取消</el-button>
+        <el-button
+          type="danger"
+          :disabled="!landDeleteRiskChecked"
+          :loading="landDeleting"
+          @click="confirmDeleteLand"
+        >
+          删除
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <LandEmptyDialog
+      v-model="landEmptyVisible"
+      @create="onCreateLandFromEmpty"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { MoreFilled, Operation } from '@element-plus/icons-vue'
 import { useFarmStore } from '@/store/farm'
+import { deleteLand, getLandPlotById } from '@/api/map'
 import {
   closeAllWaterDv,
-  getGroupList,
+  getGroupListByLand,
   openAllWaterDv
 } from '@/api/irrigationGroup'
+import GroupOrderDialog from './GroupOrderDialog.vue'
+import LandEmptyDialog from '@/views/Map/LandEmptyDialog.vue'
 
+const router = useRouter()
 const farmStore = useFarmStore()
 
-const groupList = ref(null)
+/** 按地块分组列表（对齐移动端 landList） */
+const landList = ref(null)
 const loading = ref(false)
 const tabIndex = ref(0)
 const runTick = ref(0)
+
+const landMenuLandId = ref(null)
+const sortDialogVisible = ref(false)
+const sortLandId = ref(null)
+const landDeleteConfirmVisible = ref(false)
+const landDeleteRiskChecked = ref(false)
+const landDeleting = ref(false)
+const pendingDeleteLand = ref(null)
+const landEmptyVisible = ref(false)
 
 const POLL_MS = 3000
 const LOCK_SECONDS = 10
@@ -164,40 +275,50 @@ const getFarmId = () =>
   farmStore.s_farm_info?.id ??
   null
 
-const totalCount = computed(() => groupList.value?.length ?? 0)
+const allGroups = computed(() => {
+  const arr = []
+  ;(landList.value || []).forEach((land) => {
+    if (Array.isArray(land.groups)) arr.push(...land.groups)
+  })
+  return arr
+})
 
-const openedCount = computed(
-  () =>
-    (groupList.value || []).filter(
-      (item) => item.deviceRuntime?.isRunning === true
-    ).length
+const totalCount = computed(() => allGroups.value.length)
+
+const runningCount = computed(
+  () => allGroups.value.filter((item) => (item.portOpeningCnt ?? 0) > 0).length
 )
 
-const closedCount = computed(
+const stopCount = computed(
   () =>
-    (groupList.value || []).filter(
-      (item) => !(item.deviceRuntime?.isRunning === true)
-    ).length
+    allGroups.value.filter((item) => !((item.portOpeningCnt ?? 0) > 0)).length
 )
 
 const tabList = computed(() => [
   { key: 'all', label: `全部(${totalCount.value})` },
-  { key: 'opened', label: `已打开(${openedCount.value})` },
-  { key: 'closed', label: `未打开(${closedCount.value})` }
+  { key: 'running', label: `在运行(${runningCount.value})` },
+  { key: 'stopped', label: `未运行(${stopCount.value})` }
 ])
 
 const showEmpty = computed(() => {
-  if (groupList.value == null) return false
+  if (landList.value == null) return false
   return totalCount.value <= 0
 })
 
-const filterGroupList = computed(() => {
-  const list = groupList.value || []
-  if (tabIndex.value === 0) return list
-  if (tabIndex.value === 1) {
-    return list.filter((item) => item.deviceRuntime?.isRunning === true)
-  }
-  return list.filter((item) => !(item.deviceRuntime?.isRunning === true))
+/** 按 Tab 筛选后的地块列表（空组地块隐藏，对齐移动端 filterLandList） */
+const filterLandList = computed(() => {
+  const src = landList.value || []
+  return src
+    .map((land) => {
+      let groups = [...(land.groups || [])]
+      if (tabIndex.value === 1) {
+        groups = groups.filter((item) => (item.portOpeningCnt ?? 0) > 0)
+      } else if (tabIndex.value === 2) {
+        groups = groups.filter((item) => !((item.portOpeningCnt ?? 0) > 0))
+      }
+      return { ...land, groups }
+    })
+    .filter((land) => land.groups.length > 0)
 })
 
 const formatArea = (area) => {
@@ -247,14 +368,14 @@ const getRunText = (item) => {
     if (!src) return null
     const tiggerObject = src.tiggerObject
     const mode = src.mode
-    if (tiggerObject == 3) return '自动轮灌'
+    if (tiggerObject == 2 || tiggerObject == 3) return '自动轮灌'
     if (mode == 0) return '手动启动'
     if (mode == 1) return '定时启动'
     return null
   }
 
   if (item.deviceRuntime != null) {
-    if (item.deviceRuntime.isRunning) {
+    if ((item.portOpeningCnt ?? 0) > 0) {
       return pick(item.deviceRuntime) || '--'
     }
     if (item.deviceNexRunTime != null) {
@@ -272,22 +393,30 @@ const resolveTiggerObject = (item) =>
   item?.deviceNexRunTime?.tiggerObject
 
 const resolveProgramName = (item) =>
-  item?.programName ??
-  item?.deviceRuntime?.programName ??
-  '--'
+  item?.programName ?? item?.deviceRuntime?.programName ?? '--'
 
-const isScheduleEmpty = (item) =>
-  !item.deviceRuntime && !item.deviceNexRunTime
+const isScheduleEmpty = (item) => !item.deviceRuntime && !item.deviceNexRunTime
 
 const showNextRun = (item) =>
   item.deviceNexRunTime?.nextRunTime != null &&
-  !(item.deviceRuntime?.isRunning && item.localSwitch)
+  !(
+    (item.portOpeningCnt ?? 0) > 0 &&
+    item.deviceRuntime &&
+    item.localSwitch
+  )
 
 const showRunDuration = (item) =>
-  !!(item.deviceRuntime?.isRunning && item.localSwitch)
+  !!(
+    item.deviceRuntime &&
+    (item.portOpeningCnt ?? 0) > 0 &&
+    item.localSwitch
+  )
 
-const showProgram = (item) =>
-  resolveTiggerObject(item) == 3 && !!resolveProgramName(item) && resolveProgramName(item) !== '--'
+const showProgram = (item) => {
+  const t = resolveTiggerObject(item)
+  const name = resolveProgramName(item)
+  return (t == 2 || t == 3) && !!name && name !== '--'
+}
 
 const showModeStat = (item) => {
   if (isScheduleEmpty(item)) return false
@@ -299,7 +428,8 @@ const showModeStat = (item) => {
 const formatNextRun = (item) =>
   formatUtc(item.deviceNexRunTime?.nextRunTime, 'mdhm') || '--'
 
-const getStatus = (item) => !!(item.deviceRuntime && item.deviceRuntime.isRunning)
+/** 对齐移动端：以开阀口数判断运行态 */
+const getStatus = (item) => (item.portOpeningCnt ?? 0) > 0
 
 const getLetter = (item) =>
   `${item.portOpeningCnt ?? 0}/${item.protTotal ?? 0}`
@@ -309,6 +439,21 @@ const getPercent = (item) => (getStatus(item) ? '批量关' : '批量开')
 const isBatchLocked = (item) => {
   const lockUntil = item.lockUntil
   return lockUntil != null && lockUntil > Date.now()
+}
+
+const findGroup = (waterId) => {
+  for (const land of landList.value || []) {
+    const g = (land.groups || []).find(
+      (x) => String(x.id) === String(waterId)
+    )
+    if (g) return g
+  }
+  return null
+}
+
+const updateLockUntil = (waterId, time) => {
+  const target = findGroup(waterId)
+  if (target) target.lockUntil = time
 }
 
 const mergeItemState = (newItem, oldItem) => {
@@ -334,35 +479,34 @@ const mergeItemState = (newItem, oldItem) => {
   }
 }
 
-const mergeGroupList = (oldList, newData) => {
-  const next = [...(oldList || [])]
-  newData.forEach((newItem) => {
-    const oldIndex = next.findIndex((g) => String(g.id) === String(newItem.id))
-    if (oldIndex > -1) {
-      next[oldIndex] = mergeItemState(newItem, next[oldIndex])
-    } else {
-      next.push(mergeItemState(newItem, null))
-    }
+const mergeLandList = (oldLandList, newLandList) => {
+  const oldGroupsMap = new Map()
+  ;(oldLandList || []).forEach((land) => {
+    ;(land.groups || []).forEach((g) => {
+      oldGroupsMap.set(String(g.id), g)
+    })
   })
-  return next.filter((item) =>
-    newData.some((n) => String(n.id) === String(item.id))
-  )
+
+  return (newLandList || []).map((land) => ({
+    ...land,
+    groups: (land.groups || []).map((g) =>
+      mergeItemState(g, oldGroupsMap.get(String(g.id)) || null)
+    )
+  }))
 }
 
 const ensureRunTick = () => {
   if (runTickTimer) return
-  const hasRunning = (groupList.value || []).some(
-    (item) => item.deviceRuntime?.isRunning
+  const hasRunning = allGroups.value.some(
+    (item) => (item.portOpeningCnt ?? 0) > 0 && item.deviceRuntime
   )
   if (!hasRunning) return
   runTickTimer = setInterval(() => {
     runTick.value += 1
-    const stillRunning = (groupList.value || []).some(
-      (item) => item.deviceRuntime?.isRunning
+    const stillRunning = allGroups.value.some(
+      (item) => (item.portOpeningCnt ?? 0) > 0 && item.deviceRuntime
     )
-    if (!stillRunning) {
-      clearRunTick()
-    }
+    if (!stillRunning) clearRunTick()
   }, 1000)
 }
 
@@ -376,15 +520,15 @@ const clearRunTick = () => {
 const fetchGroupList = async ({ silent = false } = {}) => {
   const farmId = getFarmId()
   if (farmId == null) {
-    groupList.value = []
+    landList.value = []
     return
   }
 
   const requestId = ++listRequestId
-  if (!silent && groupList.value == null) loading.value = true
+  if (!silent && landList.value == null) loading.value = true
 
   try {
-    const res = await getGroupList(
+    const res = await getGroupListByLand(
       {
         farmId,
         searchText: ''
@@ -394,16 +538,19 @@ const fetchGroupList = async ({ silent = false } = {}) => {
     if (requestId !== listRequestId) return
 
     const newData = Array.isArray(res?.data) ? res.data : []
-    if (groupList.value == null || !silent) {
-      groupList.value = newData.map((item) => mergeItemState(item, null))
+    if (landList.value == null || !silent) {
+      landList.value = newData.map((land) => ({
+        ...land,
+        groups: (land.groups || []).map((g) => mergeItemState(g, null))
+      }))
     } else {
-      groupList.value = mergeGroupList(groupList.value, newData)
+      landList.value = mergeLandList(landList.value, newData)
     }
     ensureRunTick()
   } catch (e) {
     if (requestId !== listRequestId) return
     console.error('[IrrigationGroup] 获取轮灌组列表失败', e)
-    if (groupList.value == null) groupList.value = []
+    if (landList.value == null) landList.value = []
   } finally {
     if (requestId === listRequestId) loading.value = false
   }
@@ -414,53 +561,50 @@ const openAllWaterDvHttp = async (order, waterId) => {
     const res = await openAllWaterDv(order)
     if (res?.code === 200) {
       ElMessage.success('操作成功')
-      const target = groupList.value?.find(
-        (item) => String(item.id) === String(waterId)
-      )
-      if (target) {
-        target.lockUntil = Date.now() + LOCK_SECONDS * 1000
-      }
+      updateLockUntil(waterId, Date.now() + LOCK_SECONDS * 1000)
     } else {
-      const target = groupList.value?.find(
-        (item) => String(item.id) === String(waterId)
-      )
-      if (target) target.lockUntil = 0
+      updateLockUntil(waterId, 0)
       await fetchGroupList({ silent: true })
     }
   } catch (e) {
-    const target = groupList.value?.find(
-      (item) => String(item.id) === String(waterId)
-    )
-    if (target) target.lockUntil = 0
+    updateLockUntil(waterId, 0)
     await fetchGroupList({ silent: true })
     console.error('[IrrigationGroup] 批量开失败', e)
   }
 }
 
+/** 对齐移动端 closeAllWaterDvHttp：40102 → 强制关闭确认 */
 const closeAllWaterDvHttp = async (closeOrder, waterId) => {
   try {
-    const res = await closeAllWaterDv(closeOrder)
-    if (res?.code === 200) {
-      ElMessage.success('操作成功')
-      const target = groupList.value?.find(
-        (item) => String(item.id) === String(waterId)
-      )
-      if (target) {
-        target.lockUntil = Date.now() + LOCK_SECONDS * 1000
-      }
-    } else {
-      const target = groupList.value?.find(
-        (item) => String(item.id) === String(waterId)
-      )
-      if (target) target.lockUntil = 0
-      await fetchGroupList({ silent: true })
-    }
+    await closeAllWaterDv(closeOrder, { silent: true })
+    ElMessage.success('操作成功')
+    updateLockUntil(waterId, Date.now() + LOCK_SECONDS * 1000)
   } catch (e) {
-    const target = groupList.value?.find(
-      (item) => String(item.id) === String(waterId)
-    )
-    if (target) target.lockUntil = 0
+    const code = e?.code
+    if (code === 40102 && !closeOrder.force) {
+      try {
+        await ElMessageBox.confirm(
+          `${e?.message || '关闭失败'}，是否强制关闭？`,
+          '提示',
+          {
+            confirmButtonText: '强制关闭',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        )
+        await closeAllWaterDvHttp({ ...closeOrder, force: true }, waterId)
+        return
+      } catch {
+        updateLockUntil(waterId, 0)
+        await fetchGroupList({ silent: true })
+        return
+      }
+    }
+    updateLockUntil(waterId, 0)
     await fetchGroupList({ silent: true })
+    if (code !== 40102) {
+      ElMessage.error(e?.message || '批量关失败')
+    }
     console.error('[IrrigationGroup] 批量关失败', e)
   }
 }
@@ -482,19 +626,122 @@ const onBatchToggle = (item) => {
       item.id
     )
   } else {
-    closeAllWaterDvHttp({ id: item.id }, item.id)
+    closeAllWaterDvHttp({ force: false, id: item.id }, item.id)
   }
 }
 
 const onChangeTab = () => {}
 
-const onAddGroup = () => {
-  console.log('[IrrigationGroup] onAddGroup 预留出口')
-  ElMessage.info('添加轮灌组功能开发中')
+/** 添加轮灌组：对齐移动端 group_empty / toAddLand → map-edit-group?from=home */
+const onAddGroup = async () => {
+  const farmId = getFarmId()
+  if (farmId == null) {
+    ElMessage.warning('请先选择农场')
+    return
+  }
+  try {
+    let info = farmStore.s_farm_info
+    if (!info || info.id !== farmId) {
+      info = await farmStore.fetchFarmFullInfo(farmId)
+    }
+    const lands = info?.lands
+    if (!Array.isArray(lands) || lands.length <= 0) {
+      landEmptyVisible.value = true
+      return
+    }
+    router.push({ path: '/map/edit-group', query: { from: 'home' } })
+  } catch (e) {
+    console.error('[IrrigationGroup] 添加轮灌组前置校验失败', e)
+    ElMessage.error('获取农场信息失败')
+  }
+}
+
+const onCreateLandFromEmpty = () => {
+  landEmptyVisible.value = false
+  router.push({ path: '/map/edit-plot', query: { type: 'add' } })
 }
 
 const onGroupClick = (item) => {
-  console.log('[IrrigationGroup] onGroupClick 预留出口', item)
+  if (!item?.id) return
+  farmStore.setGroupListItem(item)
+  router.push({
+    path: '/irrigation-group/detail',
+    query: { id: String(item.id) }
+  })
+}
+
+const clearLandMenu = () => {
+  landMenuLandId.value = null
+}
+
+const onLandMenuVisible = (land, visible) => {
+  landMenuLandId.value = visible ? String(land.landId) : null
+}
+
+const toggleLandMenu = (land) => {
+  const id = String(land.landId)
+  landMenuLandId.value = landMenuLandId.value === id ? null : id
+}
+
+/** 同地块轮灌组排序（对齐移动端 pop_order_group） */
+const onSortLand = (land) => {
+  landMenuLandId.value = null
+  if (land?.landId == null) return
+  sortLandId.value = land.landId
+  sortDialogVisible.value = true
+}
+
+const onSortSaved = async () => {
+  await fetchGroupList({ silent: false })
+}
+
+/** 编辑地块：对齐设备页 / 移动端 → farm/edit-land?type=edit */
+const onEditLand = async (land) => {
+  landMenuLandId.value = null
+  if (land?.landId == null) return
+  try {
+    const res = await getLandPlotById(land.landId)
+    if (res?.data) {
+      farmStore.setLand(res.data)
+      router.push({
+        path: '/farm/edit-land',
+        query: { type: 'edit', from: 'irrigation-group' }
+      })
+    }
+  } catch (e) {
+    console.error('[IrrigationGroup] 获取地块详情失败', e)
+    ElMessage.error('获取地块详情失败')
+  }
+}
+
+const onDeleteLand = (land) => {
+  if (land?.landId == null) return
+  landMenuLandId.value = null
+  pendingDeleteLand.value = land
+  landDeleteRiskChecked.value = false
+  landDeleteConfirmVisible.value = true
+}
+
+const onLandDeleteConfirmClosed = () => {
+  pendingDeleteLand.value = null
+  landDeleteRiskChecked.value = false
+}
+
+const confirmDeleteLand = async () => {
+  const land = pendingDeleteLand.value
+  if (land?.landId == null) return
+  landDeleting.value = true
+  try {
+    await deleteLand(land.landId)
+    ElMessage.success('操作成功')
+    landDeleteConfirmVisible.value = false
+    await farmStore.fetchFarmList()
+    await fetchGroupList({ silent: false })
+  } catch (e) {
+    console.error('[IrrigationGroup] 删除地块失败', e)
+  } finally {
+    landDeleting.value = false
+  }
 }
 
 const clearPoll = () => {
@@ -514,8 +761,9 @@ const startPoll = () => {
 }
 
 const handleFarmChange = () => {
-  groupList.value = null
+  landList.value = null
   tabIndex.value = 0
+  clearLandMenu()
   clearRunTick()
   startPoll()
 }
@@ -651,7 +899,8 @@ onUnmounted(() => {
 }
 
 .group-tabs :deep(.el-radio-button.is-active .el-radio-button__inner),
-.group-tabs :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+.group-tabs
+  :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
   background: #3653a0 !important;
   color: #fff !important;
   border-radius: 12px !important;
@@ -685,8 +934,55 @@ onUnmounted(() => {
 .group-scroll {
   flex: 1;
   overflow: auto;
-  margin-top: 30px;
+  margin-top: 16px;
   padding: 0 20px 24px;
+}
+
+.group-land {
+  margin-top: 16px;
+}
+
+.group-land__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  min-height: 40px;
+}
+
+.group-land__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.group-land__name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-land__more-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #606266;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.group-land__more-btn:hover {
+  background: #eef2f7;
+  color: #3653a0;
 }
 
 .group-grid {
@@ -883,6 +1179,47 @@ onUnmounted(() => {
   font-weight: 700;
   color: #0f172a;
   text-align: right;
+}
+
+.group-land-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.group-land-menu__item {
+  border: none;
+  background: transparent;
+  height: 40px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #303133;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.group-land-menu__item:hover {
+  background: #f5f7fa;
+}
+
+.group-land-menu__item.is-danger {
+  color: #f56c6c;
+}
+
+.group-land-menu__item .iconfont,
+.group-land-menu__item .group-land-menu__icon {
+  font-size: 16px;
+}
+
+.group-land-delete-desc {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.5;
 }
 
 @media (max-width: 1400px) {

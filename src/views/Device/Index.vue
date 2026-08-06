@@ -135,6 +135,7 @@
               }"
               @click.stop="onDeviceClick(device)"
               @pointerdown="onDevicePointerDown($event, device)"
+              @pointermove="onDevicePointerMove"
               @pointerup="onDevicePointerUp"
               @pointerleave="onDevicePointerUp"
               @pointercancel="onDevicePointerUp"
@@ -258,6 +259,11 @@
       @saved="onSortSaved"
     />
 
+    <LandEmptyDialog
+      v-model="landEmptyVisible"
+      @create="onCreateLandFromEmpty"
+    />
+
     <el-dialog
       v-model="landDeleteConfirmVisible"
       title="提示"
@@ -284,13 +290,41 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 对齐移动端 a-tip-sure：删除设备风险确认 -->
+    <el-dialog
+      v-model="deviceDeleteConfirmVisible"
+      title="提示"
+      width="420px"
+      append-to-body
+      :close-on-click-modal="false"
+      @closed="onDeviceDeleteConfirmClosed"
+    >
+      <p class="device-land-delete-desc">
+        删除后不能操作该设备，是否继续？
+      </p>
+      <el-checkbox v-model="deviceDeleteRiskChecked">
+        已知晓风险，确认删除。
+      </el-checkbox>
+      <template #footer>
+        <el-button @click="deviceDeleteConfirmVisible = false">取消</el-button>
+        <el-button
+          type="danger"
+          :disabled="!deviceDeleteRiskChecked"
+          :loading="deviceDeleting"
+          @click="confirmDeleteDevice"
+        >
+          删除
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, ElSwitch } from 'element-plus'
+import { ElMessage, ElSwitch } from 'element-plus'
 import { ArrowDown, MoreFilled, Operation } from '@element-plus/icons-vue'
 import { useFarmStore } from '@/store/farm'
 import { deleteDevice, getDeviceGroupByLands } from '@/api/device'
@@ -303,6 +337,7 @@ import {
   setOpenStatusOnList
 } from '@/utils/waterOutletMerge'
 import DeviceLandSortDialog from './DeviceLandSortDialog.vue'
+import LandEmptyDialog from '@/views/Map/LandEmptyDialog.vue'
 import outletOnlineImg from '@/assets/map/outlet-device-online.svg'
 import outletOfflineImg from '@/assets/map/outlet-device-offline.svg'
 
@@ -328,15 +363,24 @@ const landDeleteConfirmVisible = ref(false)
 const landDeleteRiskChecked = ref(false)
 const landDeleting = ref(false)
 const pendingDeleteLand = ref(null)
+const deviceDeleteConfirmVisible = ref(false)
+const deviceDeleteRiskChecked = ref(false)
+const deviceDeleting = ref(false)
+const pendingDeleteDevice = ref(null)
+const landEmptyVisible = ref(false)
 
 const LAND_CARD_LIMIT = 4
 const POLL_MS = 3000
-const LONG_PRESS_MS = 550
+const LONG_PRESS_MS = 500
+const LONG_PRESS_MOVE_PX = 10
 let pollTimer = null
 let listRequestId = 0
 let offFarmChange = null
 let longPressTimer = null
 let longPressTriggered = false
+let longPressStartX = 0
+let longPressStartY = 0
+let longPressMoved = false
 
 const counts = computed(() => {
   let total = 0
@@ -512,14 +556,30 @@ const clearLongPressTimer = () => {
   }
 }
 
+/** 对齐移动端自定义长按：500ms，移动超过 10px 取消 */
 const onDevicePointerDown = (e, device) => {
   if (e.button != null && e.button !== 0) return
   longPressTriggered = false
+  longPressMoved = false
+  longPressStartX = e.clientX
+  longPressStartY = e.clientY
   clearLongPressTimer()
   longPressTimer = setTimeout(() => {
-    longPressTriggered = true
-    onDeviceLongPress(device)
+    if (!longPressMoved) {
+      longPressTriggered = true
+      onDeviceLongPress(device)
+    }
   }, LONG_PRESS_MS)
+}
+
+const onDevicePointerMove = (e) => {
+  if (longPressMoved || !longPressTimer) return
+  const dx = Math.abs(e.clientX - longPressStartX)
+  const dy = Math.abs(e.clientY - longPressStartY)
+  if (dx > LONG_PRESS_MOVE_PX || dy > LONG_PRESS_MOVE_PX) {
+    longPressMoved = true
+    clearLongPressTimer()
+  }
 }
 
 const onDevicePointerUp = () => {
@@ -528,6 +588,7 @@ const onDevicePointerUp = () => {
 
 const onDeviceLongPress = (device) => {
   clearLongPressTimer()
+  if (!device?.id) return
   landMenuLandId.value = null
   actionDeviceId.value = String(device.id)
 }
@@ -547,36 +608,77 @@ const onDeviceClick = (device) => {
   })
 }
 
-/** 添加设备：预留业务出口 */
-const onAddDevice = () => {
-  console.log('[Device] onAddDevice 预留出口')
-  ElMessage.info('添加设备功能开发中')
-}
-
-/** 编辑设备：预留业务出口 */
-const onEditDevice = (device) => {
-  console.log('[Device] onEditDevice 预留出口', device)
-  ElMessage.info('编辑设备功能开发中')
-}
-
-const onDeleteDevice = async (device) => {
-  if (!device?.id) return
-  try {
-    await ElMessageBox.confirm('请确认是否删除该设备？', '删除设备', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-  } catch {
+/** 添加设备：对齐移动端 device_empty / toAddDevice */
+const onAddDevice = async () => {
+  const farmId = getFarmId()
+  if (farmId == null) {
+    ElMessage.warning('请先选择农场')
     return
   }
   try {
+    let info = farmStore.s_farm_info
+    if (!info || info.id !== farmId) {
+      info = await farmStore.fetchFarmFullInfo(farmId)
+    }
+    const lands = info?.lands
+    if (!Array.isArray(lands) || lands.length <= 0) {
+      // 对齐移动端 noLandPop → pop_polt_empty
+      landEmptyVisible.value = true
+      return
+    }
+    router.push('/device/add')
+  } catch (e) {
+    console.error('[Device] 添加设备前置校验失败', e)
+    ElMessage.error('获取农场信息失败')
+  }
+}
+
+/** 无地块提示 → 新建地块（对齐移动端 toAddLand → map-edit-plot?type=add） */
+const onCreateLandFromEmpty = () => {
+  landEmptyVisible.value = false
+  router.push({ path: '/map/edit-plot', query: { type: 'add' } })
+}
+
+/** 编辑设备：对齐移动端 tapPopup → device_detail?id= */
+const onEditDevice = (device) => {
+  if (!device?.id) return
+  clearDeviceAction()
+  farmStore.setControlDevice(device)
+  router.push({
+    path: '/device/detail',
+    query: { id: String(device.id) }
+  })
+}
+
+/** 删除设备：对齐移动端 confirmModal → deleteDeviceHttp */
+const onDeleteDevice = (device) => {
+  if (!device?.id) return
+  clearDeviceAction()
+  pendingDeleteDevice.value = device
+  deviceDeleteRiskChecked.value = false
+  deviceDeleteConfirmVisible.value = true
+}
+
+const onDeviceDeleteConfirmClosed = () => {
+  pendingDeleteDevice.value = null
+  deviceDeleteRiskChecked.value = false
+}
+
+const confirmDeleteDevice = async () => {
+  const device = pendingDeleteDevice.value
+  if (!device?.id) return
+  deviceDeleting.value = true
+  try {
     await deleteDevice(device.id)
     ElMessage.success('操作成功')
+    deviceDeleteConfirmVisible.value = false
     clearDeviceAction()
+    await farmStore.fetchFarmList()
     await fetchDeviceList({ silent: false })
   } catch (e) {
     console.error('[Device] 删除设备失败', e)
+  } finally {
+    deviceDeleting.value = false
   }
 }
 
@@ -588,7 +690,10 @@ const onEditLand = async (land) => {
     const res = await getLandPlotById(land.landId)
     if (res?.data) {
       farmStore.setLand(res.data)
-      router.push({ path: '/farm/edit-land', query: { type: 'edit' } })
+      router.push({
+        path: '/farm/edit-land',
+        query: { type: 'edit', from: 'device' }
+      })
     }
   } catch (e) {
     console.error('[Device] 获取地块详情失败', e)
@@ -765,7 +870,7 @@ onUnmounted(() => {
   padding: 0 24px;
   border: none;
   border-radius: 20px;
-  background: #2f6bff;
+  background: #3653a0;
   color: #fff;
   font-size: 15px;
   font-weight: 600;
@@ -773,7 +878,7 @@ onUnmounted(() => {
 }
 
 .device-empty__btn:hover {
-  background: #2560e8;
+  background: #2d4590;
 }
 
 .device-toolbar {

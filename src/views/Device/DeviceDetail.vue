@@ -35,21 +35,21 @@
                 readonly
                 placeholder="暂无位置"
               />
-              <el-button link type="primary" @click="onChangeLocation">
+              <el-button link type="primary" @click="toChangeDv(0)">
                 修改位置
               </el-button>
             </div>
           </div>
           <div class="device-detail__field">
             <label>设备方位</label>
-            <el-select v-model="orientationAngle" style="width: 100%">
-              <el-option
-                v-for="opt in ORIENTATION_OPTIONS"
-                :key="opt.value"
-                :label="opt.label"
-                :value="opt.value"
-              />
-            </el-select>
+            <button
+              type="button"
+              class="device-detail__orient"
+              @click="toChangeDv(1)"
+            >
+              <span>{{ orientationDisplay }}</span>
+              <i class="iconfont icon-a-device_ic_edit1"></i>
+            </button>
           </div>
           <div class="device-detail__field">
             <label>所属地块</label>
@@ -265,7 +265,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
@@ -278,8 +278,8 @@ import {
   updateDevice
 } from '@/api/device'
 import {
+  angleToDirection,
   OPERATOR_TYPE_LIST,
-  ORIENTATION_OPTIONS,
   snapOrientationAngle
 } from '@/utils/deviceOrientation'
 import DeviceSleepDialog from './DeviceSleepDialog.vue'
@@ -326,6 +326,11 @@ const locationDisplay = computed(() => {
   }
   return ''
 })
+
+/** 对齐移动端 $System.angleToDirection(deviceInfo.orientationAngle) */
+const orientationDisplay = computed(() =>
+  angleToDirection(orientationAngle.value)
+)
 
 const isOnline = computed(() => {
   if (otherInfo.value?.isOnline != null) return !!otherInfo.value.isOnline
@@ -528,8 +533,61 @@ async function onDelete() {
   }
 }
 
-function onChangeLocation() {
-  ElMessage.info('修改位置功能开发中')
+function setDeviceList() {
+  const info = deviceInfo.value
+  if (!info?.id) return []
+  return [
+    {
+      id: info.id,
+      type: info.type,
+      farmId: info.farmId,
+      name: info.name,
+      deviceCode: info.deviceCode,
+      address: info.address,
+      landId: info.landId,
+      landName: info.landName,
+      longitude: info.longitude,
+      latitude: info.latitude,
+      coordinateType: info.coordinateType,
+      orientationAngle: info.orientationAngle,
+      isOnline: info.isOnline,
+      specificData: info.specificData
+    }
+  ]
+}
+
+/** 对齐移动端 toChangeDv：写入 vuex_edit_device_map 后进地图编辑 */
+function toChangeDv(code) {
+  if (!deviceInfo.value?.id) {
+    ElMessage.warning('缺少设备信息')
+    return
+  }
+  const deveList = setDeviceList()
+  farmStore.setEditDeviceMap(deveList)
+  farmStore.setEditDevice(deveList)
+  const event = code === 1 ? 'angle' : 'location'
+  router.push({
+    path: '/map/edit-device',
+    query: { type: 'edit', event }
+  })
+}
+
+/** 对齐移动端 deviceMsg editConform：地图确认后回填本地，待用户点保存落库 */
+function applyPendingDeviceEdit() {
+  const list = farmStore.consumePendingDeviceEdit()
+  const device = Array.isArray(list) ? list[0] : null
+  if (!device || !deviceInfo.value) return
+  deviceInfo.value = {
+    ...deviceInfo.value,
+    landId: device.landId,
+    landName: device.landName ?? deviceInfo.value.landName,
+    longitude: device.longitude,
+    latitude: device.latitude,
+    address: device.address,
+    orientationAngle: device.orientationAngle,
+    coordinateType: device.coordinateType ?? deviceInfo.value.coordinateType
+  }
+  orientationAngle.value = snapOrientationAngle(device.orientationAngle)
 }
 
 function onChangePump() {
@@ -621,6 +679,11 @@ function onFirmwareUpdate() {
 onMounted(async () => {
   await loadDeviceDetail()
   await fetchOtherData({ toast: false })
+  applyPendingDeviceEdit()
+})
+
+onActivated(() => {
+  applyPendingDeviceEdit()
 })
 
 watch(
@@ -757,6 +820,32 @@ watch(
 
 .device-detail__location .el-input {
   flex: 1;
+}
+
+.device-detail__orient {
+  width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  cursor: pointer;
+  color: #303133;
+  font-size: 14px;
+  text-align: left;
+}
+
+.device-detail__orient:hover {
+  border-color: #3653a0;
+}
+
+.device-detail__orient .iconfont {
+  font-size: 14px;
+  color: #909399;
 }
 
 .device-detail__pump {

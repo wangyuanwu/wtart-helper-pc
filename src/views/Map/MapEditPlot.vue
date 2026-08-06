@@ -175,9 +175,16 @@ const fromFarmEditLand = computed(
 )
 const pageTitle = computed(() => {
   if (pageType.value === 'edit') return '编辑地块'
+  if (pageType.value === 'addGroup') return '新建轮灌组'
+  if (pageType.value === 'editGroup') return '编辑轮灌组'
   return '新建地块'
 })
-const startText = '开始圈定地块范围'
+const startText = computed(() => {
+  if (pageType.value === 'addGroup' || pageType.value === 'editGroup') {
+    return '开始圈定轮灌组范围'
+  }
+  return '开始圈定地块范围'
+})
 const maxLandCount = 1
 
 const mapReady = ref(false)
@@ -189,7 +196,8 @@ const hasRedo = ref(false)
 const hasDrawPoint = computed(
   () =>
     pointCount.value > 0 ||
-    (pageType.value === 'edit' && isClosed.value)
+    ((pageType.value === 'edit' || pageType.value === 'editGroup') &&
+      isClosed.value)
 )
 const selectColor = ref('#2196F3')
 const colorPickerVisible = ref(false)
@@ -330,15 +338,132 @@ const clearCurrentEdit = () => {
 }
 
 const refreshPolyline = () => {
-  clearPolyline()
-  if (pointList.length < 2 || !map) return
+  if (!map) return
+  if (pointList.length < 2) {
+    clearPolyline()
+    return
+  }
+  const path = pointList.map(toLngLat)
+  if (polyline) {
+    polyline.setPath(path)
+    return
+  }
   polyline = new window.AMap.Polyline({
-    path: pointList.map(toLngLat),
+    path,
     strokeColor: '#007aff',
     strokeWeight: 3,
     zIndex: 20,
     map
   })
+}
+
+/** 圈地打点：轻量 Marker（对齐移动端），避免每次全量重建 */
+const createDrawingVertexMarker = (index, lng, lat) => {
+  const isStart = index === 0
+  return new window.AMap.Marker({
+    position: [lng, lat],
+    anchor: 'center',
+    zIndex: 30,
+    // 打点过程中不拦截地图点击，避免连续加点被顶点挡住
+    clickable: false,
+    content: isStart
+      ? '<div style="width:16px;height:16px;border-radius:50%;background:#00c853;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.35);pointer-events:none;"></div>'
+      : '<div style="width:14px;height:14px;border-radius:50%;background:#007aff;border:2px solid #fff;pointer-events:none;"></div>',
+    map
+  })
+}
+
+const appendPlotPoint = (lng, lat) => {
+  const index = pointList.length
+  pointList.push({ lng, lat })
+  markerList.push(createDrawingVertexMarker(index, lng, lat))
+  pointCount.value = pointList.length
+  refreshPolyline()
+  pushHistory()
+}
+
+/**
+ * 圈地时保留出水桩/农场标记显示，但关闭命中，避免大面积 DOM Marker 吞掉 map.click
+ *（出水桩容器约 120px 宽且 stopImmediatePropagation，会导致几乎打不上点）
+ */
+const setBackgroundMarkersClickThrough = (passThrough) => {
+  const apply = (markers) => {
+    ;(markers || []).forEach((marker) => {
+      try {
+        marker.setClickable?.(!passThrough)
+      } catch (e) {
+        /* ignore */
+      }
+      const dom = marker.getContent?.()
+      if (dom?.style) {
+        dom.style.pointerEvents = passThrough ? 'none' : 'auto'
+        dom.style.cursor = passThrough ? 'default' : 'pointer'
+      }
+    })
+  }
+  apply(waterDvMarkerDrawer.waterDvMarkers)
+  apply(farmMarkerDrawer.farmMarkers)
+}
+
+/** 统一打点逻辑（供 map.click / 容器捕获点击复用） */
+const handleDrawAtLngLat = (lng, lat) => {
+  if (!canDraw || !drawing.value || isClosed.value) return
+  if (lng == null || lat == null) return
+
+  if (pointList.length >= 3) {
+    const first = pointList[0]
+    const dx = lng - first.lng
+    const dy = lat - first.lat
+    // 近似闭合阈值（约 8 米级，避免每次调 GeometryUtil）
+    if (dx * dx + dy * dy < 5e-9) {
+      closePolygon()
+      return
+    }
+  }
+
+  appendPlotPoint(lng, lat)
+}
+
+let drawingCaptureBound = false
+
+/** 捕获阶段监听：在出水桩/农场 Marker 处理前拿到点击，保证圈地可打点 */
+const onDrawingContainerClick = (e) => {
+  if (!canDraw || !drawing.value || isClosed.value || !map) return
+  if (e.button != null && e.button !== 0) return
+
+  const container = map.getContainer?.()
+  if (!container) return
+
+  const rect = container.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  if (x < 0 || y < 0 || x > rect.width || y > rect.height) return
+
+  const lnglat = map.containerToLngLat(new window.AMap.Pixel(x, y))
+  if (!lnglat) return
+
+  // 阻止冒泡到出水桩 DOM 的 click（其内部 stopImmediatePropagation 会吞掉地图事件）
+  e.preventDefault()
+  e.stopPropagation()
+
+  handleDrawAtLngLat(lnglat.lng, lnglat.lat)
+}
+
+const bindDrawingCapture = () => {
+  if (drawingCaptureBound || !map) return
+  const container = map.getContainer?.()
+  if (!container) return
+  container.addEventListener('click', onDrawingContainerClick, true)
+  drawingCaptureBound = true
+}
+
+const unbindDrawingCapture = () => {
+  if (!drawingCaptureBound || !map) return
+  const container = map.getContainer?.()
+  if (container) {
+    container.removeEventListener('click', onDrawingContainerClick, true)
+  }
+  drawingCaptureBound = false
 }
 
 const getPolygonCenter = (path) => {
@@ -594,17 +719,7 @@ const renderEditableVertices = (preservePolygon = false) => {
 const rebuildMarkersFromPoints = () => {
   clearMarkers()
   pointList.forEach((p, idx) => {
-    const isStart = idx === 0
-    const marker = new window.AMap.Marker({
-      position: toLngLat(p),
-      anchor: 'center',
-      zIndex: 25,
-      content: isStart
-        ? '<div style="width:16px;height:16px;border-radius:50%;background:#00c853;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.4);"></div>'
-        : '<div style="width:14px;height:14px;border-radius:50%;background:#007aff;border:2px solid #fff;"></div>',
-      map
-    })
-    markerList.push(marker)
+    markerList.push(createDrawingVertexMarker(idx, p.lng, p.lat))
   })
   pointCount.value = pointList.length
   refreshPolyline()
@@ -622,7 +737,8 @@ const startDrawLand = () => {
   historyStack = [[]]
   redoStack = []
   updateStackState()
-  ElMessage.info('已进入圈地模式，点击地图选点')
+  setBackgroundMarkersClickThrough(true)
+  bindDrawingCapture()
 }
 
 const cancelDraw = () => {
@@ -633,7 +749,8 @@ const cancelDraw = () => {
   hasRedo.value = false
   historyStack = [[]]
   redoStack = []
-  ElMessage.info('已退出圈地编辑')
+  unbindDrawingCapture()
+  setBackgroundMarkersClickThrough(false)
 }
 
 const closePolygon = () => {
@@ -657,6 +774,8 @@ const closePolygon = () => {
   isClosed.value = true
   historyStack = [clonePoints(pointList)]
   redoStack = []
+  unbindDrawingCapture()
+  setBackgroundMarkersClickThrough(false)
   renderEditableVertices(true)
   ElMessage.success('地块已闭合')
 }
@@ -767,7 +886,14 @@ const submitEditLand = async (land, address) => {
     })
     editingLandRecord = null
     resetDrawUiState()
-    router.replace({ path: '/farm/edit-land', query: { type: 'edit' } })
+    const returnFrom = route.query.returnFrom
+    router.replace({
+      path: '/farm/edit-land',
+      query: {
+        type: 'edit',
+        ...(returnFrom ? { from: String(returnFrom) } : {})
+      }
+    })
     return
   }
 
@@ -812,6 +938,36 @@ const savePolygon = async () => {
 
   if (pageType.value === 'edit') {
     await submitEditLand(land, address)
+    return
+  }
+
+  if (pageType.value === 'addGroup') {
+    const areaJson = JSON.stringify({
+      landPoint: land.landPoint,
+      fillColor: land.fillColor
+    })
+    farmStore.patchAddGroupArea(land.areaMu, areaJson)
+    resetDrawUiState()
+    router.push({
+      path: '/irrigation-group/edit',
+      query: { type: 'add', from: 'map' }
+    })
+    return
+  }
+
+  if (pageType.value === 'editGroup') {
+    farmStore.setPendingGroupChange({
+      topic: 'changeLand',
+      data: land
+    })
+    resetDrawUiState()
+    if (window.history.length > 1) router.back()
+    else {
+      router.replace({
+        path: '/irrigation-group/edit',
+        query: { type: 'edit' }
+      })
+    }
     return
   }
 
@@ -928,26 +1084,12 @@ const confirmColor = () => {
 }
 
 const onMapClick = (e) => {
+  // 圈地模式改由容器捕获点击处理，避免与出水桩 DOM 抢事件导致双重点/丢点
+  if (drawingCaptureBound) return
   if (!canDraw || !drawing.value || isClosed.value) return
   const lnglat = e.lnglat
   if (!lnglat) return
-
-  // 点击靠近起点可闭合
-  if (pointList.length >= 3) {
-    const first = pointList[0]
-    const dist = window.AMap.GeometryUtil.distance(
-      [lnglat.lng, lnglat.lat],
-      [first.lng, first.lat]
-    )
-    if (dist < 8) {
-      closePolygon()
-      return
-    }
-  }
-
-  pointList.push({ lng: lnglat.lng, lat: lnglat.lat })
-  pushHistory()
-  rebuildMarkersFromPoints()
+  handleDrawAtLngLat(lnglat.lng, lnglat.lat)
 }
 
 const getLocation = () => {
@@ -1059,9 +1201,57 @@ const loadFarmAndDraw = async () => {
       { value: 'waterDv', isChose: true }
     ]
 
-    // type=add：已有地块全部作为不可编辑背景层
-    if (pageType.value === 'add') {
+    // type=add / addGroup：已有地块全部作为不可编辑背景层
+    if (
+      pageType.value === 'add' ||
+      pageType.value === 'addGroup' ||
+      pageType.value === 'editGroup'
+    ) {
       defaultLandList = allLands
+    }
+
+    // type=addGroup / editGroup：仅展示关联出水桩
+    if (pageType.value === 'addGroup' || pageType.value === 'editGroup') {
+      const groupDeviceList = farmStore.s_group_deviceList || []
+      let showDeviceList = []
+
+      if (pageType.value === 'addGroup') {
+        groupDeviceList.forEach((item) => {
+          const matched = allWaterDvList.find(
+            (d) => String(d.id) === String(item.id)
+          )
+          if (matched) showDeviceList.push(matched)
+        })
+      }
+
+      if (pageType.value === 'editGroup') {
+        const groupId = farmStore.s_landId_group
+        const irrigationGroups = Array.isArray(farmInfoCache.irrigationGroups)
+          ? farmInfoCache.irrigationGroups
+          : []
+        const groupDviceId = []
+        irrigationGroups.forEach((item) => {
+          if (String(item.id) !== String(groupId)) return
+          ;(item.ports || []).forEach((p) => {
+            if (p.deviceId != null) groupDviceId.push(p.deviceId)
+          })
+        })
+        const reGroupDvId = [...new Set(groupDviceId.map((id) => String(id)))]
+        if (reGroupDvId.length) {
+          showDeviceList = allWaterDvList.filter((d) =>
+            reGroupDvId.includes(String(d.id))
+          )
+        } else {
+          groupDeviceList.forEach((item) => {
+            const matched = allWaterDvList.find(
+              (d) => String(d.id) === String(item.id)
+            )
+            if (matched) showDeviceList.push(matched)
+          })
+        }
+      }
+
+      allWaterDvList = showDeviceList.length ? showDeviceList : allWaterDvList
     }
 
     // type=edit：当前地块可编辑，其余地块作为背景层
@@ -1104,6 +1294,41 @@ const loadFarmAndDraw = async () => {
       }
     }
 
+    // type=editGroup：加载轮灌组现有灌区到编辑器
+    if (pageType.value === 'editGroup') {
+      const groupId = farmStore.s_landId_group
+      const landGroupList = prepared.landGroupList || []
+      editingLandShape = landGroupList.find(
+        (item) => String(item.id) === String(groupId)
+      )
+
+      // 若草稿已有圈地结果但农场接口尚未更新，优先用草稿
+      const draft = farmStore.s_edit_group_draft
+      if (
+        draft?.id != null &&
+        String(draft.id) === String(groupId) &&
+        draft.areaJson
+      ) {
+        try {
+          const areaObj =
+            typeof draft.areaJson === 'string'
+              ? JSON.parse(draft.areaJson)
+              : draft.areaJson
+          if (areaObj?.landPoint?.length >= 3) {
+            editingLandShape = {
+              id: draft.id,
+              name: draft.name,
+              landPoint: areaObj.landPoint,
+              fillColor: areaObj.fillColor || '#2196F3',
+              areaMu: draft.area
+            }
+          }
+        } catch (e) {
+          console.warn('[MapEditPlot] 解析编辑草稿 areaJson 失败', e)
+        }
+      }
+    }
+
     landPolygonDrawer.drawLandPolygon(map, defaultLandList, {
       layerOptions,
       readOnly: true
@@ -1126,11 +1351,13 @@ const loadFarmAndDraw = async () => {
       }
     )
 
-    if (pageType.value === 'edit') {
+    if (pageType.value === 'edit' || pageType.value === 'editGroup') {
       if (editingLandShape?.landPoint?.length >= 3) {
         setTimeout(() => loadLandIntoEditor(editingLandShape), 150)
-      } else {
+      } else if (pageType.value === 'edit') {
         ElMessage.warning('地块区域数据无效')
+        setTimeout(() => fitSceneView(), 200)
+      } else {
         setTimeout(() => fitSceneView(), 200)
       }
       return
@@ -1143,6 +1370,8 @@ const loadFarmAndDraw = async () => {
 }
 
 const destroyMap = () => {
+  unbindDrawingCapture()
+  setBackgroundMarkersClickThrough(false)
   clearCurrentEdit()
   if (nowMark && map) {
     try {

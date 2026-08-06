@@ -189,6 +189,7 @@
 
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElSwitch } from 'element-plus'
 import { getAlarmList } from '@/api/alarm'
 import {
@@ -212,12 +213,13 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'close'])
 
+const router = useRouter()
+const farmStore = useFarmStore()
+
 const visible = computed({
   get: () => props.modelValue,
   set: (v) => emit('update:modelValue', v)
 })
-
-const farmStore = useFarmStore()
 
 const loading = ref(false)
 const portToggleLoading = ref(false)
@@ -506,8 +508,20 @@ function closePopup() {
   emit('close')
 }
 
+/** 对齐移动端 toDeviceControl：写入 vuex_control_device_info 后进 control_device */
 function onViewDetail() {
-  ElMessage.info('查看详情功能开发中')
+  // 以地图点击设备为准（对齐移动端 open 弹窗前写入的 vuex_control_device_info）
+  const device = props.device
+  if (!device?.id) {
+    ElMessage.warning('缺少设备信息')
+    return
+  }
+  farmStore.setControlDevice({ ...device })
+  closePopup()
+  router.push({
+    path: '/device/control',
+    query: { id: String(device.id) }
+  })
 }
 
 async function onSync() {

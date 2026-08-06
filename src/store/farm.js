@@ -34,6 +34,31 @@ export const useFarmStore = defineStore(
     const s_dv_status_info = ref(null)
     /** 控制页「打开地图」待聚焦设备 id，对齐移动端 farmChangeMsg openMap */
     const s_pending_map_device_id = ref(null)
+    /** 添加设备流程中的待添加列表，对齐移动端 vuex_edit_device */
+    const s_edit_device = ref([])
+    /** 定位结果（成功/失败列表），对齐移动端 vuex_edit_device_map */
+    const s_edit_device_map = ref({
+      deviceListOK: [],
+      deviceListNo: []
+    })
+    /** 地图编辑页确认回传，对齐移动端 deviceMsg editConform */
+    const s_pending_device_edit = ref(null)
+    /** 新建轮灌组草稿，对齐移动端 vuex_add_group */
+    const s_add_group = ref(null)
+    /** 圈定轮灌区时的地块 id，对齐移动端 vuex_landId_group */
+    const s_landId_group = ref(null)
+    /** 选出水口设备列表（含 outletPorts），对齐移动端 vuex_group_deviceList */
+    const s_group_deviceList = ref([])
+    /** 列表进入详情的组条目，对齐移动端 vuex_group_list_item */
+    const s_group_list_item = ref(null)
+    /** 轮灌组详情缓存，对齐移动端 vuex_group_detail_info */
+    const s_group_detail_info = ref(null)
+    /** 编辑页选出水口预选，对齐移动端 vuex_chose_port */
+    const s_chose_port = ref(null)
+    /** 编辑页草稿（PC 跳转子页会卸载，需持久），对齐移动端 group_edit.groupParam */
+    const s_edit_group_draft = ref(null)
+    /** 子页回写：changePort / changeLand，对齐移动端 groupChangeMsg */
+    const s_pending_group_change = ref(null)
 
     function syncSelectFarm(farmList) {
       if (!farmList.length) {
@@ -189,6 +214,115 @@ export const useFarmStore = defineStore(
       return id
     }
 
+    function setEditDevice(list) {
+      s_edit_device.value = Array.isArray(list)
+        ? list.map((item) => ({ ...item }))
+        : []
+    }
+
+    function setEditDeviceMap(payload) {
+      // 兼容移动端 edit 态直接写入数组
+      if (Array.isArray(payload)) {
+        s_edit_device_map.value = {
+          deviceListOK: payload.map((item) => ({ ...item })),
+          deviceListNo: []
+        }
+        return
+      }
+      const ok = Array.isArray(payload?.deviceListOK)
+        ? payload.deviceListOK.map((item) => ({ ...item }))
+        : []
+      const no = Array.isArray(payload?.deviceListNo)
+        ? payload.deviceListNo.map((item) => ({ ...item }))
+        : []
+      s_edit_device_map.value = {
+        deviceListOK: ok,
+        deviceListNo: no
+      }
+    }
+
+    function setPendingDeviceEdit(list) {
+      s_pending_device_edit.value = Array.isArray(list)
+        ? list.map((item) => ({ ...item }))
+        : null
+    }
+
+    function consumePendingDeviceEdit() {
+      const list = s_pending_device_edit.value
+      s_pending_device_edit.value = null
+      return list
+    }
+
+    function setAddGroup(params) {
+      s_add_group.value = params ? { ...params } : null
+    }
+
+    function setLandIdGroup(id) {
+      s_landId_group.value = id ?? null
+    }
+
+    function setGroupDeviceList(list) {
+      s_group_deviceList.value = Array.isArray(list)
+        ? list.map((item) => ({
+            ...item,
+            outletPorts: Array.isArray(item.outletPorts)
+              ? item.outletPorts.map((p) => ({ ...p }))
+              : []
+          }))
+        : []
+    }
+
+    function patchAddGroupArea(area, areaJson) {
+      if (!s_add_group.value) return
+      s_add_group.value = {
+        ...s_add_group.value,
+        area,
+        areaJson
+      }
+    }
+
+    function setGroupListItem(item) {
+      s_group_list_item.value = item ? { ...item } : null
+    }
+
+    function setGroupDetailInfo(info) {
+      s_group_detail_info.value = info ? { ...info } : null
+    }
+
+    function setChosePort(params) {
+      s_chose_port.value = params
+        ? {
+            ...params,
+            outlets: Array.isArray(params.outlets)
+              ? params.outlets.map((o) => ({ ...o }))
+              : []
+          }
+        : null
+    }
+
+    function setEditGroupDraft(params) {
+      s_edit_group_draft.value = params
+        ? {
+            ...params,
+            outlets: Array.isArray(params.outlets)
+              ? params.outlets.map((o) => ({ ...o }))
+              : []
+          }
+        : null
+    }
+
+    function setPendingGroupChange(payload) {
+      s_pending_group_change.value = payload
+        ? { topic: payload.topic, data: payload.data }
+        : null
+    }
+
+    function consumePendingGroupChange() {
+      const v = s_pending_group_change.value
+      s_pending_group_change.value = null
+      return v
+    }
+
     function setFarmInfo(info) {
       s_farm_info.value = info || null
     }
@@ -226,6 +360,9 @@ export const useFarmStore = defineStore(
       s_control_device.value = null
       s_dv_status_info.value = null
       s_pending_map_device_id.value = null
+      s_edit_device.value = []
+      s_edit_device_map.value = { deviceListOK: [], deviceListNo: [] }
+      s_pending_device_edit.value = null
     }
 
     return {
@@ -244,6 +381,17 @@ export const useFarmStore = defineStore(
       s_control_device,
       s_dv_status_info,
       s_pending_map_device_id,
+      s_edit_device,
+      s_edit_device_map,
+      s_pending_device_edit,
+      s_add_group,
+      s_landId_group,
+      s_group_deviceList,
+      s_group_list_item,
+      s_group_detail_info,
+      s_chose_port,
+      s_edit_group_draft,
+      s_pending_group_change,
       fetchFarmList,
       fetchFarmFullInfo,
       setFarmInfo,
@@ -257,6 +405,20 @@ export const useFarmStore = defineStore(
       setDvStatusInfo,
       setPendingMapDeviceId,
       consumePendingMapDeviceId,
+      setEditDevice,
+      setEditDeviceMap,
+      setPendingDeviceEdit,
+      consumePendingDeviceEdit,
+      setAddGroup,
+      setLandIdGroup,
+      setGroupDeviceList,
+      patchAddGroupArea,
+      setGroupListItem,
+      setGroupDetailInfo,
+      setChosePort,
+      setEditGroupDraft,
+      setPendingGroupChange,
+      consumePendingGroupChange,
       setSelectFarm,
       restoreFarmList,
       farmChange,
