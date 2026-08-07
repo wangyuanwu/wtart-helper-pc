@@ -70,3 +70,17 @@ export function closeGroupPro(data, config = {}) {
     silent: config.silent === true
   })
 }
+
+/** 轮灌程序运行记录 GET /api/irrigation-program/record */
+export function getProgramRecord(params, config = {}) {
+  return request({
+    url: '/api/irrigation-program/record',
+    method: 'GET',
+    params,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true
+  })
+}

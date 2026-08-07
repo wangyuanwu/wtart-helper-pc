@@ -285,6 +285,13 @@ export const useFarmStore = defineStore(
       s_group_list_item.value = item ? { ...item } : null
     }
 
+    /** 轮灌程序列表项/编辑缓存，对齐移动端 vuex_pro_info */
+    const s_pro_info = ref(null)
+
+    function setProInfo(info) {
+      s_pro_info.value = info ? { ...info } : null
+    }
+
     function setGroupDetailInfo(info) {
       s_group_detail_info.value = info ? { ...info } : null
     }
@@ -389,6 +396,7 @@ export const useFarmStore = defineStore(
       s_group_deviceList,
       s_group_list_item,
       s_group_detail_info,
+      s_pro_info,
       s_chose_port,
       s_edit_group_draft,
       s_pending_group_change,
@@ -415,6 +423,7 @@ export const useFarmStore = defineStore(
       patchAddGroupArea,
       setGroupListItem,
       setGroupDetailInfo,
+      setProInfo,
       setChosePort,
       setEditGroupDraft,
       setPendingGroupChange,

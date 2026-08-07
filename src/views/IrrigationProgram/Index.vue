@@ -7,7 +7,7 @@
         src="@/assets/irrigation-group/group-empty.png"
         alt=""
       />
-      <p class="program-empty__text">嗨！您还没有轮灌程序</p>
+      <p class="program-empty__text">您还没有轮灌程序</p>
       <button type="button" class="program-empty__btn" @click="onAddProgram">
         添加轮灌程序
       </button>
@@ -20,7 +20,7 @@
         <div class="program-toolbar__actions">
           <button type="button" class="program-toolbar__record" @click="onRecord">
             <i class="iconfont icon-device_ic_record"></i>
-            开关记录
+            运行记录
           </button>
           <el-button
             type="primary"
@@ -28,7 +28,7 @@
             @click="onAddProgram"
           >
             <span class="program-toolbar__add-icon">+</span>
-            新建轮灌程序
+            添加轮灌程序
           </el-button>
         </div>
       </div>
@@ -67,22 +67,19 @@
               />
             </div>
 
-            <!-- 标签行 -->
+            <!-- 标签：对齐移动端仅「手动 / 定时」 -->
             <div class="program-card__tags">
               <span class="program-card__tag is-primary">
                 {{ getStartTypeText(item) }}
               </span>
-              <span class="program-card__tag is-secondary">
-                {{ getRepeatTypeText(item) }}
-              </span>
             </div>
 
-            <!-- 中间主信息 -->
+            <!-- 中间主信息（对齐移动端：数值在上、说明在下） -->
             <div class="program-card__body">
               <!-- 运行中 -->
               <template v-if="item.runningTasks">
-                <div class="program-card__status-label is-running">
-                  {{ item.startCondition === 0 ? '运行时长' : '正在运行' }}
+                <div class="program-card__big-value is-running">
+                  {{ getRunTimeText(item) }}
                   <span
                     v-if="item.runningTasks.timerStatus == 1"
                     class="program-card__forbid"
@@ -90,12 +87,7 @@
                     (禁止时段内)
                   </span>
                 </div>
-                <div
-                  class="program-card__big-value"
-                  :class="item.startCondition === 0 ? 'is-manual' : 'is-running'"
-                >
-                  {{ getRunTimeText(item) }}
-                </div>
+                <div class="program-card__status-label is-running">运行时长</div>
               </template>
 
               <!-- 下次启动时间 -->
@@ -105,62 +97,52 @@
                   item.startCondition !== 0
                 "
               >
-                <div class="program-card__status-label">下次启动时间</div>
                 <div class="program-card__big-value is-next">
                   {{ formatNextRun(item.timerTaskConfig.nextRunTime) }}
                 </div>
-              </template>
-
-              <!-- 无排期 -->
-              <template v-else>
-                <div class="program-card__status-label">暂无排期</div>
-                <div class="program-card__big-value is-muted">--</div>
+                <div class="program-card__status-label">下次启动时间</div>
               </template>
             </div>
 
-            <!-- 底部信息 -->
+            <!-- 底部：合计时长始终展示；组链路始终展示（运行中当前组高亮可点） -->
             <div class="program-card__footer">
-              <!-- 运行中：当前灌溉组 -->
-              <template v-if="item.runningTasks">
-                <div class="program-card__footer-row">
-                  <i class="iconfont icon-map_ic_opening program-card__footer-icon"></i>
-                  <span class="program-card__footer-text">
-                    轮灌组：{{ getCurrentGroupName(item) }}正在灌溉
-                  </span>
-                </div>
-                <div class="program-card__footer-meta">
-                  第{{ item.runningTasks.currentCycle ?? 1 }}次轮灌
-                </div>
-              </template>
-
-              <!-- 非运行：时长 + 重复次数 -->
-              <template v-else>
-                <div class="program-card__footer-row">
-                  <span class="program-card__footer-item">
-                    <i class="iconfont icon-device_ic_hourglass program-card__footer-icon"></i>
-                    轮灌时长 {{ getTotalDuration(item) }}
-                  </span>
-                  <span class="program-card__footer-item">
-                    <i class="iconfont icon-device_ic_run_01 program-card__footer-icon"></i>
-                    重复次数 {{ item.rotationCount ?? 0 }}次
-                  </span>
-                </div>
-                <div
-                  v-if="getSortedGroups(item.groups).length"
-                  class="program-card__groups"
-                >
-                  <template
-                    v-for="(g, idx) in getSortedGroups(item.groups)"
-                    :key="g.id || idx"
-                  >
-                    <span>{{ g.name }}</span>
-                    <span
-                      v-if="idx < getSortedGroups(item.groups).length - 1"
-                      class="program-card__groups-sep"
-                    >→</span>
+              <div class="program-card__footer-row">
+                <span class="program-card__footer-item">
+                  合计轮灌时长:{{ getTotalDuration(item) }}
+                </span>
+                <span class="program-card__footer-meta-inline">
+                  <template v-if="item.runningTasks">
+                    第{{ item.runningTasks.currentCycle ?? 1 }}次轮灌
                   </template>
-                </div>
-              </template>
+                  <template v-else>
+                    轮灌次数：{{ item.rotationCount ?? 0 }}
+                  </template>
+                </span>
+              </div>
+              <div
+                v-if="getSortedGroups(item.groups).length"
+                class="program-card__groups"
+              >
+                <template
+                  v-for="(g, idx) in getSortedGroups(item.groups)"
+                  :key="g.id || idx"
+                >
+                  <span
+                    class="program-card__group-name"
+                    :class="{
+                      'is-current': isCurrentRunningGroup(item, g),
+                      'is-clickable': isCurrentRunningGroup(item, g)
+                    }"
+                    @click.stop="onGroupNameClick(item, g)"
+                  >
+                    {{ g.name }}
+                  </span>
+                  <span
+                    v-if="idx < getSortedGroups(item.groups).length - 1"
+                    class="program-card__groups-sep"
+                  >-></span>
+                </template>
+              </div>
             </div>
           </article>
         </div>
@@ -168,11 +150,49 @@
     </template>
 
     <div v-else-if="loading" class="program-loading">加载中...</div>
+
+    <!-- 手动停止确认（对齐移动端 a-tip-sure） -->
+    <el-dialog
+      v-model="manualStopVisible"
+      title="提示"
+      width="420px"
+      append-to-body
+      :close-on-click-modal="false"
+      @closed="onManualStopClosed"
+    >
+      <p class="program-manual-stop-desc">
+        手动停止将关闭已经打开的所有设备,是否继续？
+      </p>
+      <el-checkbox v-model="manualStopRiskChecked">
+        已知晓风险，确认停止。
+      </el-checkbox>
+      <template #footer>
+        <el-button @click="manualStopVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="!manualStopRiskChecked"
+          @click="confirmManualStop"
+        >
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <LandEmptyDialog
+      v-model="landEmptyVisible"
+      @create="onCreateLandFromEmpty"
+    />
+
+    <ProgramRecordDialog v-model="recordVisible" />
   </div>
 </template>
 
 <script setup>
+/**
+ * 对齐移动端 pages/home/fragment/pro/pro.vue 列表页
+ */
 import { computed, h, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElRadio, ElRadioGroup } from 'element-plus'
 import { useFarmStore } from '@/store/farm'
 import {
@@ -181,13 +201,21 @@ import {
   getGroupProList,
   openGroupPro
 } from '@/api/irrigationProgram'
+import LandEmptyDialog from '@/views/Map/LandEmptyDialog.vue'
+import ProgramRecordDialog from './ProgramRecordDialog.vue'
 
+const router = useRouter()
 const farmStore = useFarmStore()
 
 const programList = ref(null)
 const loading = ref(false)
 const runTick = ref(0)
 const controlProgram = ref(null)
+const landEmptyVisible = ref(false)
+const manualStopVisible = ref(false)
+const manualStopRiskChecked = ref(false)
+const pendingStopItem = ref(null)
+const recordVisible = ref(false)
 
 const POLL_MS = 5000
 const LOCK_SECONDS = 10
@@ -211,11 +239,12 @@ const showEmpty = computed(() => {
 
 /* ========== 展示工具 ========== */
 
+/** 对齐移动端 formatUtcCustom(..., 'yyyy-MM-dd hh:mm:ss') */
 const formatNextRun = (utcStr) => {
   if (!utcStr) return '--'
   const d = new Date(utcStr)
   if (Number.isNaN(d.getTime())) return '--'
-  return `${pad2(d.getMonth() + 1)}月${pad2(d.getDate())}日 ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
 }
 
 /** 对齐移动端：时:分:秒，不单独算天 */
@@ -273,25 +302,18 @@ const getSortedGroups = (groups) => {
   return [...groups].sort((a, b) => a.groupIndex - b.groupIndex)
 }
 
-const getCurrentGroupName = (item) => {
-  const groups = getSortedGroups(item.groups)
-  if (!groups.length) return '--'
-  const idx = item.runningTasks?.currentGroupIndex
-  const current = groups.find((g) => g.groupIndex === idx)
-  return current?.name || groups[0]?.name || '--'
-}
+const isCurrentRunningGroup = (item, group) =>
+  !!(
+    item?.runningTasks &&
+    group &&
+    group.groupIndex === item.runningTasks.currentGroupIndex
+  )
 
+/** 对齐移动端：手动 / 定时 */
 const getStartTypeText = (item) => {
-  if (item.startCondition === 0) return '手动启动'
-  if (item.startCondition === 1) return '定时启动'
-  return '自定义启动'
-}
-
-const getRepeatTypeText = (item) => {
-  const repeatType = item.timerTaskConfig?.timerConfig?.repeatType
-  if (repeatType === 0) return '单次执行'
-  if (repeatType != null && repeatType > 0) return '重复执行'
-  return Number(item.rotationCount) > 1 ? '重复执行' : '单次执行'
+  if (item.startCondition === 0) return '手动'
+  if (item.startCondition === 1) return '定时'
+  return '自定义'
 }
 
 const isCardDisabled = (item) =>
@@ -378,7 +400,6 @@ const onTimerSwitchChange = async (item, enabled) => {
 
   if (isRun) {
     if (!enabled) {
-      // 运行中关闭：弹窗选择终止方式
       item.enabled = true
       await openStopChoiceDialog(item)
     }
@@ -397,7 +418,7 @@ const onManualSwitchChange = async (item, nextRunning) => {
   if (isRun) {
     if (!nextRunning) {
       item.isRunning = true
-      await openManualStopDialog(item)
+      openManualStopDialog(item)
     }
     return
   }
@@ -463,43 +484,56 @@ const openStopChoiceDialog = async (item) => {
   }
 }
 
-const openManualStopDialog = async (item) => {
-  try {
-    await ElMessageBox.confirm(
-      '手动停止将关闭已经打开的所有设备,是否继续？',
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    item.lockUntil = Date.now() + LOCK_SECONDS * 1000
-    await closeGroupProHttp({
-      id: item.id,
-      cancelRepeat: false
-    })
-  } catch {
-    // 取消
-  }
+const openManualStopDialog = (item) => {
+  pendingStopItem.value = item
+  manualStopRiskChecked.value = false
+  manualStopVisible.value = true
+}
+
+const onManualStopClosed = () => {
+  pendingStopItem.value = null
+  manualStopRiskChecked.value = false
+}
+
+const confirmManualStop = async () => {
+  const item = pendingStopItem.value
+  if (!item || !manualStopRiskChecked.value) return
+  manualStopVisible.value = false
+  item.lockUntil = Date.now() + LOCK_SECONDS * 1000
+  await closeGroupProHttp({
+    id: item.id,
+    cancelRepeat: false
+  })
 }
 
 const enableGroupProHttp = async (id, enabled) => {
   try {
-    const res = await enableGroupPro({ id, enabled })
-    if (res?.code === 200) {
-      ElMessage.success('操作成功')
-    } else if (res?.code === 40001) {
-      const target = findItem(id)
-      if (target) target.enabled = !enabled
-      ElMessage.warning('开始执行时间必须大于当前时间，请先去设置')
-    } else {
-      const target = findItem(id)
-      if (target) target.enabled = !enabled
-    }
+    await enableGroupPro({ id, enabled }, { silent: true })
+    ElMessage.success('操作成功')
   } catch (e) {
     const target = findItem(id)
     if (target) target.enabled = !enabled
+    if (e?.code === 40001) {
+      // 对齐移动端 proSetTip：去设置（编辑页暂保留出口）
+      try {
+        await ElMessageBox.confirm(
+          '开始执行时间必须大于当前时间。',
+          '提示',
+          {
+            confirmButtonText: '去设置',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        )
+        onProSet(controlProgram.value || target)
+      } catch {
+        /* 取消 */
+      }
+      return
+    }
+    if (e?.message || e?.msg || e?.err) {
+      ElMessage.error(e.message || e.msg || e.err)
+    }
     console.error('[IrrigationProgram] 启用/禁用失败', e)
   }
 }
@@ -580,20 +614,84 @@ const startPoll = () => {
   }, POLL_MS)
 }
 
-/* ========== 预留出口 ========== */
+/* ========== 业务出口（后续补齐） ========== */
 
-const onAddProgram = () => {
-  console.log('[IrrigationProgram] onAddProgram 预留出口')
-  ElMessage.info('新建轮灌程序功能开发中')
+/** 添加前地块校验，对齐移动端 pro_empty.noLandPop */
+const onAddProgram = async () => {
+  const farmId = getFarmId()
+  if (farmId == null) {
+    ElMessage.warning('请先选择农场')
+    return
+  }
+  try {
+    let info = farmStore.s_farm_info
+    if (!info || info.id !== farmId) {
+      info = await farmStore.fetchFarmFullInfo(farmId)
+    }
+    const lands = info?.lands
+    if (!Array.isArray(lands) || lands.length <= 0) {
+      landEmptyVisible.value = true
+      return
+    }
+    router.push({ path: '/irrigation-program/edit', query: { type: 'add' } })
+  } catch (e) {
+    console.error('[IrrigationProgram] 添加轮灌程序前置校验失败', e)
+    ElMessage.error('获取农场信息失败')
+  }
+}
+
+const onCreateLandFromEmpty = () => {
+  landEmptyVisible.value = false
+  router.push({ path: '/map/edit-plot', query: { type: 'add' } })
 }
 
 const onRecord = () => {
-  console.log('[IrrigationProgram] onRecord 预留出口')
-  ElMessage.info('开关记录功能开发中')
+  if (getFarmId() == null) {
+    ElMessage.warning('请先选择农场')
+    return
+  }
+  recordVisible.value = true
 }
 
 const onProgramClick = (item) => {
-  console.log('[IrrigationProgram] onProgramClick 预留出口', item)
+  if (!item?.id) return
+  farmStore.setProInfo(item)
+  router.push({ path: '/irrigation-program/edit', query: { type: 'edit' } })
+}
+
+/** 40001 去设置 → 编辑页 event=setTime */
+const onProSet = (item) => {
+  const target = item || controlProgram.value
+  if (!target?.id) return
+  farmStore.setProInfo(target)
+  router.push({
+    path: '/irrigation-program/edit',
+    query: { type: 'edit', event: 'setTime' }
+  })
+}
+
+/** 运行中当前轮灌组 → 组详情，对齐移动端 toGourpDetail / map-group-detail?from=pro */
+const onGroupNameClick = (item, group) => {
+  if (!isCurrentRunningGroup(item, group)) return
+  const groupId = group.irrigationGroupId ?? group.id
+  if (groupId == null) return
+  const bean = {
+    ...group,
+    id: groupId,
+    name: group.name || getGroupDisplayNameFromProgram(item, group)
+  }
+  farmStore.setGroupListItem(bean)
+  router.push({
+    path: '/irrigation-group/detail',
+    query: { id: String(groupId), from: 'pro' }
+  })
+}
+
+function getGroupDisplayNameFromProgram(item, group) {
+  if (group?.name) return group.name
+  const sorted = getSortedGroups(item?.groups)
+  const current = sorted.find((g) => g.groupIndex === group?.groupIndex)
+  return current?.name || '轮灌组'
 }
 
 /* ========== 生命周期 ========== */
@@ -634,6 +732,13 @@ onUnmounted(() => {
   justify-content: center;
   color: #909399;
   font-size: 14px;
+}
+
+.program-manual-stop-desc {
+  margin: 0 0 16px;
+  color: #303133;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 /* ========== 空态 ========== */
@@ -798,6 +903,10 @@ onUnmounted(() => {
   color: #c0c4cc !important;
 }
 
+.program-card.is-disabled .program-card__group-name.is-current {
+  color: #86efac !important;
+}
+
 /* ---- 头部 ---- */
 
 .program-card__header {
@@ -850,11 +959,6 @@ onUnmounted(() => {
   color: #3653a0;
 }
 
-.program-card__tag.is-secondary {
-  background: #f5f7fa;
-  color: #909399;
-}
-
 /* ---- 中间 ---- */
 
 .program-card__body {
@@ -867,45 +971,41 @@ onUnmounted(() => {
 }
 
 .program-card__status-label {
+  margin-top: 4px;
   font-size: 12px;
   color: #909399;
   line-height: 1.4;
 }
 
 .program-card__status-label.is-running {
-  color: #16a34a;
+  color: #909399;
 }
 
 .program-card__forbid {
-  margin-left: 4px;
-  color: #303133;
+  margin-left: 8px;
+  font-size: 14px;
   font-weight: 600;
+  color: #303133;
+  vertical-align: middle;
 }
 
 .program-card__big-value {
-  margin-top: 6px;
   font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
     'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: bold;
   line-height: 1.3;
   color: #0f172a;
+  word-break: break-all;
 }
 
 .program-card__big-value.is-running {
   color: #16a34a;
 }
 
-.program-card__big-value.is-manual {
-  color: #3653a0;
-}
-
 .program-card__big-value.is-next {
-  color: #0f172a;
-}
-
-.program-card__big-value.is-muted {
-  color: #c0c4cc;
+  color: #3653a0;
+  font-size: 20px;
 }
 
 /* ---- 底部 ---- */
@@ -933,35 +1033,37 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.program-card__footer-icon {
-  font-size: 14px;
-  color: #909399;
+.program-card__footer-meta-inline {
   flex-shrink: 0;
-}
-
-.program-card__footer-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.program-card__footer-meta {
-  margin-top: 6px;
   font-size: 12px;
-  color: #909399;
+  color: #606266;
 }
 
 .program-card__groups {
-  margin-top: 6px;
+  margin-top: 8px;
   font-size: 12px;
   color: #909399;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.5;
+}
+
+.program-card__group-name.is-current {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.program-card__group-name.is-clickable {
+  cursor: pointer;
+}
+
+.program-card__group-name.is-clickable:hover {
+  text-decoration: underline;
 }
 
 .program-card__groups-sep {
-  margin: 0 4px;
+  margin: 0 2px;
   color: #c0c4cc;
 }
 

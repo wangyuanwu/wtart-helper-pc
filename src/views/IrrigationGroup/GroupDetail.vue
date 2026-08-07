@@ -709,6 +709,10 @@ async function closePortHttp(waterOut, port, force) {
 }
 
 function onBack() {
+  if (route.query.from === 'pro') {
+    router.replace('/irrigation-program')
+    return
+  }
   if (window.history.length > 1) router.back()
   else router.replace('/irrigation-group')
 }

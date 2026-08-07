@@ -123,6 +123,11 @@ const routes = [
         meta: { title: '轮灌程序', requiresAuth: true }
       },
       {
+        path: 'irrigation-program/edit',
+        component: () => import('../views/IrrigationProgram/ProgramEdit.vue'),
+        meta: { title: '轮灌程序编辑', requiresAuth: true }
+      },
+      {
         path: 'user/profile',
         component: () => import('../views/User/Profile.vue'),
         meta: { title: '个人信息', requiresAuth: true }
