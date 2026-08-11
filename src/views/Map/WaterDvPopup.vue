@@ -191,7 +191,6 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElSwitch } from 'element-plus'
-import { getAlarmList } from '@/api/alarm'
 import {
   closeRestartDv,
   closeWaterDv,
@@ -200,6 +199,7 @@ import {
   syncWaterOutletStatus
 } from '@/api/device'
 import { useFarmStore } from '@/store/farm'
+import { useAlarmStore } from '@/store/alarm'
 import deviceOnlineImg from '@/assets/map/outlet-device-online.svg'
 import deviceOfflineImg from '@/assets/map/outlet-device-offline.svg'
 
@@ -215,6 +215,7 @@ const emit = defineEmits(['update:modelValue', 'close'])
 
 const router = useRouter()
 const farmStore = useFarmStore()
+const alarmStore = useAlarmStore()
 
 const visible = computed({
   get: () => props.modelValue,
@@ -224,7 +225,6 @@ const visible = computed({
 const loading = ref(false)
 const portToggleLoading = ref(false)
 const statusInfo = ref(null)
-const alarmingList = ref([])
 const controlWaterOutletList = ref({})
 const closeOpenOrderCache = ref(null)
 const controlWaterOutletCache = ref(null)
@@ -277,11 +277,7 @@ const snrText = computed(() => {
 
 const isDvAlarm = computed(() => {
   const deviceId = statusInfo.value?.id ?? props.device?.id
-  if (deviceId == null) return false
-  return alarmingList.value.some(
-    (item) =>
-      String(item.deviceId) === String(deviceId) && Number(item.status) === 0
-  )
+  return alarmStore.isDvAlarm(deviceId)
 })
 
 const syncTimeText = computed(() =>
@@ -427,22 +423,6 @@ function applyPortOpenFlags() {
   if (b) b.isOpen = isPortOpen(b)
 }
 
-async function fetchAlarms() {
-  const farmId = farmStore.selectFarm?.id
-  if (farmId == null) return
-  try {
-    const res = await getAlarmList(
-      { FarmId: farmId, IsHandled: false },
-      { silent: true }
-    )
-    alarmingList.value = Array.isArray(res?.data?.result)
-      ? res.data.result
-      : []
-  } catch {
-    /* 告警列表失败不影响弹窗主流程 */
-  }
-}
-
 async function fetchStatus(options = {}) {
   const { showLoading = false, isRefresh = false } = options
   const id = props.device?.id
@@ -452,7 +432,6 @@ async function fetchStatus(options = {}) {
   if (showLoading) loading.value = true
 
   try {
-    fetchAlarms()
     const res = await getWaterOutletPileStatus(id)
     if (seq !== requestSeq) return
 
@@ -492,7 +471,6 @@ function openWithDevice() {
   controlWaterOutletList.value = {}
   closeOpenOrderCache.value = null
   controlWaterOutletCache.value = null
-  alarmingList.value = []
   statusInfo.value = null
   fetchStatus({ showLoading: true, isRefresh: true })
   startPoll()

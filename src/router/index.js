@@ -128,6 +128,16 @@ const routes = [
         meta: { title: '轮灌程序编辑', requiresAuth: true }
       },
       {
+        path: 'alarm',
+        component: () => import('../views/Alarm/Index.vue'),
+        meta: { title: '预警信息', requiresAuth: true }
+      },
+      {
+        path: 'alarm/set',
+        component: () => import('../views/Alarm/AlarmSet.vue'),
+        meta: { title: '预警设置', requiresAuth: true }
+      },
+      {
         path: 'user/profile',
         component: () => import('../views/User/Profile.vue'),
         meta: { title: '个人信息', requiresAuth: true }

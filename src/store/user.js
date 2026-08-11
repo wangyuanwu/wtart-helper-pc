@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useFarmStore } from './farm'
+import { useAlarmStore } from './alarm'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref('')
@@ -41,6 +42,11 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('menus')
     try {
       useFarmStore().resetFarm()
+    } catch (e) {
+      // ignore
+    }
+    try {
+      useAlarmStore().clearAlarmingArray()
     } catch (e) {
       // ignore
     }

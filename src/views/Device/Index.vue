@@ -149,14 +149,21 @@
                   <i class="device-card__status-dot"></i>
                   {{ device.isOnline ? '在线运行' : '离线状态' }}
                 </span>
-                <span
-                  v-if="device.batteryPercent != null"
-                  class="device-card__battery"
-                  :class="batteryClass(device.batteryPercent)"
-                >
-                  <i class="iconfont icon-map_ic_battery"></i>
-                  {{ device.batteryPercent ?? 0 }}%
-                </span>
+                <div class="device-card__top-right">
+                  <i
+                    v-if="isDvAlarm(device.id)"
+                    class="iconfont icon-lujing-1 device-card__alarm"
+                    title="告警中"
+                  ></i>
+                  <span
+                    v-if="device.batteryPercent != null"
+                    class="device-card__battery"
+                    :class="batteryClass(device.batteryPercent)"
+                  >
+                    <i class="iconfont icon-map_ic_battery"></i>
+                    {{ device.batteryPercent ?? 0 }}%
+                  </span>
+                </div>
               </div>
 
               <div class="device-card__name">{{ device.name || '未命名设备' }}</div>
@@ -327,6 +334,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElSwitch } from 'element-plus'
 import { ArrowDown, MoreFilled, Operation } from '@element-plus/icons-vue'
 import { useFarmStore } from '@/store/farm'
+import { useAlarmStore } from '@/store/alarm'
 import { deleteDevice, getDeviceGroupByLands } from '@/api/device'
 import { deleteLand, getLandPlotById } from '@/api/map'
 import { useWaterOutletValve } from '@/composables/useWaterOutletValve'
@@ -343,12 +351,18 @@ import outletOfflineImg from '@/assets/map/outlet-device-offline.svg'
 
 const router = useRouter()
 const farmStore = useFarmStore()
+const alarmStore = useAlarmStore()
 const {
   controlWaterOutletList,
   isLockControl,
   handleSwitchChange,
   resetControlState
 } = useWaterOutletValve()
+
+/** 对齐移动端 setAlarmStatus / isAlarming */
+function isDvAlarm(deviceId) {
+  return alarmStore.isDvAlarm(deviceId)
+}
 
 const deviceLandList = ref(null)
 const loading = ref(false)
@@ -1200,6 +1214,20 @@ onUnmounted(() => {
   gap: 8px;
   height: 18px;
   flex-shrink: 0;
+}
+
+.device-card__top-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.device-card__alarm {
+  font-size: 14px;
+  color: #ef4444;
+  line-height: 1;
 }
 
 .device-card__status {

@@ -109,3 +109,23 @@ export function closeAllWaterDv(data, config = {}) {
     silent: config.silent === true
   })
 }
+
+/** 均压状态 GET /api/irrigation-group/{id}/balance/status（对齐移动端 getBalancePress） */
+export function getBalancePress(id, config = {}) {
+  return request({
+    url: `/api/irrigation-group/${id}/balance/status`,
+    method: 'GET',
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+/** 开始均压 POST /api/irrigation-group/balance-pressure（对齐移动端 balancePressure） */
+export function balancePressure(data, config = {}) {
+  return request({
+    url: '/api/irrigation-group/balance-pressure',
+    method: 'POST',
+    data,
+    silent: config.silent === true
+  })
+}

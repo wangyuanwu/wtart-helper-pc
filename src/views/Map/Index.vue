@@ -1155,7 +1155,7 @@ const destroyMap = () => {
 }
 
 /** 进入地图 / 切换农场时适配视野层级 */
-const FARM_VIEW_ZOOM = 16
+const FARM_VIEW_ZOOM = 17
 const DEFAULT_MAP_CENTER = [116.397428, 39.90923]
 
 /** 解析农场经纬度，无效则返回 null */

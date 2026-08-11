@@ -119,7 +119,11 @@
           <Breadcrumb v-if="showBreadcrumb" />
         </div>
         <div class="header-right">
-          <div class="notice-btn" title="消息通知">
+          <div
+            class="notice-btn"
+            title="预警信息"
+            @click="toAlarmList"
+          >
             <i class="iconfont icon-a-lujingbiankuang notice-icon"></i>
             <span v-if="messageCount > 0" class="notice-badge">
               {{ messageCount > 99 ? '99+' : messageCount }}
@@ -223,7 +227,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -237,7 +241,9 @@ import FarmEmpty from '@/views/Map/FarmEmpty.vue'
 import { menuList as staticMenuList } from '@/menuData.js'
 import { useUserStore } from '@/store/user'
 import { useFarmStore } from '@/store/farm'
+import { useAlarmStore } from '@/store/alarm'
 import { logout } from '@/api/index'
+import { getAlarmList, handleAlarm } from '@/api/alarm'
 import defaultAvatar from '@/assets/my_img_01.svg'
 import iconLang from '@/assets/user/icon-lang.png'
 import iconAbout from '@/assets/user/icon-about.png'
@@ -249,6 +255,7 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const farmStore = useFarmStore()
+const alarmStore = useAlarmStore()
 
 const isCollapsed = ref(false)
 const showPageTags = false
@@ -269,11 +276,24 @@ const showShellFarmEmpty = computed(
 const showBreadcrumb = false
 const activeIndex = ref('')
 const menuList = ref(staticMenuList)
-/** 未读消息数；暂无消息接口，默认 0 不展示角标 */
+/** 未处理告警数量（角标），对齐移动端 getAlarmingSize */
 const messageCount = ref(0)
+const alarmList = ref([])
+const tipShowing = ref(false)
 const userMenuVisible = ref(false)
 const farmPopoverVisible = ref(false)
 const farmSearchText = ref('')
+
+let offFarmChange = null
+let alarmFetchTimer = null
+let tipChainTimer = null
+
+/** 对齐移动端首页 onShow：回前台延迟全量拉未处理告警 */
+function onDocumentVisible() {
+  if (document.visibilityState !== 'visible') return
+  if (getFarmId() == null) return
+  scheduleFetchAlarms()
+}
 
 const avatarUrl = computed(
   () => userStore.userInfo?.avatarUrl || defaultAvatar
@@ -323,6 +343,7 @@ const handleSelectFarm = (farm) => {
   farmSearchText.value = ''
   // 有搜索过滤时本地恢复全量列表，不重复请求 /api/farm/list
   farmStore.restoreFarmList()
+  scheduleFetchAlarms()
 }
 
 const goEditFarm = () => {
@@ -331,6 +352,136 @@ const goEditFarm = () => {
     return
   }
   router.push('/farm/edit')
+}
+
+const toAlarmList = () => {
+  router.push('/alarm')
+}
+
+function getFarmId() {
+  return farmStore.selectFarm?.id ?? farmStore.s_selectFarm?.id ?? null
+}
+
+function getAlarmingSize(list) {
+  return (list || []).filter((item) => item.status === 0).length
+}
+
+function clearAlarmTimers() {
+  if (alarmFetchTimer) {
+    clearTimeout(alarmFetchTimer)
+    alarmFetchTimer = null
+  }
+  if (tipChainTimer) {
+    clearTimeout(tipChainTimer)
+    tipChainTimer = null
+  }
+}
+
+/** 对齐移动端 getAlarmListHttp：延迟拉取未处理告警 */
+function scheduleFetchAlarms() {
+  if (alarmFetchTimer) clearTimeout(alarmFetchTimer)
+  alarmFetchTimer = setTimeout(() => {
+    fetchHomeAlarms()
+  }, 3000)
+}
+
+async function fetchHomeAlarms() {
+  const farmId = getFarmId()
+  if (farmId == null) {
+    alarmList.value = []
+    alarmStore.clearAlarmingArray()
+    messageCount.value = 0
+    return
+  }
+  try {
+    const res = await getAlarmList(
+      { FarmId: farmId, IsHandled: false },
+      { silent: true }
+    )
+    const list = Array.isArray(res?.data?.result) ? res.data.result : []
+    alarmList.value = list
+    messageCount.value = getAlarmingSize(list)
+
+    const nextArray = alarmStore.syncFromAlarmList(list)
+    showAlarmTips(nextArray)
+  } catch (e) {
+    console.error('[Home] 获取预警列表失败', e)
+  }
+}
+
+/** 对齐移动端 alarmTips：依次弹出未知道的告警 */
+async function showAlarmTips(list) {
+  if (tipShowing.value) return
+  const alarm = (list || []).find((item) => !item.isKnow)
+  if (!alarm) return
+
+  tipShowing.value = true
+  try {
+    await ElMessageBox({
+      title: '报警提示',
+      message: h('div', { class: 'home-alarm-tip' }, [
+        h('div', { class: 'home-alarm-tip__name' }, alarm.deviceName || '--'),
+        h(
+          'div',
+          { class: 'home-alarm-tip__line' },
+          `设备ID:${alarm.deviceCode || '--'}`
+        ),
+        h(
+          'div',
+          { class: 'home-alarm-tip__line' },
+          `事件:${alarm.eventDescription || '--'}`
+        )
+      ]),
+      showCancelButton: false,
+      confirmButtonText: '知道了',
+      closeOnClickModal: false,
+      appendTo: 'body'
+    })
+    alarm.isKnow = true
+    alarmStore.setAlarmKnow(alarm.id, true)
+    await handleHomeAlarm(alarm, list)
+  } catch {
+    tipShowing.value = false
+  }
+}
+
+async function handleHomeAlarm(alarm, list) {
+  try {
+    await handleAlarm({ id: alarm.id }, { silent: true })
+    ElMessage.success('操作成功')
+  } catch (e) {
+    console.error('[Home] 处理告警失败', e)
+  } finally {
+    tipShowing.value = false
+    tipChainTimer = setTimeout(() => {
+      showAlarmTips(list)
+      // 处理后刷新角标
+      fetchHomeAlarmsSilent()
+    }, 1000)
+  }
+}
+
+/** 仅刷新角标，不再连环弹窗（避免与 tip 链打架） */
+async function fetchHomeAlarmsSilent() {
+  const farmId = getFarmId()
+  if (farmId == null) {
+    messageCount.value = 0
+    alarmStore.clearAlarmingArray()
+    return
+  }
+  try {
+    const res = await getAlarmList(
+      { FarmId: farmId, IsHandled: false },
+      { silent: true }
+    )
+    const list = Array.isArray(res?.data?.result) ? res.data.result : []
+    alarmList.value = list
+    messageCount.value = getAlarmingSize(list)
+    // 同步全局数组供设备列表/地图等打标，不连环弹窗
+    alarmStore.syncFromAlarmList(list)
+  } catch {
+    /* ignore */
+  }
 }
 
 const handleSelect = (key) => {
@@ -390,6 +541,10 @@ const syncActiveIndex = (path) => {
     activeIndex.value = 'device'
     return
   }
+  if (path.startsWith('/alarm')) {
+    activeIndex.value = ''
+    return
+  }
   activeIndex.value = path.replace(/^\//, '') || 'map'
 }
 
@@ -402,6 +557,19 @@ onMounted(async () => {
   } finally {
     farmBootstrapDone.value = true
   }
+  scheduleFetchAlarms()
+  // 对齐移动端 index onShow：浏览器标签回前台时再拉
+  document.addEventListener('visibilitychange', onDocumentVisible)
+  offFarmChange = farmStore.onFarmChange(() => {
+    alarmStore.clearAlarmingArray()
+    scheduleFetchAlarms()
+  })
+})
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onDocumentVisible)
+  offFarmChange?.()
+  clearAlarmTimers()
 })
 
 watch(farmPopoverVisible, (visible) => {
@@ -412,8 +580,12 @@ watch(farmPopoverVisible, (visible) => {
 
 watch(
   () => route.path,
-  (path) => {
+  (path, prev) => {
     syncActiveIndex(path)
+    // 从预警页回到壳层其它页：延迟全量拉（对齐移动端 index onShow → getAlarmListHttp）
+    if (prev?.startsWith('/alarm') && !path.startsWith('/alarm')) {
+      scheduleFetchAlarms()
+    }
   }
 )
 </script>
@@ -1006,5 +1178,18 @@ watch(
   border-radius: 14px;
   border: 1px solid #f0f0f0;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+
+.home-alarm-tip__name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 10px;
+}
+
+.home-alarm-tip__line {
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.6;
 }
 </style>

@@ -91,6 +91,11 @@
                 {{ flowText }}
                 <em>m³/h</em>
               </div>
+              <i
+                v-if="isDvAlarm"
+                class="iconfont icon-lujing-1 control-device__alarm"
+                title="告警中"
+              ></i>
               <button
                 v-if="isManualMode"
                 type="button"
@@ -277,6 +282,18 @@
       :status-info="statusInfo"
       @saved="onOpeningSaved"
     />
+
+    <SwitchRecordDialog
+      v-model="recordVisible"
+      :target-id="deviceId"
+      :target-type="0"
+    />
+
+    <TimerProListDialog
+      v-model="timerListVisible"
+      from="device"
+      :target-id="deviceId"
+    />
   </div>
 </template>
 
@@ -286,6 +303,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Location, Refresh } from '@element-plus/icons-vue'
 import { useFarmStore } from '@/store/farm'
+import { useAlarmStore } from '@/store/alarm'
 import {
   closeRestartDv,
   getDeviceDetail,
@@ -299,6 +317,8 @@ import {
   setPortsOpenStatus
 } from '@/utils/waterOutletMerge'
 import SetDefaultOpenDialog from './SetDefaultOpenDialog.vue'
+import SwitchRecordDialog from '@/views/IrrigationGroup/SwitchRecordDialog.vue'
+import TimerProListDialog from '@/views/IrrigationGroup/TimerProListDialog.vue'
 import outletOnlineImg from '@/assets/map/outlet-device-online.svg'
 import outletOfflineImg from '@/assets/map/outlet-device-offline.svg'
 import runningDiscImg from '@/assets/device/device_img_running.png'
@@ -308,6 +328,7 @@ const POLL_MS = 3000
 const route = useRoute()
 const router = useRouter()
 const farmStore = useFarmStore()
+const alarmStore = useAlarmStore()
 const {
   controlWaterOutletList,
   isLockControl,
@@ -319,7 +340,14 @@ const deviceInfo = ref(null)
 const statusInfo = ref(null)
 const loading = ref(false)
 const openDialogVisible = ref(false)
+const recordVisible = ref(false)
+const timerListVisible = ref(false)
 const tickNow = ref(Date.now())
+
+/** 对齐移动端 isDvAlarm(dvStatusInfo.id) */
+const isDvAlarm = computed(() =>
+  alarmStore.isDvAlarm(statusInfo.value?.id ?? deviceInfo.value?.id)
+)
 
 let pollTimer = null
 let tickTimer = null
@@ -667,11 +695,32 @@ function onEditDevice() {
 }
 
 function onRecord() {
-  ElMessage.info('灌溉记录功能开发中')
+  const id = deviceId.value
+  if (id == null || id === '') {
+    ElMessage.warning('缺少设备信息')
+    return
+  }
+  // 对齐移动端：record_page?from=device 读 vuex_control_device_info
+  if (deviceInfo.value) {
+    farmStore.setControlDevice(deviceInfo.value)
+  }
+  recordVisible.value = true
 }
 
 function onTimerControl() {
-  ElMessage.info('定时控制功能开发中')
+  const id = deviceId.value
+  if (id == null || id === '') {
+    ElMessage.warning('缺少设备信息')
+    return
+  }
+  // 对齐移动端：pro_list?from=device 读 vuex_control_device_info
+  if (deviceInfo.value) {
+    farmStore.setControlDevice(deviceInfo.value)
+  }
+  if (statusInfo.value) {
+    farmStore.setDvStatusInfo(statusInfo.value)
+  }
+  timerListVisible.value = true
 }
 
 function onEditOpening() {
@@ -1030,6 +1079,16 @@ watch(
   font-weight: 700;
   color: #3653a0;
   line-height: 1;
+}
+
+.control-device__alarm {
+  position: absolute;
+  left: 28px;
+  bottom: 56px;
+  font-size: 20px;
+  color: #ef4444;
+  line-height: 1;
+  z-index: 2;
 }
 
 .control-device__manual-exit {

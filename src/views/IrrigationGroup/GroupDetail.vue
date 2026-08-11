@@ -43,23 +43,39 @@
             </div>
 
             <div v-if="showRuntimeBanner" class="group-detail-side__runtime">
-              <div class="group-detail-side__mode-disc" :class="{ 'is-running': isShowRunning }">
-                <span>{{ runIconText }}</span>
+              <div
+                class="group-detail-side__run-ring"
+                :class="{ 'is-running': isShowRunning }"
+              >
+                <img
+                  class="group-detail-side__run-disc"
+                  :class="{ 'is-rotate': isShowRunning }"
+                  :src="runningDiscImg"
+                  alt=""
+                />
+                <div class="group-detail-side__run-ring-inner">
+                  <i class="iconfont" :class="runIconClass"></i>
+                  <span>{{ runIconText }}</span>
+                </div>
               </div>
               <div class="group-detail-side__runtime-info">
                 <template v-if="isShowRunning">
-                  <div class="group-detail-side__runtime-label">灌溉时长</div>
-                  <div class="group-detail-side__runtime-value">
-                    {{ runDurationText }}
+                  <div class="group-detail-side__stat">
+                    <span class="group-detail-side__stat-label">运行时长</span>
+                    <span class="group-detail-side__stat-value">{{ runDurationText }}</span>
                   </div>
-                  <div class="group-detail-side__runtime-sub">
-                    累计流量 {{ flowText }}
+                  <div class="group-detail-side__stat">
+                    <span class="group-detail-side__stat-label">累计流量</span>
+                    <span class="group-detail-side__stat-value">{{ flowText }}</span>
                   </div>
                 </template>
                 <template v-else>
-                  <div class="group-detail-side__runtime-label">下次启动时间</div>
-                  <div class="group-detail-side__runtime-value">
-                    {{ nextRunText }}
+                  <div class="group-detail-side__stat is-next">
+                    <span class="group-detail-side__stat-label">下次启动时间</span>
+                    <span class="group-detail-side__stat-value">
+                      {{ nextRunDateText }}
+                      <strong v-if="nextRunClockText">{{ nextRunClockText }}</strong>
+                    </span>
                   </div>
                 </template>
               </div>
@@ -128,13 +144,20 @@
                 <i class="outlet-card__status-dot"></i>
                 {{ getOnlineText(pile) }}
               </span>
-              <span
-                class="outlet-card__battery"
-                :class="{ 'is-low': (pile.batteryPercent ?? 0) <= 20 }"
-              >
-                {{ pile.batteryPercent ?? 0 }}%
-                <i class="iconfont icon-map_ic_battery"></i>
-              </span>
+              <div class="outlet-card__top-right">
+                <i
+                  v-if="isDvAlarm(pile.id)"
+                  class="iconfont icon-lujing-1 outlet-card__alarm"
+                  title="告警中"
+                ></i>
+                <span
+                  class="outlet-card__battery"
+                  :class="{ 'is-low': (pile.batteryPercent ?? 0) <= 20 }"
+                >
+                  {{ pile.batteryPercent ?? 0 }}%
+                  <i class="iconfont icon-map_ic_battery"></i>
+                </span>
+              </div>
             </div>
             <div class="outlet-card__name">{{ pile.name || '出水桩' }}</div>
             <img class="outlet-card__img" :src="outletImg" alt="" />
@@ -176,6 +199,23 @@
         </div>
       </section>
     </div>
+
+    <SwitchRecordDialog
+      v-model="recordVisible"
+      :target-id="groupInfo?.id"
+      :target-type="1"
+    />
+
+    <TimerProListDialog
+      v-model="timerListVisible"
+      from="group"
+      :target-id="groupInfo?.id"
+    />
+
+    <AvePressDialog
+      v-model="avePressVisible"
+      :group-id="groupInfo?.id"
+    />
   </div>
 </template>
 
@@ -196,16 +236,27 @@ import {
 } from '@/api/irrigationGroup'
 import { closeWaterDv, openWaterDv } from '@/api/device'
 import { useFarmStore } from '@/store/farm'
+import { useAlarmStore } from '@/store/alarm'
 import { parseAreaJson } from '@/utils/farmMapData'
 import { createLandPolygonDrawer } from '@/utils/farmMapLand'
 import { createWaterDvMarkerDrawer } from '@/utils/farmMapWaterDv'
 import outletImg from '@/assets/device/add/device_img_outl.png'
+import runningDiscImg from '@/assets/device/device_img_running.png'
+import SwitchRecordDialog from './SwitchRecordDialog.vue'
+import TimerProListDialog from './TimerProListDialog.vue'
+import AvePressDialog from './AvePressDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
 const farmStore = useFarmStore()
+const alarmStore = useAlarmStore()
 const landPolygonDrawer = createLandPolygonDrawer()
 const waterDvMarkerDrawer = createWaterDvMarkerDrawer()
+
+/** 对齐移动端 control-group setAlarmStatus / isAlarming */
+function isDvAlarm(deviceId) {
+  return alarmStore.isDvAlarm(deviceId)
+}
 
 const POLL_MS = 3000
 const LOCK_SECONDS = 10
@@ -220,6 +271,9 @@ const batchLoading = ref(false)
 const runTick = ref(0)
 const isLockControl = ref(false)
 const batchSwitchLocked = ref(null)
+const recordVisible = ref(false)
+const timerListVisible = ref(false)
+const avePressVisible = ref(false)
 
 let map = null
 let farmDevices = []
@@ -315,6 +369,18 @@ const runIconText = computed(() => {
   return '--'
 })
 
+const runIconClass = computed(() => {
+  const src =
+    isShowRunning.value && groupInfo.value?.deviceRuntime
+      ? groupInfo.value.deviceRuntime
+      : groupInfo.value?.deviceNexRunTime
+  if (!src) return 'icon-device_ic_timing'
+  if (src.tiggerObject == 2 || src.tiggerObject == 3) return 'icon-home_ic_foot_program_01'
+  if (src.mode == 0) return 'icon-device_ic_manual'
+  if (src.mode == 1) return 'icon-device_ic_timing'
+  return 'icon-device_ic_timing'
+})
+
 const pad2 = (n) => String(n).padStart(2, '0')
 
 const formatUtc = (utcStr, fmt = 'full') => {
@@ -356,6 +422,25 @@ const nextRunText = computed(
   () =>
     formatUtc(groupInfo.value?.deviceNexRunTime?.nextRunTime, 'cn') || '--'
 )
+
+const nextRunDateText = computed(() => {
+  const t = groupInfo.value?.deviceNexRunTime?.nextRunTime
+  if (!t) return '--'
+  const d = new Date(t)
+  if (Number.isNaN(d.getTime())) return nextRunText.value
+  const y = d.getFullYear()
+  const m = pad2(d.getMonth() + 1)
+  const day = pad2(d.getDate())
+  return `${y}-${m}-${day}`
+})
+
+const nextRunClockText = computed(() => {
+  const t = groupInfo.value?.deviceNexRunTime?.nextRunTime
+  if (!t) return ''
+  const d = new Date(t)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+})
 
 const flowText = computed(() => {
   const v =
@@ -730,18 +815,32 @@ function onEdit() {
 }
 
 function onRecord() {
-  ElMessage.info('操作记录功能开发中')
-  console.log('[GroupDetail] onRecord 预留出口', groupInfo.value?.id)
+  if (!groupInfo.value?.id) {
+    ElMessage.warning('请先加载轮灌组详情')
+    return
+  }
+  farmStore.setGroupDetailInfo(groupInfo.value)
+  recordVisible.value = true
 }
 
 function onTimer() {
-  ElMessage.info('定时控制功能开发中')
-  console.log('[GroupDetail] onTimer 预留出口', groupInfo.value?.id)
+  if (!groupInfo.value?.id) {
+    ElMessage.warning('请先加载轮灌组详情')
+    return
+  }
+  farmStore.setGroupDetailInfo(groupInfo.value)
+  timerListVisible.value = true
 }
 
 function onAvePress() {
-  ElMessage.info('一键均压功能开发中')
-  console.log('[GroupDetail] onAvePress 预留出口', getGroupId())
+  if (!groupInfo.value?.id) {
+    ElMessage.warning('请先加载轮灌组详情')
+    return
+  }
+  // 对齐移动端：均压页读 vuex_group_list_item
+  farmStore.setGroupListItem(groupInfo.value)
+  farmStore.setGroupDetailInfo(groupInfo.value)
+  avePressVisible.value = true
 }
 
 function refreshMapFromDetail() {
@@ -962,23 +1061,26 @@ onUnmounted(() => {
 .group-detail-page__body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 0 20px 24px;
+  overflow: hidden;
+  padding: 0 20px 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
 .group-detail-top {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr);
   gap: 16px;
-  min-height: 360px;
+  align-items: stretch;
 }
 
 .group-detail-map-card {
   position: relative;
-  min-height: 360px;
+  height: 100%;
+  min-height: 0;
   border-radius: 16px;
   overflow: hidden;
   background: #e5e7eb;
@@ -988,7 +1090,7 @@ onUnmounted(() => {
 .group-detail-map-card__map {
   width: 100%;
   height: 100%;
-  min-height: 360px;
+  min-height: 0;
 }
 
 .group-detail-map-card__loading {
@@ -1022,6 +1124,8 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  height: 100%;
+  min-height: 0;
 }
 
 .group-detail-side__card {
@@ -1085,49 +1189,110 @@ onUnmounted(() => {
 .group-detail-side__runtime {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   margin-top: 16px;
-  padding: 12px;
+  padding: 19px 12px;
+  min-height: 111px;
+  box-sizing: border-box;
   border-radius: 12px;
   background: #f7fafc;
 }
 
-.group-detail-side__mode-disc {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: #e8f0fb;
-  color: #3653a0;
-  font-size: 13px;
-  font-weight: 700;
+.group-detail-side__run-ring {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.group-detail-side__run-disc {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+}
+
+.group-detail-side__run-disc.is-rotate {
+  animation: group-detail-run-spin 10s linear infinite;
+}
+
+.group-detail-side__run-ring-inner {
+  position: absolute;
+  inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
+  color: #606266;
+  font-size: 13px;
+  font-weight: 700;
+  z-index: 1;
+  pointer-events: none;
+  padding: 0 14px;
+  box-sizing: border-box;
   text-align: center;
-  flex-shrink: 0;
 }
 
-.group-detail-side__mode-disc.is-running {
-  background: #e8f8ef;
-  color: #00a85a;
+.group-detail-side__run-ring-inner span {
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.group-detail-side__runtime-label {
-  font-size: 12px;
+.group-detail-side__run-ring-inner .iconfont {
+  font-size: 26px;
+  color: #606266;
+  line-height: 1;
+}
+
+@keyframes group-detail-run-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.group-detail-side__runtime-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 24px;
+}
+
+.group-detail-side__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.group-detail-side__stat.is-next {
+  flex: 1;
+}
+
+.group-detail-side__stat-label {
+  font-size: 13px;
   color: #909399;
 }
 
-.group-detail-side__runtime-value {
-  margin-top: 4px;
-  font-size: 16px;
+.group-detail-side__stat-value {
+  font-size: 28px;
   font-weight: 700;
   color: #3653a0;
+  line-height: 1.2;
 }
 
-.group-detail-side__runtime-sub {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #606266;
+.group-detail-side__stat-value strong {
+  margin-left: 8px;
+  font-size: 32px;
+  font-weight: 700;
 }
 
 .group-detail-side__batch {
@@ -1238,13 +1403,21 @@ onUnmounted(() => {
 }
 
 .group-detail-outlets {
+  flex-shrink: 0;
+  height: 258px;
+  min-height: 258px;
+  max-height: 258px;
   padding: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .group-detail-outlets__title {
+  flex-shrink: 0;
   margin: 0 0 16px;
   font-size: 16px;
   font-weight: 700;
@@ -1252,6 +1425,8 @@ onUnmounted(() => {
 }
 
 .group-detail-outlets__empty {
+  flex: 1;
+  min-height: 0;
   padding: 40px;
   text-align: center;
   color: #909399;
@@ -1259,12 +1434,33 @@ onUnmounted(() => {
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 4px 16px rgba(31, 45, 61, 0.06);
+  box-sizing: border-box;
 }
 
 .group-detail-outlets__grid {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-content: start;
+  padding-right: 4px;
+  box-sizing: border-box;
+}
+
+.group-detail-outlets__grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.group-detail-outlets__grid::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(54, 83, 160, 0.25);
+}
+
+.group-detail-outlets__grid::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .outlet-card {
@@ -1289,6 +1485,20 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.outlet-card__top-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.outlet-card__alarm {
+  font-size: 14px;
+  color: #ef4444;
+  line-height: 1;
 }
 
 .outlet-card__status {
