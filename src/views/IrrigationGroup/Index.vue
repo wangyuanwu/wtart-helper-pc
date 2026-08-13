@@ -15,6 +15,27 @@
 
     <!-- 有数据：按地块分组 -->
     <template v-else-if="landList != null">
+      <!-- 搜索：对齐移动端 group.vue inputBack / getGroupListLandHttp -->
+      <div class="group-search">
+        <i
+          class="iconfont icon-farm_ic_search group-search__icon"
+          @click="handleSearchClick"
+        ></i>
+        <input
+          v-model="searchText"
+          class="group-search__input"
+          type="text"
+          placeholder="输入轮灌组名称"
+          @input="handleSearchInput"
+          @keyup.enter="handleSearchClick"
+        />
+        <i
+          v-if="searchText"
+          class="iconfont icon-shanchu group-search__clear"
+          @click="clearSearch"
+        ></i>
+      </div>
+
       <div class="group-toolbar">
         <el-radio-group
           v-model="tabIndex"
@@ -249,6 +270,9 @@ const farmStore = useFarmStore()
 const landList = ref(null)
 const loading = ref(false)
 const tabIndex = ref(0)
+const searchText = ref('')
+/** 实际请求参数，对齐移动端 searchTextCache */
+const searchTextCache = ref('')
 const runTick = ref(0)
 
 const landMenuLandId = ref(null)
@@ -517,11 +541,15 @@ const clearRunTick = () => {
   }
 }
 
-const fetchGroupList = async ({ silent = false } = {}) => {
+const fetchGroupList = async ({ silent = false, isSearch: searchAction = false } = {}) => {
   const farmId = getFarmId()
   if (farmId == null) {
     landList.value = []
     return
+  }
+
+  if (searchAction) {
+    searchTextCache.value = searchText.value
   }
 
   const requestId = ++listRequestId
@@ -531,14 +559,14 @@ const fetchGroupList = async ({ silent = false } = {}) => {
     const res = await getGroupListByLand(
       {
         farmId,
-        searchText: ''
+        searchText: searchTextCache.value
       },
       { silent }
     )
     if (requestId !== listRequestId) return
 
     const newData = Array.isArray(res?.data) ? res.data : []
-    if (landList.value == null || !silent) {
+    if (landList.value == null || searchAction || !silent) {
       landList.value = newData.map((land) => ({
         ...land,
         groups: (land.groups || []).map((g) => mergeItemState(g, null))
@@ -631,6 +659,24 @@ const onBatchToggle = (item) => {
 }
 
 const onChangeTab = () => {}
+
+/** 对齐移动端 inputBack：输入清空时重新拉列表 */
+const handleSearchInput = () => {
+  if (searchText.value === '') {
+    fetchGroupList({ silent: false, isSearch: true })
+  }
+}
+
+/** 点击清空图标：与手动清空输入框行为一致 */
+const clearSearch = () => {
+  searchText.value = ''
+  handleSearchInput()
+}
+
+/** 对齐移动端 getGroupListLandHttp(true,true)：点击搜索 / 回车 */
+const handleSearchClick = () => {
+  fetchGroupList({ silent: false, isSearch: true })
+}
 
 /** 添加轮灌组：对齐移动端 group_empty / toAddLand → map-edit-group?from=home */
 const onAddGroup = async () => {
@@ -841,13 +887,65 @@ onUnmounted(() => {
   background: #2f4a90;
 }
 
+.group-search {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 500px;
+  max-width: 100%;
+  height: 44px;
+  margin: 16px 20px 0;
+  padding: 0 14px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(31, 45, 61, 0.08);
+  box-sizing: border-box;
+}
+
+.group-search__icon {
+  font-size: 18px;
+  color: #8c8c8c;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.group-search__icon:hover {
+  color: #595959;
+}
+
+.group-search__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.group-search__input::placeholder {
+  color: #b0b0b0;
+}
+
+.group-search__clear {
+  font-size: 14px;
+  color: #b0b0b0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.group-search__clear:hover {
+  color: #8c8c8c;
+}
+
 .group-toolbar {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 20px 0;
+  padding: 12px 20px 0;
   background: #f7fafc;
 }
 

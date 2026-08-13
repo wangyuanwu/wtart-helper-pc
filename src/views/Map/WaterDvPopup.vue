@@ -26,6 +26,7 @@
         <p class="water-dv-popup__sync-time">
           最后同步: {{ syncTimeText }}
         </p>
+        <!-- PC 需求：弹窗暂不展示地址（逆地理逻辑保留） -->
       </div>
 
       <div
@@ -710,6 +711,7 @@ function mergeFromFarmDevice(device) {
     statusInfo.value.batteryPercent = device.batteryPercent
   }
   if (device.name) statusInfo.value.name = device.name
+  if (device.address) statusInfo.value.address = device.address
 
   const livePile =
     device.specificData?.waterOutletPile || device.waterOutletPile

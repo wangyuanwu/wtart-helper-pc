@@ -1,7 +1,12 @@
 <template>
   <div class="device-detail" v-loading="pageLoading">
     <div class="device-detail__header">
-      <h2 class="device-detail__title">出水桩设置</h2>
+      <div class="device-detail__head-left">
+        <button type="button" class="device-detail__back" @click="onBack">
+          ← 返回
+        </button>
+        <h2 class="device-detail__title">出水桩设置</h2>
+      </div>
       <div class="device-detail__actions">
         <el-button class="device-detail__btn-delete" :loading="deleting" @click="onDelete">
           删除设备
@@ -431,6 +436,11 @@ async function copyText(text) {
   }
 }
 
+function onBack() {
+  if (window.history.length > 1) router.back()
+  else router.replace('/device')
+}
+
 async function loadDeviceDetail() {
   const id = deviceId.value
   if (id == null) {
@@ -714,6 +724,23 @@ watch(
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+}
+
+.device-detail__head-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.device-detail__back {
+  border: none;
+  background: transparent;
+  color: #3653a0;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .device-detail__title {

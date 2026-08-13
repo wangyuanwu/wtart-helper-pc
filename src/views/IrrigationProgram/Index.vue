@@ -15,6 +15,27 @@
 
     <!-- 有数据 -->
     <template v-else-if="programList != null">
+      <!-- 搜索：对齐移动端 pro.vue inputBack / getGroupProListHttp -->
+      <div class="program-search">
+        <i
+          class="iconfont icon-farm_ic_search program-search__icon"
+          @click="handleSearchClick"
+        ></i>
+        <input
+          v-model="searchText"
+          class="program-search__input"
+          type="text"
+          placeholder="输入轮灌程序名称"
+          @input="handleSearchInput"
+          @keyup.enter="handleSearchClick"
+        />
+        <i
+          v-if="searchText"
+          class="iconfont icon-shanchu program-search__clear"
+          @click="clearSearch"
+        ></i>
+      </div>
+
       <div class="program-toolbar">
         <h2 class="program-toolbar__title">轮灌程序列表</h2>
         <div class="program-toolbar__actions">
@@ -209,6 +230,9 @@ const farmStore = useFarmStore()
 
 const programList = ref(null)
 const loading = ref(false)
+const searchText = ref('')
+/** 实际请求参数，对齐移动端 searchTextCache */
+const searchTextCache = ref('')
 const runTick = ref(0)
 const controlProgram = ref(null)
 const landEmptyVisible = ref(false)
@@ -346,11 +370,15 @@ const mergeItemState = (newItem, oldItem) => {
 
 /* ========== 请求 ========== */
 
-const fetchList = async ({ silent = false } = {}) => {
+const fetchList = async ({ silent = false, isSearch: searchAction = false } = {}) => {
   const farmId = getFarmId()
   if (farmId == null) {
     programList.value = []
     return
+  }
+
+  if (searchAction) {
+    searchTextCache.value = searchText.value
   }
 
   const requestId = ++listRequestId
@@ -358,7 +386,7 @@ const fetchList = async ({ silent = false } = {}) => {
 
   try {
     const res = await getGroupProList(
-      { farmId, searchText: '' },
+      { farmId, searchText: searchTextCache.value },
       { silent }
     )
     if (requestId !== listRequestId) return
@@ -614,6 +642,24 @@ const startPoll = () => {
   }, POLL_MS)
 }
 
+/** 对齐移动端 inputBack：输入清空时重新拉列表 */
+const handleSearchInput = () => {
+  if (searchText.value === '') {
+    fetchList({ silent: false, isSearch: true })
+  }
+}
+
+/** 点击清空图标：与手动清空输入框行为一致 */
+const clearSearch = () => {
+  searchText.value = ''
+  handleSearchInput()
+}
+
+/** 对齐移动端 getGroupProListHttp(true,true)：点击搜索 / 回车 */
+const handleSearchClick = () => {
+  fetchList({ silent: false, isSearch: true })
+}
+
 /* ========== 业务出口（后续补齐） ========== */
 
 /** 添加前地块校验，对齐移动端 pro_empty.noLandPop */
@@ -784,6 +830,58 @@ onUnmounted(() => {
   background: #2f4a90;
 }
 
+.program-search {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 500px;
+  max-width: 100%;
+  height: 44px;
+  margin: 16px 20px 0;
+  padding: 0 14px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(31, 45, 61, 0.08);
+  box-sizing: border-box;
+}
+
+.program-search__icon {
+  font-size: 18px;
+  color: #8c8c8c;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.program-search__icon:hover {
+  color: #595959;
+}
+
+.program-search__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.program-search__input::placeholder {
+  color: #b0b0b0;
+}
+
+.program-search__clear {
+  font-size: 14px;
+  color: #b0b0b0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.program-search__clear:hover {
+  color: #8c8c8c;
+}
+
 /* ========== 工具栏 ========== */
 
 .program-toolbar {
@@ -792,7 +890,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 20px 0;
+  padding: 12px 20px 0;
   background: #f7fafc;
 }
 

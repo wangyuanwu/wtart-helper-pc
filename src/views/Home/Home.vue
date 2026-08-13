@@ -176,7 +176,6 @@
                       <span>关于软件</span>
                     </div>
                     <div class="user-menu-item-right">
-                      <span>V1.2</span>
                       <span class="user-menu-chevron">›</span>
                     </div>
                   </div>
@@ -194,11 +193,9 @@
                       <img class="user-menu-icon" :src="iconService" alt="" />
                       <span>联系客服</span>
                     </div>
-                    <a
-                      class="user-menu-phone"
-                      href="tel:18208187059"
-                      @click.stop
-                    >182-0818-7059</a>
+                    <div class="user-menu-item-right">
+                      <span class="user-menu-chevron">›</span>
+                    </div>
                   </div>
                   <div class="user-menu-item user-menu-item--last" @click="handleUserMenu('logout')">
                     <div class="user-menu-item-left">
@@ -212,6 +209,22 @@
           </div>
         </div>
       </div>
+      <!-- 更换头像：对齐移动端 chooseImage + uploadFile -->
+      <input
+        ref="avatarInputRef"
+        type="file"
+        accept="image/*"
+        class="avatar-file-input"
+        @change="onAvatarFileChange"
+      />
+      <ServicePhoneDialog v-model="servicePhoneVisible" />
+      <AboutSoftwareDialog v-model="aboutSoftwareVisible" />
+      <EditNicknameDialog
+        ref="editNicknameDialogRef"
+        v-model="editNicknameVisible"
+        :nickname="currentNickname"
+        @confirm="onEditNicknameConfirm"
+      />
       <div v-if="showPageTags" class="page-tags-container">
         <PageTags />
       </div>
@@ -238,11 +251,14 @@ import {
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import PageTags from '@/components/PageTags.vue'
 import FarmEmpty from '@/views/Map/FarmEmpty.vue'
+import ServicePhoneDialog from '@/views/Home/ServicePhoneDialog.vue'
+import AboutSoftwareDialog from '@/views/Home/AboutSoftwareDialog.vue'
+import EditNicknameDialog from '@/views/Home/EditNicknameDialog.vue'
 import { menuList as staticMenuList } from '@/menuData.js'
 import { useUserStore } from '@/store/user'
 import { useFarmStore } from '@/store/farm'
 import { useAlarmStore } from '@/store/alarm'
-import { logout } from '@/api/index'
+import { logout, uploadAvatar, updateNickName, getUser } from '@/api/index'
 import { getAlarmList, handleAlarm } from '@/api/alarm'
 import defaultAvatar from '@/assets/my_img_01.svg'
 import iconLang from '@/assets/user/icon-lang.png'
@@ -283,6 +299,11 @@ const tipShowing = ref(false)
 const userMenuVisible = ref(false)
 const farmPopoverVisible = ref(false)
 const farmSearchText = ref('')
+const avatarInputRef = ref(null)
+const servicePhoneVisible = ref(false)
+const aboutSoftwareVisible = ref(false)
+const editNicknameVisible = ref(false)
+const editNicknameDialogRef = ref(null)
 
 let offFarmChange = null
 let alarmFetchTimer = null
@@ -308,11 +329,15 @@ const displayUserName = computed(
     userStore.userInfo?.phone ||
     '农场主'
 )
+const currentNickname = computed(
+  () => userStore.userInfo?.nickname || ''
+)
 
 const toggleSidebar = () => {
   isCollapsed.value = !isCollapsed.value
 }
 
+/** 对齐移动端 farmListHttp：点击搜索 / 回车 / 清空输入时请求列表 */
 const handleFarmSearch = async () => {
   try {
     await farmStore.fetchFarmList(farmSearchText.value)
@@ -321,28 +346,24 @@ const handleFarmSearch = async () => {
   }
 }
 
+/** 对齐移动端 inputBack：输入清空时重新拉全量列表 */
 const handleFarmSearchInput = () => {
   if (farmSearchText.value === '') {
-    if (!farmStore.restoreFarmList()) {
-      handleFarmSearch()
-    }
+    handleFarmSearch()
   }
 }
 
-const clearFarmSearch = async () => {
+/** 清除搜索关键字并重新拉全量列表 */
+const clearFarmSearch = () => {
   farmSearchText.value = ''
-  if (!farmStore.restoreFarmList()) {
-    await handleFarmSearch()
-  }
+  handleFarmSearch()
 }
 
+/** 对齐移动端 clickFarm：切换农场、关闭面板、farmChange、刷新告警 */
 const handleSelectFarm = (farm) => {
   if (!farm) return
   farmStore.setSelectFarm(farm)
   farmPopoverVisible.value = false
-  farmSearchText.value = ''
-  // 有搜索过滤时本地恢复全量列表，不重复请求 /api/farm/list
-  farmStore.restoreFarmList()
   scheduleFetchAlarms()
 }
 
@@ -527,12 +548,96 @@ const handleUserMenu = async (command) => {
     return
   }
 
+  // 对齐移动端 my.vue → popPhone.openPoup
   if (command === 'service') {
+    userMenuVisible.value = false
+    servicePhoneVisible.value = true
+    return
+  }
+
+  if (command === 'about') {
+    userMenuVisible.value = false
+    aboutSoftwareVisible.value = true
+    return
+  }
+
+  // 对齐移动端 my.vue selectAvatar
+  if (command === 'changeAvatar') {
+    userMenuVisible.value = false
+    selectAvatar()
+    return
+  }
+
+  // 对齐移动端 my.vue changeNickName → my-edit-dialog
+  if (command === 'editNickname') {
+    userMenuVisible.value = false
+    editNicknameVisible.value = true
     return
   }
 
   userMenuVisible.value = false
   ElMessage.info('功能开发中')
+}
+
+/** 对齐移动端 updateNickNameHttp：提交后提示并刷新用户信息 */
+async function onEditNicknameConfirm(name) {
+  try {
+    const res = await updateNickName({ nickname: name })
+    if (res?.code !== 200) {
+      editNicknameDialogRef.value?.resetSubmitting?.()
+      return
+    }
+    editNicknameVisible.value = false
+    setTimeout(async () => {
+      ElMessage.success('操作成功')
+      try {
+        const userRes = await getUser()
+        userStore.setUserInfo(userRes.data || {})
+      } catch (e) {
+        userStore.setUserInfo({
+          ...(userStore.userInfo || {}),
+          nickname: name
+        })
+      }
+    }, 500)
+  } catch (e) {
+    console.error('[Home] 修改昵称失败', e)
+    editNicknameDialogRef.value?.resetSubmitting?.()
+  }
+}
+
+/** 对齐移动端 chooseImage：选择本地图片后上传 */
+function selectAvatar() {
+  const input = avatarInputRef.value
+  if (!input) return
+  input.value = ''
+  input.click()
+}
+
+async function onAvatarFileChange(e) {
+  const file = e?.target?.files?.[0]
+  if (!file) return
+  if (!String(file.type || '').startsWith('image/')) {
+    ElMessage.warning('请选择图片文件')
+    return
+  }
+  try {
+    const res = await uploadAvatar(file)
+    const avatarUrlNext = res?.data
+    if (!avatarUrlNext) {
+      ElMessage.error('上传失败')
+      return
+    }
+    userStore.setUserInfo({
+      ...(userStore.userInfo || {}),
+      avatarUrl: avatarUrlNext
+    })
+    ElMessage.success('上传成功')
+  } catch (err) {
+    console.error('[Home] 上传头像失败', err)
+  } finally {
+    if (avatarInputRef.value) avatarInputRef.value.value = ''
+  }
 }
 
 const syncActiveIndex = (path) => {
@@ -551,7 +656,7 @@ const syncActiveIndex = (path) => {
 onMounted(async () => {
   syncActiveIndex(route.path)
   try {
-    await farmStore.fetchFarmList()
+    await farmStore.fetchFarmList('', { isFirst: true })
   } catch (e) {
     console.error('获取农场列表失败', e)
   } finally {
@@ -570,12 +675,6 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onDocumentVisible)
   offFarmChange?.()
   clearAlarmTimers()
-})
-
-watch(farmPopoverVisible, (visible) => {
-  if (visible && !farmSearchText.value) {
-    farmStore.restoreFarmList()
-  }
 })
 
 watch(
@@ -671,7 +770,7 @@ watch(
 
 .farm-arrow {
   font-size: 13px;
-  color: #666;
+  color: #d8d8d8;
   flex-shrink: 0;
   cursor: pointer;
   transition: transform 0.2s;
@@ -944,15 +1043,12 @@ watch(
   color: #bfbfbf;
 }
 
-.user-menu-phone {
-  color: #3d5a9a;
-  text-decoration: underline;
-  font-size: 13px;
-  flex-shrink: 0;
-}
-
-.user-menu-phone:hover {
-  color: #2f477c;
+.avatar-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .content {

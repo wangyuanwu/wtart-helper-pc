@@ -778,6 +778,8 @@ async function toOk() {
     farmStore.setEditDevice([])
     farmStore.setEditDeviceMap({ deviceListOK: [], deviceListNo: [] })
     await farmStore.fetchFarmList()
+    // 对齐移动端 addNewDeviceOk：通知地图启动新增设备刷新定时器
+    farmStore.notifyAddNewDevice()
     // 对齐移动端 redirectTo 首页：PC 进地图首页
     router.replace('/map')
   } catch (e) {

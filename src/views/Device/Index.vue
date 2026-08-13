@@ -15,6 +15,27 @@
 
     <!-- 有设备：按地块分组 -->
     <template v-else-if="deviceLandList">
+      <!-- 搜索：对齐移动端 device.vue 搜索框 + inputBack / farmListHttp -->
+      <div class="device-search">
+        <i
+          class="iconfont icon-farm_ic_search device-search__icon"
+          @click="handleSearchClick"
+        ></i>
+        <input
+          v-model="searchText"
+          class="device-search__input"
+          type="text"
+          placeholder="输入设备/地块名称/设备编号"
+          @input="handleSearchInput"
+          @keyup.enter="handleSearchClick"
+        />
+        <i
+          v-if="searchText"
+          class="iconfont icon-shanchu device-search__clear"
+          @click="clearSearch"
+        ></i>
+      </div>
+
       <div class="device-toolbar">
         <el-radio-group
           v-model="tabIndex"
@@ -368,6 +389,10 @@ const deviceLandList = ref(null)
 const loading = ref(false)
 const tabIndex = ref(0)
 const searchText = ref('')
+/** 实际请求参数，对齐移动端 searchTextCache（仅点击搜索/清空时更新） */
+const searchTextCache = ref('')
+/** 是否处于搜索态，对齐移动端 isSearch（控制空态展示） */
+const isSearch = ref(false)
 const actionDeviceId = ref(null)
 const landMenuLandId = ref(null)
 const expandedLandIds = ref({})
@@ -426,10 +451,10 @@ const tabList = computed(() => [
   { key: 'close', label: `已关闭(${counts.value.closeCount})` }
 ])
 
-/** 无任何设备且非搜索态 → 空态 */
+/** 无任何设备且非搜索态 → 空态（对齐移动端 DeviceEmpty 条件） */
 const showEmpty = computed(() => {
   if (!deviceLandList.value) return false
-  if (searchText.value) return false
+  if (isSearch.value || searchText.value !== '') return false
   return counts.value.total <= 0
 })
 
@@ -541,6 +566,26 @@ const clearDeviceAction = () => {
 const onChangeTab = () => {
   clearDeviceAction()
   expandedLandIds.value = {}
+}
+
+/** 对齐移动端 inputBack：输入清空时以 search 模式重新拉列表 */
+const handleSearchInput = () => {
+  isSearch.value = false
+  if (searchText.value === '') {
+    fetchDeviceList({ silent: false, isSearch: true })
+  }
+}
+
+/** 点击清空图标：与手动清空输入框行为一致 */
+const clearSearch = () => {
+  searchText.value = ''
+  handleSearchInput()
+}
+
+/** 对齐移动端 farmListHttp(true,true)：点击搜索 / 回车 */
+const handleSearchClick = () => {
+  isSearch.value = true
+  fetchDeviceList({ silent: false, isSearch: true })
 }
 
 const onLandMenuVisible = (land, visible) => {
@@ -762,11 +807,15 @@ const confirmDeleteLand = async () => {
 const mergeListAfterPoll = (oldList, newList) =>
   mergeDeviceLandList(oldList, newList, controlWaterOutletList.value)
 
-const fetchDeviceList = async ({ silent = false } = {}) => {
+const fetchDeviceList = async ({ silent = false, isSearch: searchAction = false } = {}) => {
   const farmId = getFarmId()
   if (farmId == null) {
     deviceLandList.value = []
     return
+  }
+
+  if (searchAction) {
+    searchTextCache.value = searchText.value
   }
 
   const requestId = ++listRequestId
@@ -776,13 +825,13 @@ const fetchDeviceList = async ({ silent = false } = {}) => {
     const res = await getDeviceGroupByLands(
       {
         farmId,
-        searchText: searchText.value || ''
+        searchText: searchTextCache.value
       },
       { silent }
     )
     if (requestId !== listRequestId) return
     const data = Array.isArray(res?.data) ? res.data : []
-    if (deviceLandList.value == null || !silent) {
+    if (deviceLandList.value == null || searchAction) {
       deviceLandList.value = initDeviceLandListPorts(data)
     } else {
       mergeListAfterPoll(deviceLandList.value, data)
@@ -895,13 +944,65 @@ onUnmounted(() => {
   background: #2d4590;
 }
 
+.device-search {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 500px;
+  max-width: 100%;
+  height: 44px;
+  margin: 16px 20px 0;
+  padding: 0 14px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(31, 45, 61, 0.08);
+  box-sizing: border-box;
+}
+
+.device-search__icon {
+  font-size: 18px;
+  color: #8c8c8c;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.device-search__icon:hover {
+  color: #595959;
+}
+
+.device-search__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.device-search__input::placeholder {
+  color: #b0b0b0;
+}
+
+.device-search__clear {
+  font-size: 14px;
+  color: #b0b0b0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.device-search__clear:hover {
+  color: #8c8c8c;
+}
+
 .device-toolbar {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 20px 12px;
+  padding: 12px 20px 12px;
   background: #f7fafc;
 }
 

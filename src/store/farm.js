@@ -34,6 +34,13 @@ export const useFarmStore = defineStore(
     const s_dv_status_info = ref(null)
     /** 控制页「打开地图」待聚焦设备 id，对齐移动端 farmChangeMsg openMap */
     const s_pending_map_device_id = ref(null)
+    /**
+     * 新增设备成功后待触发地图刷新定时器（对齐移动端 farmMsg addNewDevice）
+     * 地图页未挂载时先落旗，挂载后 consume 再 setDeviceTimer
+     */
+    const s_pending_add_new_device = ref(false)
+    /** 地图图层勾选缓存，对齐移动端 vuex_layer */
+    const s_map_layer = ref(null)
     /** 添加设备流程中的待添加列表，对齐移动端 vuex_edit_device */
     const s_edit_device = ref([])
     /** 定位结果（成功/失败列表），对齐移动端 vuex_edit_device_map */
@@ -89,41 +96,46 @@ export const useFarmStore = defineStore(
       return false
     }
 
-    async function fetchFarmList(searchText = '') {
+    /**
+     * 拉取农场列表（对齐移动端 index.vue farmListHttp）
+     * - 始终传 searchText（可为空）
+     * - 有结果：更新列表、同步选中农场、farmChange
+     * - 无结果：仅清空展示列表；全量拉取且 isFirst 时标记空农场
+     */
+    async function fetchFarmList(searchText = '', options = {}) {
+      const { isFirst = false } = options
       isFarmLoading.value = true
-      const keyword = typeof searchText === 'string' ? searchText.trim() : ''
-      const isSearching = !!keyword
+      const keyword = typeof searchText === 'string' ? searchText : ''
+      const hasKeyword = keyword.length > 0
       try {
-        const params = isSearching ? { searchText: keyword } : {}
-        const res = await getFarmList(params)
+        const res = await getFarmList({ searchText: keyword })
         const farmList = Array.isArray(res.data) ? res.data : []
 
         if (!farmList.length) {
           s_farm_list.value = []
-          // 搜索无结果只清空列表展示，不影响当前选中农场与空农场状态
-          if (!isSearching) {
+          if (!hasKeyword) {
             s_farm_list_all.value = []
-            isFarmEmpty.value = true
-            selectFarm.value = null
-            s_farm_info.value = null
-            isFarmLoading.value = false
-            farmChange()
+            if (isFirst) {
+              isFarmEmpty.value = true
+              selectFarm.value = null
+              s_selectFarm.value = null
+              s_farm_info.value = null
+            }
           }
           return farmList
         }
 
         isFarmEmpty.value = false
-        s_farm_list.value = farmList
-        if (!isSearching) {
+        s_farm_list.value = farmList.map((item) => ({ ...item }))
+        if (!hasKeyword) {
           s_farm_list_all.value = farmList.map((item) => ({ ...item }))
-          syncSelectFarm(farmList)
-          // 先结束 loading，再通知子模块，确保地图容器已可渲染
-          isFarmLoading.value = false
-          farmChange()
         }
+        syncSelectFarm(farmList)
+        isFarmLoading.value = false
+        farmChange()
         return farmList
       } catch (e) {
-        if (!isSearching) {
+        if (!hasKeyword) {
           isFarmEmpty.value = true
           s_farm_list.value = []
           s_farm_list_all.value = []
@@ -346,6 +358,29 @@ export const useFarmStore = defineStore(
       farmChangeListeners.forEach((listener) => listener(payload))
     }
 
+    /** 对齐移动端 addNewDeviceOk → uni.$emit('farmMsg', { topic: 'addNewDevice' }) */
+    function notifyAddNewDevice() {
+      s_pending_add_new_device.value = true
+      const payload = {
+        topic: 'addNewDevice',
+        data: '刷新设备列表'
+      }
+      farmChangeListeners.forEach((listener) => listener(payload))
+    }
+
+    function consumePendingAddNewDevice() {
+      const pending = !!s_pending_add_new_device.value
+      s_pending_add_new_device.value = false
+      return pending
+    }
+
+    /** 对齐移动端 vuex_layer 持久化 */
+    function setMapLayer(list) {
+      s_map_layer.value = Array.isArray(list)
+        ? list.map((item) => ({ ...item }))
+        : null
+    }
+
     function onFarmChange(listener) {
       farmChangeListeners.add(listener)
       return () => farmChangeListeners.delete(listener)
@@ -367,6 +402,7 @@ export const useFarmStore = defineStore(
       s_control_device.value = null
       s_dv_status_info.value = null
       s_pending_map_device_id.value = null
+      s_pending_add_new_device.value = false
       s_edit_device.value = []
       s_edit_device_map.value = { deviceListOK: [], deviceListNo: [] }
       s_pending_device_edit.value = null
@@ -388,6 +424,8 @@ export const useFarmStore = defineStore(
       s_control_device,
       s_dv_status_info,
       s_pending_map_device_id,
+      s_pending_add_new_device,
+      s_map_layer,
       s_edit_device,
       s_edit_device_map,
       s_pending_device_edit,
@@ -413,6 +451,9 @@ export const useFarmStore = defineStore(
       setDvStatusInfo,
       setPendingMapDeviceId,
       consumePendingMapDeviceId,
+      notifyAddNewDevice,
+      consumePendingAddNewDevice,
+      setMapLayer,
       setEditDevice,
       setEditDeviceMap,
       setPendingDeviceEdit,
@@ -437,7 +478,7 @@ export const useFarmStore = defineStore(
   },
   {
     persist: {
-      pick: ['s_selectFarm']
+      pick: ['s_selectFarm', 's_map_layer']
     }
   }
 )

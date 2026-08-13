@@ -2,6 +2,10 @@
   <div class="map-page">
     <template v-if="showMapContainer">
       <div id="map-container" class="map-container"></div>
+      <!-- 对齐移动端 mapLoading 遮罩 -->
+      <div v-if="mapLoading" class="map-loading-mask">
+        <span class="map-loading-mask__text">正在加载地图...</span>
+      </div>
       <div class="map-toolbar">
         <div class="map-zoom-controls">
           <button
@@ -68,10 +72,12 @@
           >
             <i class="iconfont icon-map_ic_layer map-layer-trigger-icon"></i>
             <span class="map-layer-trigger-text">图层</span>
-            <i
+            <el-icon
               v-if="!layerPanelExpanded"
-              class="iconfont icon-xiala map-layer-trigger-arrow"
-            ></i>
+              class="map-layer-trigger-arrow"
+            >
+              <ArrowDown />
+            </el-icon>
           </button>
 
           <div v-show="layerPanelExpanded" class="map-layer-list">
@@ -93,7 +99,9 @@
               title="收起"
               @click.stop="layerPanelExpanded = false"
             >
-              <i class="iconfont icon-xiala map-layer-collapse-arrow"></i>
+              <el-icon class="map-layer-collapse-arrow">
+                <ArrowUp />
+              </el-icon>
             </button>
           </div>
         </div>
@@ -150,6 +158,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import { useFarmStore } from '@/store/farm'
 import { parseAreaJson, prepareFarmMapResources, formatAreaMu } from '@/utils/farmMapData'
 import { createFarmMarkerDrawer } from '@/utils/farmMapMarker'
@@ -213,6 +222,16 @@ const DEFAULT_LAYER_OPTIONS = [
     isChose: true
   }
 ]
+
+/** 用缓存合并默认图层（对齐移动端 initLayer / vuex_layer） */
+function resolveLayerOptions(cached) {
+  const defaults = DEFAULT_LAYER_OPTIONS.map((item) => ({ ...item }))
+  if (!Array.isArray(cached) || !cached.length) return defaults
+  return defaults.map((def) => {
+    const hit = cached.find((c) => c.value === def.value)
+    return hit ? { ...def, isChose: !!hit.isChose } : def
+  })
+}
 
 const farmStore = useFarmStore()
 const router = useRouter()
@@ -447,9 +466,19 @@ function logic_clickSingleWaterDv(payload) {
   waterDvPopupVisible.value = true
 }
 
-/** 预留：出水桩绘制完成（点位/定位等后续处理） */
+/**
+ * 出水桩绘制完成：
+ * 1) 静默打用户定位点（不移动视角，对齐移动端 render_getH5OnlyMarker）
+ * 2) 延迟批量逆地理地址（对齐移动端 batchUpdateWaterDvAddress）
+ */
 function logic_waterDvDrawFinish() {
-  console.log('[Map] logic_waterDvDrawFinish 预留出口')
+  getH5LocationOnlyMarker()
+  if (!isResolvedAddress) {
+    if (waterDvAddressTimer) clearTimeout(waterDvAddressTimer)
+    waterDvAddressTimer = setTimeout(() => {
+      batchUpdateWaterDvAddress()
+    }, 3000)
+  }
 }
 
 /** 控制页「打开地图」：聚焦并打开对应出水桩弹窗 */
@@ -930,6 +959,35 @@ const clearMapStatusTimers = () => {
   clearFarmGroupStatusTimer()
 }
 
+/** 对齐移动端 setDeviceTimer：新增设备后每 30s 刷新 full，最多 5 次 */
+let intervalTimerNewDevice = null
+let intervalTimerNewDeviceCount = 0
+
+const clearDeviceTimer = () => {
+  if (intervalTimerNewDevice) {
+    clearInterval(intervalTimerNewDevice)
+    intervalTimerNewDevice = null
+  }
+  intervalTimerNewDeviceCount = 0
+}
+
+const setDeviceTimer = () => {
+  clearDeviceTimer()
+  intervalTimerNewDeviceCount = 5
+  intervalTimerNewDevice = setInterval(() => {
+    if (farmInfo.value == null) return
+    if (intervalTimerNewDeviceCount > 0) {
+      getFarmInfoHttp()
+      intervalTimerNewDeviceCount -= 1
+      console.log(
+        '[Map] 定时刷新农场设备:剩余次数=' + intervalTimerNewDeviceCount
+      )
+    } else {
+      clearDeviceTimer()
+    }
+  }, 30000)
+}
+
 /** ---- 地图引擎状态（本地，不进 Store） ---- */
 const mapInstance = ref(null)
 const mapError = ref('')
@@ -940,6 +998,10 @@ const currentMapType = ref('satellite')
 const isLocating = ref(false)
 /** 当前位置 Marker（含经纬度标签） */
 let nowMark = null
+/** 对齐移动端 isResolvedAddress：本农场出水桩地址是否已批量解析 */
+let isResolvedAddress = false
+let waterDvAddressTimer = null
+let mapGeocoder = null
 
 /** ---- 业务缓存（对齐移动端 map.vue 本地 data） ---- */
 const farmList = ref([])
@@ -948,7 +1010,7 @@ const waterDvList = ref([])
 const landList = ref([])
 const landGroupList = ref([])
 /** 图层勾选配置（默认全部显示；农场不受缩放限制，地块/出水桩需 zoom≥13） */
-const layerOptions = ref(DEFAULT_LAYER_OPTIONS.map((item) => ({ ...item })))
+const layerOptions = ref(resolveLayerOptions(farmStore.s_map_layer))
 const layerPanelExpanded = ref(false)
 /** 当前农场无地块提示弹窗（对齐移动端 noLandPop / pop_polt_empty） */
 const landEmptyVisible = ref(false)
@@ -1050,6 +1112,11 @@ const syncFarmListFromStore = () => {
 
 const resetFarmMapResources = () => {
   clearMapStatusTimers()
+  if (waterDvAddressTimer) {
+    clearTimeout(waterDvAddressTimer)
+    waterDvAddressTimer = null
+  }
+  isResolvedAddress = false
   farmInfo.value = null
   waterDvList.value = []
   landList.value = []
@@ -1138,6 +1205,7 @@ const clearUserLocationMark = () => {
 
 const destroyMap = () => {
   clearMapStatusTimers()
+  clearDeviceTimer()
   clearUserLocationMark()
   farmMarkerDrawer.destroy(mapInstance.value)
   landPolygonDrawer.destroy(mapInstance.value)
@@ -1244,6 +1312,8 @@ const toggleLayerItem = (item) => {
     isChose: !layerOptions.value[idx].isChose
   }
   layerOptions.value.splice(idx, 1, next)
+  // 对齐移动端 onLayerChange → vuex_layer
+  farmStore.setMapLayer(layerOptions.value)
 }
 
 /** 格式化经纬度展示，对齐图4：38.4872° N, 106.2309° E */
@@ -1265,6 +1335,15 @@ const drawUserPoint = (lng, lat) => {
   if (!mapInstance.value || lng == null || lat == null) return
 
   mapInstance.value.setZoomAndCenter(17, [lng, lat])
+  drawUserMarkerNoMove(lng, lat)
+}
+
+/**
+ * 仅打定位点、不移动视角（对齐移动端 drawUserMarkerNoMove）
+ */
+const drawUserMarkerNoMove = (lng, lat) => {
+  if (!mapInstance.value || lng == null || lat == null) return
+
   clearUserLocationMark()
 
   const labelText = formatLatLngLabel(lat, lng)
@@ -1287,6 +1366,96 @@ const drawUserPoint = (lng, lat) => {
     clickable: false
   })
   nowMark.setMap(mapInstance.value)
+}
+
+/** 对齐移动端 getH5LocationOnlyMarker：静默定位打点 */
+const getH5LocationOnlyMarker = () => {
+  if (!mapInstance.value || typeof window.AMap === 'undefined') return
+  window.AMap.plugin('AMap.Geolocation', () => {
+    const geo = new window.AMap.Geolocation({
+      enableHighAccuracy: true,
+      timeout: 10000,
+      convert: true,
+      showButton: false,
+      showMarker: false,
+      showCircle: false
+    })
+    geo.getCurrentPosition((status, result) => {
+      if (status === 'complete' && result?.position) {
+        const lng = result.position.lng ?? result.position.getLng?.()
+        const lat = result.position.lat ?? result.position.getLat?.()
+        if (lng != null && lat != null) {
+          drawUserMarkerNoMove(lng, lat)
+        }
+      }
+    })
+  })
+}
+
+const ensureMapGeocoder = () =>
+  new Promise((resolve) => {
+    if (mapGeocoder) {
+      resolve(mapGeocoder)
+      return
+    }
+    if (typeof window.AMap === 'undefined') {
+      resolve(null)
+      return
+    }
+    window.AMap.plugin('AMap.Geocoder', () => {
+      mapGeocoder = new window.AMap.Geocoder({
+        radius: 1000,
+        extensions: 'all'
+      })
+      resolve(mapGeocoder)
+    })
+  })
+
+/** 对齐移动端 getWaterDvAddress */
+const getWaterDvAddress = async (dv) => {
+  const geocoder = await ensureMapGeocoder()
+  if (!geocoder || dv?.longitude == null || dv?.latitude == null) {
+    if (dv) dv.address = dv.address || '地址解析失败'
+    return
+  }
+  await new Promise((resolve) => {
+    geocoder.getAddress([dv.longitude, dv.latitude], (status, result) => {
+      if (
+        status === 'complete' &&
+        result.info === 'OK' &&
+        result.regeocode
+      ) {
+        dv.address = result.regeocode.formattedAddress || '未知地址'
+      } else {
+        dv.address = dv.address || '地址解析失败'
+      }
+      resolve()
+    })
+  })
+}
+
+/** 对齐移动端 batchUpdateWaterDvAddress */
+const batchUpdateWaterDvAddress = async () => {
+  const list = waterDvList.value
+  if (!Array.isArray(list) || !list.length) {
+    isResolvedAddress = true
+    return
+  }
+  for (const item of list) {
+    await getWaterDvAddress(item)
+  }
+  isResolvedAddress = true
+  waterDvMarkerDrawer.refreshWaterDvMarkerStatus(list, {
+    activeDvId: activeWaterDv.value?.id ?? null,
+    map: mapInstance.value,
+    layerOptions: layerOptions.value
+  })
+  if (waterDvPopupVisible.value && activeWaterDv.value?.id != null) {
+    const live = list.find(
+      (d) => String(d.id) === String(activeWaterDv.value.id)
+    )
+    waterDvPopupRef.value?.mergeFromFarmDevice?.(live)
+  }
 }
 
 /** 点击定位：使用高德 Geolocation（浏览器定位，坐标转 GCJ-02） */
@@ -1402,13 +1571,13 @@ const initMap = () => {
     const labelLayer =
       typeof window.AMap.createDefaultLayer === 'function'
         ? window.AMap.createDefaultLayer({
-            zooms: [3, 20],
+            zooms: [3, 26],
             opacity: 1,
             zIndex: 2,
             visible: true
           })
         : new window.AMap.TileLayer({
-            zooms: [3, 20],
+            zooms: [3, 26],
             opacity: 1,
             zIndex: 2,
             visible: true
@@ -1422,7 +1591,7 @@ const initMap = () => {
 
     mapInstance.value = new window.AMap.Map('map-container', {
       zoom: initialZoom,
-      zooms: [3, 20],
+      zooms: [3, 26],
       center: initialCenter,
       viewMode: '2D',
       layers: [satelliteLayer, labelLayer],
@@ -1480,7 +1649,15 @@ const setupMap = async () => {
 }
 
 const handleFarmChange = async (payload) => {
+  // 对齐移动端 farmMsg.addNewDevice → setDeviceTimer
+  if (payload?.topic === 'addNewDevice') {
+    farmStore.consumePendingAddNewDevice()
+    setDeviceTimer()
+    return
+  }
+
   syncFarmListFromStore()
+  clearDeviceTimer()
 
   // 切换农场时关闭未关的出水桩弹窗，并清除业务图形选中态
   resetAllPopups()
@@ -1512,6 +1689,11 @@ onMounted(async () => {
   if (!farmStore.isFarmLoading && !farmStore.isFarmEmpty) {
     await setupMap()
   }
+
+  // 添加设备页跳转过来时地图尚未挂载，落旗后在此消费并启动刷新定时器
+  if (farmStore.consumePendingAddNewDevice()) {
+    setDeviceTimer()
+  }
 })
 
 watch(layerOptions, () => {
@@ -1528,6 +1710,11 @@ watch(showMapContainer, (visible) => {
 onUnmounted(() => {
   offFarmChange?.()
   clearMapStatusTimers()
+  clearDeviceTimer()
+  if (waterDvAddressTimer) {
+    clearTimeout(waterDvAddressTimer)
+    waterDvAddressTimer = null
+  }
   destroyMap()
   resetFarmMapResources()
 })
@@ -1586,6 +1773,21 @@ defineExpose({
 .map-container {
   width: 100%;
   height: 100%;
+}
+
+.map-loading-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+}
+
+.map-loading-mask__text {
+  font-size: 16px;
+  color: #666;
 }
 
 .map-toolbar {
@@ -1722,7 +1924,7 @@ defineExpose({
 }
 
 .map-layer-trigger-arrow {
-  font-size: 10px;
+  font-size: 12px;
   color: #999;
   line-height: 1;
 }
@@ -1797,7 +1999,7 @@ defineExpose({
 }
 
 .map-layer-collapse-arrow {
-  font-size: 12px;
+  font-size: 14px;
   color: #999;
   line-height: 1;
 }

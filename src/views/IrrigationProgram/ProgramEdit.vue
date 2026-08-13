@@ -1,7 +1,12 @@
 <template>
   <div class="program-edit-page">
     <header class="program-edit-page__header">
-      <h1 class="program-edit-page__title">{{ pageTitle }}</h1>
+      <div class="program-edit-page__head-left">
+        <button type="button" class="program-edit-page__back" @click="onCancel">
+          ← 返回
+        </button>
+        <h1 class="program-edit-page__title">{{ pageTitle }}</h1>
+      </div>
       <div class="program-edit-page__actions">
         <button type="button" class="program-edit-page__btn is-plain" @click="onCancel">
           取消
@@ -881,6 +886,23 @@ onMounted(async () => {
   padding: 20px 28px;
   background: #fff;
   border-bottom: 1px solid #edf1f7;
+}
+
+.program-edit-page__head-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.program-edit-page__back {
+  border: none;
+  background: transparent;
+  color: #3653a0;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .program-edit-page__title {

@@ -6,7 +6,12 @@
       <!-- 顶栏 -->
       <div class="control-device__header">
         <div class="control-device__header-left">
-          <h2 class="control-device__title">{{ displayName }}</h2>
+          <div class="control-device__name-row">
+            <button type="button" class="control-device__back" @click="onBack">
+              ← 返回
+            </button>
+            <h2 class="control-device__title">{{ displayName }}</h2>
+          </div>
           <span
             class="control-device__online"
             :class="isOnline ? 'is-on' : 'is-off'"
@@ -675,6 +680,11 @@ async function onSync() {
   }
 }
 
+function onBack() {
+  if (window.history.length > 1) router.back()
+  else router.replace('/device')
+}
+
 function onOpenMap() {
   const id = deviceId.value
   if (id == null) return
@@ -862,12 +872,32 @@ watch(
   min-width: 0;
 }
 
+.control-device__name-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.control-device__back {
+  border: none;
+  background: transparent;
+  color: #3653a0;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
 .control-device__title {
   margin: 0;
   font-size: 28px;
   font-weight: 700;
   color: #0f172a;
   line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .control-device__online {

@@ -50,3 +50,29 @@ export function getUser() {
     }
   })
 }
+
+/** 修改昵称 PUT /api/user/update-nick-name（对齐移动端 updateNickName） */
+export function updateNickName(data, config = {}) {
+  return request({
+    url: '/api/user/update-nick-name',
+    method: 'PUT',
+    data,
+    loading: true,
+    loadingText: '提交中',
+    ...config
+  })
+}
+
+/** 上传头像 POST /api/user/avatar（对齐移动端 uni.uploadFile name=avatar） */
+export function uploadAvatar(file, config = {}) {
+  const formData = new FormData()
+  formData.append('avatar', file)
+  return request({
+    url: '/api/user/avatar',
+    method: 'POST',
+    data: formData,
+    loading: true,
+    loadingText: '上传中',
+    ...config
+  })
+}
