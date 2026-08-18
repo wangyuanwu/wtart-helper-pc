@@ -479,6 +479,11 @@ function onOpened() {
 </style>
 
 <style>
+.timer-pro-list-dialog.el-dialog {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
 .timer-pro-list-dialog .el-dialog__body {
   padding-top: 8px;
 }

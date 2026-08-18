@@ -974,7 +974,11 @@ const savePolygon = async () => {
   land.address = address
   farmStore.setLand(land)
   resetDrawUiState()
-  router.push({ path: '/map/add-edit-land', query: { type: 'add' } })
+  const from = route.query.from ? String(route.query.from) : 'map'
+  router.push({
+    path: '/map/add-edit-land',
+    query: { type: 'add', from }
+  })
 }
 
 const clickTool = (index) => {

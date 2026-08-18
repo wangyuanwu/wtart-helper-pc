@@ -149,6 +149,7 @@ async function saveOrder() {
     emit('update:modelValue', false)
   } catch (e) {
     console.error('[DeviceLandSortDialog] 保存排序失败', e)
+    ElMessage.error(e?.message || '保存排序失败')
   } finally {
     saving.value = false
   }

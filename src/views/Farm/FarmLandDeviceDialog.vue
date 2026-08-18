@@ -312,3 +312,10 @@ watch(
   line-height: 1.6;
 }
 </style>
+
+<style>
+.farm-land-device-dialog.el-dialog {
+  border-radius: 16px;
+  overflow: hidden;
+}
+</style>

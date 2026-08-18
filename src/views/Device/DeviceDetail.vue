@@ -508,9 +508,11 @@ async function onSave() {
     })
     ElMessage.success('操作成功')
     await farmStore.fetchFarmList()
+    farmStore.refreshDeviceList('设备信息已更新')
     setTimeout(() => router.back(), 600)
   } catch (e) {
     console.error('[DeviceDetail] 保存失败', e)
+    ElMessage.error(e?.message || '保存失败')
   } finally {
     saving.value = false
   }
@@ -533,11 +535,13 @@ async function onDelete() {
     await deleteDevice(deviceInfo.value.id)
     ElMessage.success('操作成功')
     await farmStore.fetchFarmList()
+    farmStore.refreshDeviceList('设备已删除')
     setTimeout(() => {
       router.replace('/device')
     }, 600)
   } catch (e) {
     console.error('[DeviceDetail] 删除失败', e)
+    ElMessage.error(e?.message || '删除设备失败')
   } finally {
     deleting.value = false
   }

@@ -9,6 +9,38 @@ export function login(data) {
   })
 }
 
+/** 生成扫码登录二维码 GET /api/login/scan/qrcode */
+export function createQrLoginTicket(config = {}) {
+  return request({
+    url: '/api/login/scan/qrcode',
+    method: 'GET',
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    },
+    skipAuth: true,
+    ...config
+  })
+}
+
+/**
+ * 轮询扫码登录状态 GET /api/login/scan/status
+ * status: 0 pending | 1 scanned | 2 confirmed | 3 expired
+ * confirmed 时 data 含 accessToken / refreshToken
+ */
+export function getQrLoginStatus(ticket, config = {}) {
+  return request({
+    url: '/api/login/scan/status',
+    method: 'GET',
+    params: { ticket },
+    headers: {
+      'X-Timezone': 'Asia/Shanghai'
+    },
+    skipAuth: true,
+    silent: true,
+    ...config
+  })
+}
+
 export function sendCode(data) {
   return request({
     url: '/api/login/send-code',

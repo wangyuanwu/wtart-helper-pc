@@ -1,14 +1,12 @@
 <template>
-  <el-dialog
+  <el-drawer
     :model-value="modelValue"
     title="运行记录"
-    width="920px"
+    direction="rtl"
+    size="800px"
     append-to-body
     destroy-on-close
-    draggable
-    overflow
-    :close-on-click-modal="false"
-    class="program-record-dialog"
+    class="program-record-drawer"
     @update:model-value="onVisibleChange"
     @opened="onOpened"
   >
@@ -169,11 +167,12 @@
         </div>
       </div>
     </div>
-  </el-dialog>
+  </el-drawer>
 </template>
 
 <script setup>
 /**
+ * 运行记录抽屉（右侧 Drawer）
  * 对齐移动端 pages/home/activity/base/record/record_group_pro
  */
 import { computed, ref, watch } from 'vue'
@@ -494,7 +493,8 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 14px;
-  min-height: 520px;
+  height: 100%;
+  min-height: 0;
 }
 
 .program-record__time-bar {
@@ -610,8 +610,7 @@ watch(
 
 .program-record__list {
   flex: 1;
-  min-height: 320px;
-  max-height: 420px;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -692,12 +691,24 @@ watch(
 </style>
 
 <style>
-.program-record-dialog .el-dialog__body {
-  padding-top: 8px;
+.program-record-drawer.el-drawer {
+  border-radius: 16px 0 0 16px;
+  overflow: hidden;
 }
 
-.program-record-dialog .el-dialog__header {
-  cursor: move;
-  user-select: none;
+.program-record-drawer .el-drawer__header {
+  margin-bottom: 12px;
+  padding: 16px 20px 0;
+}
+
+.program-record-drawer .el-drawer__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.program-record-drawer .el-drawer__body {
+  padding: 8px 20px 20px;
+  overflow: hidden;
 }
 </style>

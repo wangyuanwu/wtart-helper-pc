@@ -105,6 +105,17 @@
             </button>
           </div>
         </div>
+
+        <!-- 统计工具栏（对齐移动端 showStatistics → farm_data） -->
+        <button
+          type="button"
+          class="map-stats-btn"
+          title="灌溉统计"
+          @click="openIrrStats"
+        >
+          <i class="iconfont icon-ic_map_tongji map-stats-btn__icon"></i>
+          <span class="map-stats-btn__text">统计</span>
+        </button>
       </div>
       <div v-if="mapError" class="map-error">
         <el-empty :description="mapError" />
@@ -114,6 +125,7 @@
         @create="handleCreateLand"
         @close="onLandEmptyClose"
       />
+      <FarmIrrStatsDrawer v-model="irrStatsVisible" />
       <WaterDvPopup
         ref="waterDvPopupRef"
         v-model="waterDvPopupVisible"
@@ -166,6 +178,7 @@ import { createLandPolygonDrawer } from '@/utils/farmMapLand'
 import { createLandGroupPolygonDrawer } from '@/utils/farmMapLandGroup'
 import { createWaterDvMarkerDrawer } from '@/utils/farmMapWaterDv'
 import LandEmptyDialog from './LandEmptyDialog.vue'
+import FarmIrrStatsDrawer from './FarmIrrStatsDrawer.vue'
 import WaterDvPopup from './WaterDvPopup.vue'
 import FarmPopup from './FarmPopup.vue'
 import LandPopup from './LandPopup.vue'
@@ -1014,6 +1027,8 @@ const layerOptions = ref(resolveLayerOptions(farmStore.s_map_layer))
 const layerPanelExpanded = ref(false)
 /** 当前农场无地块提示弹窗（对齐移动端 noLandPop / pop_polt_empty） */
 const landEmptyVisible = ref(false)
+/** 灌溉统计抽屉（对齐移动端 farm_data） */
+const irrStatsVisible = ref(false)
 /** 用户关闭/去新建后，同农场本次停留不再强制弹出无地块提示 */
 let landEmptyDismissedFarmId = null
 /** full 接口尚未返回、但地图已就绪时的占位；或农场切换时的防抖序号 */
@@ -1176,7 +1191,7 @@ const applyFarmFullResources = (fullData) => {
 const handleCreateLand = () => {
   markLandEmptyDismissed()
   landEmptyVisible.value = false
-  router.push({ path: '/map/edit-plot', query: { type: 'add' } })
+  router.push({ path: '/map/edit-plot', query: { type: 'add', from: 'map' } })
 }
 
 /** 用户关闭无地块弹窗后，记录当前农场，避免轮询 full 再次强制打开 */
@@ -1220,6 +1235,7 @@ const destroyMap = () => {
   mapReady.value = false
   mapInited.value = false
   mapLoading.value = true
+  locationConsentAsked = false
 }
 
 /** 进入地图 / 切换农场时适配视野层级 */
@@ -1300,6 +1316,12 @@ const toggleLayerPanel = () => {
   layerPanelExpanded.value = !layerPanelExpanded.value
 }
 
+/** 打开灌溉统计抽屉（对齐移动端 showStatistics） */
+const openIrrStats = () => {
+  layerPanelExpanded.value = false
+  irrStatsVisible.value = true
+}
+
 /** 切换图层勾选；农场仅勾选控制，地块还需 zoom>=13 */
 const toggleLayerItem = (item) => {
   if (!item) return
@@ -1368,28 +1390,127 @@ const drawUserMarkerNoMove = (lng, lat) => {
   nowMark.setMap(mapInstance.value)
 }
 
-/** 对齐移动端 getH5LocationOnlyMarker：静默定位打点 */
-const getH5LocationOnlyMarker = () => {
-  if (!mapInstance.value || typeof window.AMap === 'undefined') return
-  window.AMap.plugin('AMap.Geolocation', () => {
-    const geo = new window.AMap.Geolocation({
-      enableHighAccuracy: true,
-      timeout: 10000,
-      convert: true,
-      showButton: false,
-      showMarker: false,
-      showCircle: false
-    })
-    geo.getCurrentPosition((status, result) => {
-      if (status === 'complete' && result?.position) {
-        const lng = result.position.lng ?? result.position.getLng?.()
-        const lat = result.position.lat ?? result.position.getLat?.()
-        if (lng != null && lat != null) {
-          drawUserMarkerNoMove(lng, lat)
-        }
+/** 本页是否已做过进入时定位授权引导（避免出水桩重绘反复弹窗） */
+let locationConsentAsked = false
+const LOCATION_CONSENT_SKIP_KEY = 'map_location_consent_skip'
+
+/** 查询浏览器定位权限状态 */
+const queryGeolocationPermission = async () => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return 'unsupported'
+  }
+  if (typeof window !== 'undefined' && window.isSecureContext === false) {
+    return 'insecure'
+  }
+  try {
+    if (navigator.permissions?.query) {
+      const status = await navigator.permissions.query({ name: 'geolocation' })
+      return status.state // granted | denied | prompt
+    }
+  } catch (e) {
+    console.warn('[Map] 查询定位权限失败', e)
+  }
+  return 'prompt'
+}
+
+/**
+ * 进入地图页时引导授权：
+ * 浏览器原生权限框只能由定位 API 触发；先弹应用内说明，用户同意后再请求定位。
+ */
+const ensureGeolocationConsent = async ({
+  interactive = true,
+  notifyDenied = true,
+  forceAsk = false
+} = {}) => {
+  const state = await queryGeolocationPermission()
+  if (state === 'unsupported') {
+    if (interactive) ElMessage.warning('当前浏览器不支持定位')
+    return false
+  }
+  if (state === 'insecure') {
+    if (interactive) {
+      ElMessage.warning('定位需在 HTTPS 环境下使用，请使用安全链接访问')
+    }
+    return false
+  }
+  if (state === 'granted') return true
+  if (state === 'denied') {
+    if (interactive && notifyDenied) {
+      ElMessage.warning(
+        '定位权限已关闭，请点击浏览器地址栏左侧的锁/站点设置，允许位置权限后刷新重试'
+      )
+    }
+    return false
+  }
+  // prompt：尚未授权，先应用内确认，再触发原生权限框
+  if (!interactive) return false
+  if (!forceAsk && sessionStorage.getItem(LOCATION_CONSENT_SKIP_KEY) === '1') {
+    return false
+  }
+  try {
+    await ElMessageBox.confirm(
+      '地图定位需要获取您的位置信息，用于在地图上显示当前位置。是否允许使用定位？',
+      '定位权限',
+      {
+        confirmButtonText: '允许',
+        cancelButtonText: '暂不',
+        type: 'info',
+        closeOnClickModal: false
       }
+    )
+    sessionStorage.removeItem(LOCATION_CONSENT_SKIP_KEY)
+    return true
+  } catch {
+    sessionStorage.setItem(LOCATION_CONSENT_SKIP_KEY, '1')
+    return false
+  }
+}
+
+/** 使用高德 Geolocation 获取当前位置 */
+const requestAmapPosition = (timeout = 10000) =>
+  new Promise((resolve) => {
+    if (typeof window.AMap === 'undefined') {
+      resolve(null)
+      return
+    }
+    window.AMap.plugin('AMap.Geolocation', () => {
+      const geo = new window.AMap.Geolocation({
+        enableHighAccuracy: true,
+        timeout,
+        convert: true,
+        showButton: false,
+        showMarker: false,
+        showCircle: false
+      })
+      geo.getCurrentPosition((status, result) => {
+        if (status === 'complete' && result?.position) {
+          const lng = result.position.lng ?? result.position.getLng?.()
+          const lat = result.position.lat ?? result.position.getLat?.()
+          if (lng != null && lat != null) {
+            resolve({ lng, lat })
+            return
+          }
+        }
+        console.warn('[Map] 定位失败', status, result)
+        resolve(null)
+      })
     })
   })
+
+/** 对齐移动端 getH5LocationOnlyMarker：进入页引导授权后打点（不移动视角） */
+const getH5LocationOnlyMarker = async () => {
+  if (!mapInstance.value || typeof window.AMap === 'undefined') return
+  if (locationConsentAsked) return
+  locationConsentAsked = true
+
+  const ok = await ensureGeolocationConsent({
+    interactive: true,
+    notifyDenied: false
+  })
+  if (!ok) return
+
+  const pos = await requestAmapPosition(10000)
+  if (pos) drawUserMarkerNoMove(pos.lng, pos.lat)
 }
 
 const ensureMapGeocoder = () =>
@@ -1459,7 +1580,7 @@ const batchUpdateWaterDvAddress = async () => {
 }
 
 /** 点击定位：使用高德 Geolocation（浏览器定位，坐标转 GCJ-02） */
-const handleLocate = () => {
+const handleLocate = async () => {
   if (!mapInstance.value || !mapInited.value || isLocating.value) return
 
   if (typeof window.AMap === 'undefined') {
@@ -1467,31 +1588,30 @@ const handleLocate = () => {
     return
   }
 
-  isLocating.value = true
-  window.AMap.plugin('AMap.Geolocation', () => {
-    const geo = new window.AMap.Geolocation({
-      enableHighAccuracy: true,
-      timeout: 12000,
-      convert: true,
-      showButton: false,
-      showMarker: false,
-      showCircle: false
-    })
-
-    geo.getCurrentPosition((status, result) => {
-      isLocating.value = false
-      if (status === 'complete' && result?.position) {
-        const lng = result.position.lng ?? result.position.getLng?.()
-        const lat = result.position.lat ?? result.position.getLat?.()
-        if (lng != null && lat != null) {
-          drawUserPoint(lng, lat)
-          return
-        }
-      }
-      console.warn('[Map] 定位失败', status, result)
-      ElMessage.error('定位失败，请检查浏览器定位权限')
-    })
+  const ok = await ensureGeolocationConsent({
+    interactive: true,
+    forceAsk: true
   })
+  if (!ok) return
+
+  isLocating.value = true
+  try {
+    const pos = await requestAmapPosition(12000)
+    if (pos) {
+      drawUserPoint(pos.lng, pos.lat)
+      return
+    }
+    const state = await queryGeolocationPermission()
+    if (state === 'denied') {
+      ElMessage.error(
+        '定位权限已关闭，请在浏览器地址栏允许位置权限后重试'
+      )
+    } else {
+      ElMessage.error('定位失败，请检查浏览器定位权限或稍后重试')
+    }
+  } finally {
+    isLocating.value = false
+  }
 }
 
 /**
@@ -2002,6 +2122,38 @@ defineExpose({
   font-size: 14px;
   color: #999;
   line-height: 1;
+}
+
+/* 统计按钮（图层工具栏下方，对齐移动端「统计」） */
+.map-stats-btn {
+  margin-top: 10px;
+  width: 48px;
+  padding: 10px 0 9px;
+  border: none;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-stats-btn:hover {
+  background: #f5f5f5;
+}
+
+.map-stats-btn__icon {
+  font-size: 20px;
+  color: #666;
+  line-height: 1;
+}
+
+.map-stats-btn__text {
+  font-size: 11px;
+  color: #666;
+  line-height: 1.2;
 }
 
 .map-error {

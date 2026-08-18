@@ -393,6 +393,11 @@ function onClosed() {
 </style>
 
 <style>
+.ave-press-dialog.el-dialog {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
 .ave-press-dialog .el-dialog__body {
   padding-top: 8px;
 }

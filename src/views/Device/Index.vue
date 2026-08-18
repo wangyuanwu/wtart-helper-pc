@@ -168,21 +168,34 @@
                   :class="device.isOnline ? 'is-online' : 'is-offline'"
                 >
                   <i class="device-card__status-dot"></i>
-                  {{ device.isOnline ? '在线运行' : '离线状态' }}
+                  {{ getOnlineText(device) }}
                 </span>
                 <div class="device-card__top-right">
+                  <i
+                    v-if="isManualMode(device)"
+                    class="iconfont icon-a-lujing1 device-card__manual"
+                    title="手动模式"
+                  ></i>
                   <i
                     v-if="isDvAlarm(device.id)"
                     class="iconfont icon-lujing-1 device-card__alarm"
                     title="告警中"
                   ></i>
+                  <i
+                    v-if="isTimerRunning(device)"
+                    class="iconfont icon-ic_lun_cook device-card__timer"
+                    title="定时运行中"
+                  ></i>
                   <span
                     v-if="device.batteryPercent != null"
                     class="device-card__battery"
-                    :class="batteryClass(device.batteryPercent)"
+                    :class="[
+                      batteryClass(device.batteryPercent),
+                      { 'is-charging': isCharging(device) }
+                    ]"
                   >
                     <i class="iconfont icon-map_ic_battery"></i>
-                    {{ device.batteryPercent ?? 0 }}%
+                    {{ batteryText(device) }}
                   </span>
                 </div>
               </div>
@@ -356,7 +369,7 @@ import { ElMessage, ElSwitch } from 'element-plus'
 import { ArrowDown, MoreFilled, Operation } from '@element-plus/icons-vue'
 import { useFarmStore } from '@/store/farm'
 import { useAlarmStore } from '@/store/alarm'
-import { deleteDevice, getDeviceGroupByLands } from '@/api/device'
+import { deleteDevice, getDeviceGroupByLands, getWaterOutletRunning } from '@/api/device'
 import { deleteLand, getLandPlotById } from '@/api/map'
 import { useWaterOutletValve } from '@/composables/useWaterOutletValve'
 import {
@@ -410,16 +423,21 @@ const landEmptyVisible = ref(false)
 
 const LAND_CARD_LIMIT = 4
 const POLL_MS = 3000
+const TIMER_POLL_MS = 15000
 const LONG_PRESS_MS = 500
 const LONG_PRESS_MOVE_PX = 10
 let pollTimer = null
+let runningPollTimer = null
 let listRequestId = 0
 let offFarmChange = null
+let offDeviceMsg = null
 let longPressTimer = null
 let longPressTriggered = false
 let longPressStartX = 0
 let longPressStartY = 0
 let longPressMoved = false
+
+const timerRunningDevice = ref([])
 
 const counts = computed(() => {
   let total = 0
@@ -528,6 +546,44 @@ const batteryClass = (percent) => {
   if (n >= 50) return 'is-good'
   return ''
 }
+
+/** 对齐移动端 getOnlienText(isOnline, ds) */
+const getOnlineText = (device) => {
+  if (device?.isOnline) return '在线'
+  const ds = Number(device?.specificData?.waterOutletPile?.ds)
+  switch (ds) {
+    case 1:
+      return '定时关机'
+    case 2:
+      return '低温关机'
+    case 3:
+      return '低电量关机'
+    case 4:
+      return '本地关机'
+    case 5:
+      return '远程关机'
+    default:
+      return '离线'
+  }
+}
+
+/** 对齐移动端卡片 ds==9 手动模式图标 */
+const isManualMode = (device) =>
+  Number(device?.specificData?.waterOutletPile?.ds) === 9
+
+/** 对齐移动端 getIsTimer：runing 接口返回的运行中设备 */
+const isTimerRunning = (device) => {
+  const id = device?.id
+  if (id == null) return false
+  return timerRunningDevice.value.some(
+    (item) => String(item.deviceId) === String(id)
+  )
+}
+
+/** 对齐移动端 single-power chargingStatus==1 */
+const isCharging = (device) => Number(device?.chargingStatus) === 1
+
+const batteryText = (device) => `${device?.batteryPercent ?? 0}%`
 
 const getVisibleDevices = (land) => {
   const devices = land?.devices || []
@@ -736,6 +792,7 @@ const confirmDeleteDevice = async () => {
     await fetchDeviceList({ silent: false })
   } catch (e) {
     console.error('[Device] 删除设备失败', e)
+    ElMessage.error(e?.message || '删除设备失败')
   } finally {
     deviceDeleting.value = false
   }
@@ -763,12 +820,27 @@ const onEditLand = async (land) => {
 const onSortLand = (land) => {
   landMenuLandId.value = null
   if (land?.landId == null) return
+  if (!land.devices?.length) {
+    ElMessage.warning('未发现设备')
+    return
+  }
   sortLandId.value = land.landId
   sortDialogVisible.value = true
 }
 
 const onSortSaved = async () => {
-  await fetchDeviceList({ silent: false })
+  // 对齐移动端 pop_order_device → refreshDeviceList；本页已挂载时走统一刷新入口
+  farmStore.refreshDeviceList('设备排序完成')
+}
+
+/**
+ * 对齐移动端 deviceMsg.refreshDeviceList → geLandDviceListHttp(false, true)
+ * 仅在列表已初始化后静默全量替换，避免与 startPoll 首屏请求打架
+ */
+const handleDeviceMsg = (msg) => {
+  if (msg?.topic !== 'refreshDeviceList') return
+  if (deviceLandList.value == null) return
+  fetchDeviceList({ silent: true, isSearch: true })
 }
 
 const onDeleteLand = (land) => {
@@ -796,6 +868,7 @@ const confirmDeleteLand = async () => {
     await fetchDeviceList({ silent: false })
   } catch (e) {
     console.error('[Device] 删除地块失败', e)
+    ElMessage.error(e?.message || '删除地块失败')
   } finally {
     landDeleting.value = false
   }
@@ -854,12 +927,43 @@ const clearPoll = () => {
   listRequestId += 1
 }
 
+const clearRunningPoll = () => {
+  if (runningPollTimer) {
+    clearInterval(runningPollTimer)
+    runningPollTimer = null
+  }
+}
+
+/** 对齐移动端 getWaterOutetRuningHttp */
+const fetchRunningDevices = async () => {
+  const farmId = getFarmId()
+  if (farmId == null) {
+    timerRunningDevice.value = []
+    return
+  }
+  try {
+    const res = await getWaterOutletRunning({ farmId }, { silent: true })
+    timerRunningDevice.value = Array.isArray(res?.data) ? res.data : []
+  } catch (e) {
+    console.error('[Device] 获取运行中出水桩失败', e)
+  }
+}
+
+const startRunningPoll = () => {
+  clearRunningPoll()
+  fetchRunningDevices()
+  runningPollTimer = setInterval(() => {
+    fetchRunningDevices()
+  }, TIMER_POLL_MS)
+}
+
 const startPoll = () => {
   clearPoll()
   fetchDeviceList({ silent: false })
   pollTimer = setInterval(() => {
     fetchDeviceList({ silent: true })
   }, POLL_MS)
+  startRunningPoll()
 }
 
 const handleFarmChange = () => {
@@ -867,17 +971,21 @@ const handleFarmChange = () => {
   expandedLandIds.value = {}
   resetControlState()
   deviceLandList.value = null
+  timerRunningDevice.value = []
   startPoll()
 }
 
 onMounted(() => {
   offFarmChange = farmStore.onFarmChange(handleFarmChange)
+  offDeviceMsg = farmStore.onDeviceMsg(handleDeviceMsg)
   startPoll()
 })
 
 onUnmounted(() => {
   offFarmChange?.()
+  offDeviceMsg?.()
   clearPoll()
+  clearRunningPoll()
   clearLongPressTimer()
   resetControlState()
 })
@@ -1331,6 +1439,18 @@ onUnmounted(() => {
   line-height: 1;
 }
 
+.device-card__manual {
+  font-size: 14px;
+  color: #ef4444;
+  line-height: 1;
+}
+
+.device-card__timer {
+  font-size: 14px;
+  color: #3653a0;
+  line-height: 1;
+}
+
 .device-card__status {
   display: inline-flex;
   align-items: center;
@@ -1379,6 +1499,10 @@ onUnmounted(() => {
 
 .device-card__battery.is-good {
   color: #2ecc71;
+}
+
+.device-card__battery.is-charging {
+  color: #2f6bff;
 }
 
 .device-card__battery .iconfont {
@@ -1521,6 +1645,15 @@ onUnmounted(() => {
   50% {
     opacity: 0.45;
   }
+}
+
+.device-card.is-offline {
+  filter: grayscale(100%);
+  opacity: 0.65;
+}
+
+.device-card.is-offline .device-card__ports {
+  pointer-events: none;
 }
 
 .device-card.is-offline .device-card__name {

@@ -73,16 +73,25 @@
         </el-form>
 
         <div v-else class="qrcode-panel">
-          <div class="qrcode-box" @click="handleQrcodeClick">
+          <div
+            class="qrcode-box"
+            :class="{ 'is-expired': qrcodeStatus === 'expired' }"
+            @click="handleQrcodeRefresh"
+          >
             <img
-              v-if="qrcodeUrl"
+              v-if="qrcodeUrl && !qrcodeLoading"
               :src="qrcodeUrl"
               alt="扫码登录"
               class="qrcode-image"
+              :class="{ 'is-dimmed': qrcodeStatus === 'expired' }"
             />
             <div v-else class="qrcode-loading">二维码加载中...</div>
+            <div v-if="qrcodeStatus === 'expired'" class="qrcode-mask">
+              <span class="qrcode-mask__title">二维码已过期</span>
+              <span class="qrcode-mask__action">点击刷新</span>
+            </div>
           </div>
-          <p class="qrcode-tip">水能手APP扫一扫</p>
+          <p class="qrcode-tip">{{ qrcodeTipText }}</p>
         </div>
       </div>
 
@@ -110,14 +119,22 @@
 </template>
 
 <script setup>
-import { ref, onUnmounted } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { login, sendCode, getUser } from '@/api'
+import QRCode from 'qrcode'
+import {
+  login,
+  sendCode,
+  getUser,
+  createQrLoginTicket,
+  getQrLoginStatus
+} from '@/api'
 import { useUserStore } from '@/store/user'
 import arcBgUrl from '@/assets/login/arc-bg.png'
 
-const QRCODE_API = 'https://api.qrserver.com/v1/create-qr-code/'
+const QR_POLL_MS = 2000
+const QR_DEFAULT_EXPIRE_SEC = 120
 
 const router = useRouter()
 const formRef = ref(null)
@@ -127,11 +144,30 @@ const countdown = ref(0)
 const sendingCode = ref(false)
 const loggingIn = ref(false)
 const qrcodeUrl = ref('')
+const qrcodeLoading = ref(false)
+const qrcodeLoggingIn = ref(false)
+/** pending | scanned | confirmed | expired */
+const qrcodeStatus = ref('pending')
+
 let countdownTimer = null
+let qrPollTimer = null
+let qrExpireTimer = null
+let qrPollBusy = false
+let qrTicket = ''
 
 const form = ref({
   phoneNumber: '',
   code: ''
+})
+
+const qrcodeTipText = computed(() => {
+  if (qrcodeStatus.value === 'scanned') {
+    return '扫码成功，请在手机上确认登录'
+  }
+  if (qrcodeStatus.value === 'expired') {
+    return '二维码已过期，点击二维码刷新'
+  }
+  return '水能手APP扫一扫'
 })
 
 const validatePhone = (rule, value, callback) => {
@@ -145,15 +181,191 @@ const rules = {
   code: [{ required: true, message: '请输入验证码', trigger: 'blur' }]
 }
 
-const generateQrcode = () => {
-  const payload = `wtart-pc-login:${Date.now()}`
-  qrcodeUrl.value = `${QRCODE_API}?size=200x200&data=${encodeURIComponent(payload)}`
+/** 用接口返回的 qrCodeContent 生成二维码图片 */
+async function renderQrcodeImage(qrCodeContent) {
+  const content = String(qrCodeContent || '').trim()
+  if (!content) throw new Error('二维码内容为空')
+  qrcodeUrl.value = await QRCode.toDataURL(content, {
+    width: 188,
+    margin: 1,
+    errorCorrectionLevel: 'M'
+  })
+}
+
+/** 将接口 status（数字或字符串）归一为 pending|scanned|confirmed|expired */
+function normalizeQrStatus(raw) {
+  if (raw == null || raw === '') return 'pending'
+  if (typeof raw === 'number' || /^\d+$/.test(String(raw))) {
+    const map = {
+      0: 'pending',
+      1: 'scanned',
+      2: 'confirmed',
+      3: 'expired'
+    }
+    return map[Number(raw)] || 'pending'
+  }
+  const text = String(raw).toLowerCase()
+  if (['pending', 'scanned', 'confirmed', 'expired'].includes(text)) {
+    return text
+  }
+  return 'pending'
+}
+
+function clearQrTimers() {
+  if (qrPollTimer) {
+    clearInterval(qrPollTimer)
+    qrPollTimer = null
+  }
+  if (qrExpireTimer) {
+    clearTimeout(qrExpireTimer)
+    qrExpireTimer = null
+  }
+  qrPollBusy = false
+}
+
+function stopQrLogin() {
+  clearQrTimers()
+  qrTicket = ''
+}
+
+/** 登录成功后的统一处理（验证码 / 扫码共用） */
+async function applyLoginSuccess(tokenData) {
+  const accessToken = tokenData?.accessToken || ''
+  const refreshTokenValue = tokenData?.refreshToken || ''
+  if (!accessToken) {
+    ElMessage.error('登录失败')
+    return false
+  }
+
+  userStore.setAuth({
+    accessToken,
+    refreshToken: refreshTokenValue
+  })
+  localStorage.setItem('token', accessToken)
+  localStorage.setItem('refreshToken', refreshTokenValue)
+
+  const userRes = await getUser()
+  userStore.setUserInfo(userRes.data || {})
+
+  ElMessage.success('登录成功')
+  stopQrLogin()
+  router.push('/map')
+  return true
+}
+
+async function initQrLogin() {
+  stopQrLogin()
+  qrcodeUrl.value = ''
+  qrcodeStatus.value = 'pending'
+  qrcodeLoading.value = true
+
+  try {
+    const res = await createQrLoginTicket()
+    const data = res?.data || {}
+    const ticket = data.ticket || ''
+    const qrCodeContent = data.qrCodeContent || ''
+    if (!ticket || !qrCodeContent) {
+      ElMessage.error('获取登录二维码失败')
+      return
+    }
+
+    qrTicket = ticket
+    await renderQrcodeImage(qrCodeContent)
+
+    const expireSec = Number(data.expireSeconds ?? QR_DEFAULT_EXPIRE_SEC)
+    startQrExpireTimer(expireSec)
+    startQrPoll()
+  } catch (e) {
+    console.error('[Login] 创建扫码二维码失败', e)
+    ElMessage.error(e?.message || '获取登录二维码失败')
+  } finally {
+    qrcodeLoading.value = false
+  }
+}
+
+function startQrExpireTimer(seconds) {
+  if (qrExpireTimer) clearTimeout(qrExpireTimer)
+  const ms = Math.max(Number(seconds) || QR_DEFAULT_EXPIRE_SEC, 1) * 1000
+  qrExpireTimer = setTimeout(() => {
+    if (qrcodeStatus.value !== 'confirmed') {
+      qrcodeStatus.value = 'expired'
+      clearQrTimers()
+    }
+  }, ms)
+}
+
+async function pollQrStatusOnce() {
+  if (
+    qrPollBusy ||
+    !qrTicket ||
+    qrcodeStatus.value === 'expired' ||
+    qrcodeLoggingIn.value
+  ) {
+    return
+  }
+
+  qrPollBusy = true
+  try {
+    const res = await getQrLoginStatus(qrTicket)
+    const data = res?.data || {}
+    const status = normalizeQrStatus(data.status)
+
+    if (status === 'pending') {
+      qrcodeStatus.value = 'pending'
+      return
+    }
+
+    if (status === 'scanned') {
+      qrcodeStatus.value = 'scanned'
+      return
+    }
+
+    if (status === 'expired') {
+      qrcodeStatus.value = 'expired'
+      clearQrTimers()
+      return
+    }
+
+    if (status === 'confirmed') {
+      qrcodeStatus.value = 'confirmed'
+      clearQrTimers()
+      qrcodeLoggingIn.value = true
+      try {
+        await applyLoginSuccess(data)
+      } catch (e) {
+        userStore.logOut()
+        qrcodeStatus.value = 'pending'
+        await initQrLogin()
+      } finally {
+        qrcodeLoggingIn.value = false
+      }
+    }
+  } catch (e) {
+    // 轮询静默失败，不打断用户操作
+  } finally {
+    qrPollBusy = false
+  }
+}
+
+function startQrPoll() {
+  if (qrPollTimer) clearInterval(qrPollTimer)
+  pollQrStatusOnce()
+  qrPollTimer = setInterval(pollQrStatusOnce, QR_POLL_MS)
+}
+
+function handleQrcodeRefresh() {
+  if (qrcodeLoading.value || qrcodeLoggingIn.value) return
+  if (qrcodeStatus.value === 'expired' || !qrcodeUrl.value) {
+    initQrLogin()
+  }
 }
 
 const switchTab = (tab) => {
   activeTab.value = tab
   if (tab === 'qrcode') {
-    generateQrcode()
+    initQrLogin()
+  } else {
+    stopQrLogin()
   }
 }
 
@@ -195,22 +407,7 @@ const handleLogin = async () => {
       phoneNumber: form.value.phoneNumber,
       code: form.value.code
     })
-
-    const accessToken = res.data?.accessToken || ''
-    const refreshTokenValue = res.data?.refreshToken || ''
-
-    userStore.setAuth({
-      accessToken,
-      refreshToken: refreshTokenValue
-    })
-    localStorage.setItem('token', accessToken)
-    localStorage.setItem('refreshToken', refreshTokenValue)
-
-    const userRes = await getUser()
-    userStore.setUserInfo(userRes.data || {})
-
-    ElMessage.success('登录成功')
-    router.push('/map')
+    await applyLoginSuccess(res.data || {})
   } catch (e) {
     userStore.logOut()
   } finally {
@@ -218,12 +415,9 @@ const handleLogin = async () => {
   }
 }
 
-const handleQrcodeClick = () => {
-  ElMessage.info('研发中')
-}
-
 onUnmounted(() => {
   if (countdownTimer) clearInterval(countdownTimer)
+  stopQrLogin()
 })
 </script>
 
@@ -406,6 +600,7 @@ onUnmounted(() => {
 }
 
 .qrcode-box {
+  position: relative;
   width: 200px;
   height: 200px;
   padding: 6px;
@@ -420,10 +615,18 @@ onUnmounted(() => {
   box-shadow: 0 2px 12px rgba(51, 77, 140, 0.15);
 }
 
+.qrcode-box.is-expired {
+  cursor: pointer;
+}
+
 .qrcode-image {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.qrcode-image.is-dimmed {
+  opacity: 0.25;
 }
 
 .qrcode-loading {
@@ -436,10 +639,34 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
+.qrcode-mask {
+  position: absolute;
+  inset: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 4px;
+}
+
+.qrcode-mask__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.qrcode-mask__action {
+  font-size: 13px;
+  color: #3653a0;
+}
+
 .qrcode-tip {
   margin: 16px 0 0;
   font-size: 16px;
   color: #666;
+  text-align: center;
 }
 
 .login-footer {

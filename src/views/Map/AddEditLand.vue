@@ -63,6 +63,12 @@ const pageType = computed(() => route.query.type || 'add')
 const pageTitle = computed(() =>
   pageType.value === 'edit' ? '编辑地块' : '新建地块'
 )
+/** 新建来源：farm-edit → 回农场设置；其它（含 map）→ 回地图 */
+const returnPath = computed(() => {
+  const from = String(route.query.from || 'map')
+  if (from === 'farm-edit') return '/farm/edit'
+  return '/map'
+})
 
 const landInfo = ref(null)
 const landName = ref('')
@@ -82,7 +88,7 @@ const deviceCountText = computed(() => {
 
 const onBack = () => {
   if (window.history.length > 1) router.back()
-  else router.replace('/map')
+  else router.replace(returnPath.value)
 }
 
 /** 对齐移动端 addPlotHttp */
@@ -119,11 +125,12 @@ const addPlotHttp = async () => {
       ElMessage.success('操作成功')
       farmStore.setLand(null)
       setTimeout(() => {
-        router.replace('/map')
+        router.replace(returnPath.value)
       }, 800)
     }
   } catch (e) {
     console.error('[AddEditLand] 新建地块失败', e)
+    ElMessage.error(e?.message || '新建地块失败')
   } finally {
     saving.value = false
   }

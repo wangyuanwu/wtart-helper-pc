@@ -215,13 +215,41 @@
         @deleted="onDeviceDeleted"
       />
     </template>
+
+    <!-- 对齐移动端 a-tip-sure：删除农场需勾选风险确认 -->
+    <el-dialog
+      v-model="farmDeleteConfirmVisible"
+      title="提示"
+      width="420px"
+      append-to-body
+      :close-on-click-modal="false"
+      @closed="onFarmDeleteConfirmClosed"
+    >
+      <p class="edit-farm-delete-desc">
+        删除农场后数据无法恢复，是否继续？
+      </p>
+      <el-checkbox v-model="farmDeleteRiskChecked">
+        已知晓风险，确认删除。
+      </el-checkbox>
+      <template #footer>
+        <el-button @click="farmDeleteConfirmVisible = false">取消</el-button>
+        <el-button
+          type="danger"
+          :disabled="!farmDeleteRiskChecked"
+          :loading="deleting"
+          @click="confirmDeleteFarm"
+        >
+          删除
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   deleteFarm,
   getFarmDetail,
@@ -246,6 +274,8 @@ const memberList = ref([])
 const landList = ref([])
 const deviceDialogVisible = ref(false)
 const deviceDialogLandId = ref(null)
+const farmDeleteConfirmVisible = ref(false)
+const farmDeleteRiskChecked = ref(false)
 
 const currentUserId = computed(
   () => userStore.userInfo?.id ?? userStore.userInfo?.userId
@@ -361,7 +391,10 @@ function onEditMember(item) {
 }
 
 function onAddLand() {
-  router.push('/map/edit-plot?type=add')
+  router.push({
+    path: '/map/edit-plot',
+    query: { type: 'add', from: 'farm-edit' }
+  })
 }
 
 async function onLandDetail(land) {
@@ -424,28 +457,28 @@ async function onSave() {
   }
 }
 
-async function onDeleteFarm() {
+function onDeleteFarm() {
   if (deleting.value || !farmInfo.value) return
+  farmDeleteRiskChecked.value = false
+  farmDeleteConfirmVisible.value = true
+}
+
+function onFarmDeleteConfirmClosed() {
+  farmDeleteRiskChecked.value = false
+}
+
+async function confirmDeleteFarm() {
+  if (deleting.value || !farmInfo.value || !farmDeleteRiskChecked.value) return
+  deleting.value = true
   try {
-    await ElMessageBox.confirm(
-      '删除农场后数据无法恢复，是否继续？',
-      '提示',
-      {
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger'
-      }
-    )
-    deleting.value = true
     await deleteFarm(farmInfo.value.id)
     ElMessage.success('操作成功')
+    farmDeleteConfirmVisible.value = false
     await farmStore.fetchFarmList()
     setTimeout(() => router.replace('/map'), 800)
   } catch (e) {
-    if (e !== 'cancel' && e?.message !== 'cancel') {
-      console.error('[EditFarm] 删除农场失败', e)
-    }
+    console.error('[EditFarm] 删除农场失败', e)
+    ElMessage.error(e?.message || '删除农场失败')
   } finally {
     deleting.value = false
   }
@@ -925,6 +958,13 @@ onActivated(() => {
   color: #999;
   background: #fff;
   border-radius: 12px;
+}
+
+.edit-farm-delete-desc {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.6;
 }
 
 @media (max-width: 900px) {

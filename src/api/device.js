@@ -168,6 +168,20 @@ export function getFarmWaterOutletStatus(farmId) {
   })
 }
 
+/** 农场下正在定时/轮灌运行的出水桩（对齐移动端 getWaterOutetRuning） */
+export function getWaterOutletRunning(params = {}, config = {}) {
+  return request({
+    url: '/api/water-outlet-pile/runing',
+    method: 'GET',
+    params,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent !== false
+  })
+}
+
 /** 立即同步出水桩状态（对齐移动端 syncStatus） */
 export function syncWaterOutletStatus(params = {}, config = {}) {
   return request({

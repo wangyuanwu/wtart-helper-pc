@@ -3,6 +3,8 @@ import { defineStore } from 'pinia'
 import { getFarmList, getFarmInfo } from '@/api/map'
 
 const farmChangeListeners = new Set()
+/** 对齐移动端 uni.$on('deviceMsg') */
+const deviceMsgListeners = new Set()
 
 export const useFarmStore = defineStore(
   'farm',
@@ -386,6 +388,34 @@ export const useFarmStore = defineStore(
       return () => farmChangeListeners.delete(listener)
     }
 
+    /**
+     * 对齐移动端 uni.$emit('deviceMsg', { topic, data })
+     * 仅通知当前已订阅的监听方；设备页未挂载时无副作用
+     */
+    function notifyDeviceMsg(payload = {}) {
+      const msg = {
+        topic: payload.topic || 'refreshDeviceList',
+        data: payload.data ?? null
+      }
+      deviceMsgListeners.forEach((listener) => {
+        try {
+          listener(msg)
+        } catch (e) {
+          console.warn('[farm] deviceMsg listener error', e)
+        }
+      })
+    }
+
+    /** 对齐移动端 pageConfig.refreshDeviceList */
+    function refreshDeviceList(data = '刷新设备列表') {
+      notifyDeviceMsg({ topic: 'refreshDeviceList', data })
+    }
+
+    function onDeviceMsg(listener) {
+      deviceMsgListeners.add(listener)
+      return () => deviceMsgListeners.delete(listener)
+    }
+
     function resetFarm() {
       s_farm_list.value = []
       s_farm_list_all.value = []
@@ -473,6 +503,9 @@ export const useFarmStore = defineStore(
       restoreFarmList,
       farmChange,
       onFarmChange,
+      notifyDeviceMsg,
+      refreshDeviceList,
+      onDeviceMsg,
       resetFarm
     }
   },

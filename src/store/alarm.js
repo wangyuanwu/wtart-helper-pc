@@ -46,11 +46,23 @@ export const useAlarmStore = defineStore('alarm', () => {
     )
   }
 
+  /** 对齐移动端 pageConfig.isDvAlarmBean */
+  function getDvAlarmBean(deviceId) {
+    if (deviceId == null) return null
+    return (
+      alarmingArray.value.find(
+        (item) =>
+          String(item.deviceId) === String(deviceId) && Number(item.status) === 0
+      ) || null
+    )
+  }
+
   return {
     alarmingArray,
     clearAlarmingArray,
     syncFromAlarmList,
     setAlarmKnow,
-    isDvAlarm
+    isDvAlarm,
+    getDvAlarmBean
   }
 })

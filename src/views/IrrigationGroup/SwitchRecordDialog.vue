@@ -1,14 +1,12 @@
 <template>
-  <el-dialog
+  <el-drawer
     :model-value="modelValue"
     title="开关记录"
-    width="920px"
+    direction="rtl"
+    size="720px"
     append-to-body
     destroy-on-close
-    draggable
-    overflow
-    :close-on-click-modal="false"
-    class="switch-record-dialog"
+    class="switch-record-drawer"
     @update:model-value="onVisibleChange"
     @opened="onOpened"
   >
@@ -182,12 +180,12 @@
         </div>
       </div>
     </div>
-  </el-dialog>
+  </el-drawer>
 </template>
 
 <script setup>
 /**
- * 开关记录弹窗
+ * 开关记录抽屉（右侧 Drawer）
  * 对齐移动端 pages/home/activity/base/record/record_page?from=group
  * TargetType: 0=设备 1=轮灌组
  */
@@ -534,7 +532,8 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 14px;
-  min-height: 520px;
+  height: 100%;
+  min-height: 0;
 }
 
 .switch-record__time-bar {
@@ -650,8 +649,7 @@ watch(
 
 .switch-record__list {
   flex: 1;
-  min-height: 320px;
-  max-height: 420px;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -765,12 +763,24 @@ watch(
 </style>
 
 <style>
-.switch-record-dialog .el-dialog__body {
-  padding-top: 8px;
+.switch-record-drawer.el-drawer {
+  border-radius: 16px 0 0 16px;
+  overflow: hidden;
 }
 
-.switch-record-dialog .el-dialog__header {
-  cursor: move;
-  user-select: none;
+.switch-record-drawer .el-drawer__header {
+  margin-bottom: 12px;
+  padding: 16px 20px 0;
+}
+
+.switch-record-drawer .el-drawer__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.switch-record-drawer .el-drawer__body {
+  padding: 8px 20px 20px;
+  overflow: hidden;
 }
 </style>

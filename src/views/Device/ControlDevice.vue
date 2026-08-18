@@ -45,6 +45,11 @@
         <div class="control-device__left">
           <div class="control-device__viz card">
             <div class="control-device__metrics">
+              <i
+                v-if="isManualMode"
+                class="iconfont icon-a-lujing1 control-device__manual-icon"
+                title="手动模式"
+              ></i>
               <span class="control-device__metric">
                 <i class="iconfont icon-map_ic_temperature"></i>
                 {{ temperatureText }}
@@ -52,6 +57,7 @@
               <span class="control-device__metric">
                 <i class="iconfont icon-map_ic_signal"></i>
                 {{ signalText }}
+                <span v-if="snrText" class="control-device__snr">{{ snrText }}</span>
               </span>
               <span
                 class="control-device__metric"
@@ -68,6 +74,10 @@
                 :src="isOnline ? outletOnlineImg : outletOfflineImg"
                 alt=""
               />
+              <div class="control-device__device-meta">
+                <div>同步时间：{{ syncTimeText }}</div>
+                <div>设备编号：{{ deviceCodeText }}</div>
+              </div>
               <div class="control-device__port-overlay is-a">
                 <span
                   class="control-device__port-marker"
@@ -75,10 +85,15 @@
                 >
                   {{ portLabel(portA, 'A') }}
                 </span>
-                <span class="control-device__pressure">
-                  {{ formatPressure(portA) }}
-                  <em>bar</em>
-                </span>
+                <div class="control-device__pressure">
+                  <span class="control-device__pressure-val">
+                    {{ formatPressure(portA) }}
+                  </span>
+                  <span class="control-device__pressure-units">
+                    <em>bar</em>
+                    <em>公斤</em>
+                  </span>
+                </div>
               </div>
               <div class="control-device__port-overlay is-b">
                 <span
@@ -87,20 +102,29 @@
                 >
                   {{ portLabel(portB, 'B') }}
                 </span>
-                <span class="control-device__pressure">
-                  {{ formatPressure(portB) }}
-                  <em>bar</em>
-                </span>
+                <div class="control-device__pressure">
+                  <span class="control-device__pressure-val">
+                    {{ formatPressure(portB) }}
+                  </span>
+                  <span class="control-device__pressure-units">
+                    <em>bar</em>
+                    <em>公斤</em>
+                  </span>
+                </div>
               </div>
               <div class="control-device__flow">
                 {{ flowText }}
                 <em>m³/h</em>
               </div>
-              <i
-                v-if="isDvAlarm"
-                class="iconfont icon-lujing-1 control-device__alarm"
-                title="告警中"
-              ></i>
+              <div v-if="isDvAlarm" class="control-device__alarm">
+                <i class="iconfont icon-lujing-1" title="告警中"></i>
+                <span
+                  v-if="alarmEventText"
+                  class="control-device__alarm-desc"
+                >
+                  {{ alarmEventText }}
+                </span>
+              </div>
               <button
                 v-if="isManualMode"
                 type="button"
@@ -241,6 +265,7 @@
           <div
             v-if="hasWaterOutletPile"
             class="control-device__opening card"
+            :class="{ 'is-offline-disabled': !isOnline }"
             @click="onEditOpening"
           >
             <div class="control-device__opening-title">
@@ -354,6 +379,12 @@ const isDvAlarm = computed(() =>
   alarmStore.isDvAlarm(statusInfo.value?.id ?? deviceInfo.value?.id)
 )
 
+const alarmEventText = computed(
+  () =>
+    alarmStore.getDvAlarmBean(statusInfo.value?.id ?? deviceInfo.value?.id)
+      ?.eventDescription || ''
+)
+
 let pollTimer = null
 let tickTimer = null
 let requestSeq = 0
@@ -408,10 +439,35 @@ const batteryPercent = computed(() => {
   return v == null ? 0 : Number(v)
 })
 
-const batteryText = computed(() => {
-  if (isCharging.value) return '充电中'
-  return `${batteryPercent.value}%`
+const chargingCurrentText = computed(() => {
+  const v =
+    statusInfo.value?.chargingCurrent ??
+    statusInfo.value?.waterOutletPile?.chargingCurrent
+  if (v == null || v === '') return ''
+  return `${v}mA`
 })
+
+const batteryText = computed(() => {
+  const percent = `${batteryPercent.value}%`
+  if (!isCharging.value) return percent
+  return chargingCurrentText.value
+    ? `${percent} | ${chargingCurrentText.value}`
+    : percent
+})
+
+const snrText = computed(() => {
+  const snr = statusInfo.value?.snr
+  if (snr == null || snr === '') return ''
+  return `(${snr})`
+})
+
+const syncTimeText = computed(() =>
+  formatSyncTime(statusInfo.value?.updateTimeUtc)
+)
+
+const deviceCodeText = computed(
+  () => statusInfo.value?.deviceCode || deviceInfo.value?.deviceCode || '--'
+)
 
 const signalText = computed(() => {
   const signal = statusInfo.value?.signal
@@ -567,6 +623,15 @@ function formatUtc(utcStr) {
   const mi = String(d.getMinutes()).padStart(2, '0')
   const s = String(d.getSeconds()).padStart(2, '0')
   return `${y}-${m}-${day} ${h}:${mi}:${s}`
+}
+
+/** 对齐移动端 formatUtcCustom(..., 'MM/dd hh:mm') */
+function formatSyncTime(utcStr) {
+  if (!utcStr) return '--'
+  const d = new Date(utcStr)
+  if (Number.isNaN(d.getTime())) return '--'
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function calcRunTime(startTimeStr) {
@@ -734,6 +799,7 @@ function onTimerControl() {
 }
 
 function onEditOpening() {
+  if (!isOnline.value) return
   if (!hasWaterOutletPile.value) {
     ElMessage.warning('暂无设备数据')
     return
@@ -1021,10 +1087,23 @@ watch(
   font-weight: 600;
 }
 
+.control-device__manual-icon {
+  font-size: 18px;
+  color: #ef4444;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .control-device__metric {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.control-device__snr {
+  margin-left: 2px;
+  font-weight: 500;
+  color: #909399;
 }
 
 .control-device__metric .iconfont {
@@ -1043,6 +1122,16 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.control-device__device-meta {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  z-index: 2;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #909399;
 }
 
 .control-device__device-img {
@@ -1086,23 +1175,36 @@ watch(
 }
 
 .control-device__pressure {
-  font-size: 22px;
-  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: #303133;
 }
 
-.control-device__pressure em,
+.control-device__pressure-val {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.control-device__pressure-units {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.15;
+}
+
+.control-device__pressure-units em,
 .control-device__flow em {
-  margin-left: 2px;
   font-style: normal;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: #909399;
 }
 
 .control-device__flow {
   position: absolute;
-  bottom: 12px;
+  bottom: 4px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 36px;
@@ -1113,12 +1215,28 @@ watch(
 
 .control-device__alarm {
   position: absolute;
-  left: 28px;
+  left: 16px;
   bottom: 56px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 140px;
+  text-align: center;
+}
+
+.control-device__alarm .iconfont {
   font-size: 20px;
   color: #ef4444;
   line-height: 1;
-  z-index: 2;
+}
+
+.control-device__alarm-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .control-device__manual-exit {
@@ -1393,6 +1511,15 @@ watch(
 
 .control-device__opening:hover {
   background: #fafbfc;
+}
+
+.control-device__opening.is-offline-disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.control-device__opening.is-offline-disabled:hover {
+  background: #fff;
 }
 
 .control-device__opening-title {

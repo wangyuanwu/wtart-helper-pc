@@ -21,11 +21,12 @@ export function getFarmInfo(id) {
   })
 }
 
-export function getLandList(data) {
+export function getLandList(data, config = {}) {
   return request({
     url: '/api/land-plot/by-farm',
     method: 'GET',
-    params: data
+    params: data,
+    ...config
   })
 }
 
