@@ -160,7 +160,11 @@
               </div>
             </div>
             <div class="outlet-card__name">{{ pile.name || '出水桩' }}</div>
-            <img class="outlet-card__img" :src="outletImg" alt="" />
+            <img
+              class="outlet-card__img"
+              :src="pile.isOnline ? outletOnlineImg : outletOfflineImg"
+              alt=""
+            />
             <div class="outlet-card__ports">
               <button
                 type="button"
@@ -240,7 +244,8 @@ import { useAlarmStore } from '@/store/alarm'
 import { parseAreaJson } from '@/utils/farmMapData'
 import { createLandPolygonDrawer } from '@/utils/farmMapLand'
 import { createWaterDvMarkerDrawer } from '@/utils/farmMapWaterDv'
-import outletImg from '@/assets/device/add/device_img_outl.png'
+import outletOnlineImg from '@/assets/map/outlet-device-online.svg'
+import outletOfflineImg from '@/assets/map/outlet-device-offline.svg'
 import runningDiscImg from '@/assets/device/device_img_running.png'
 import SwitchRecordDialog from './SwitchRecordDialog.vue'
 import TimerProListDialog from './TimerProListDialog.vue'

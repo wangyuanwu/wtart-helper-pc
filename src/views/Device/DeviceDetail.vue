@@ -550,6 +550,10 @@ async function onDelete() {
 function setDeviceList() {
   const info = deviceInfo.value
   if (!info?.id) return []
+  const online =
+    otherInfo.value?.isOnline != null
+      ? !!otherInfo.value.isOnline
+      : !!info.isOnline
   return [
     {
       id: info.id,
@@ -564,7 +568,7 @@ function setDeviceList() {
       latitude: info.latitude,
       coordinateType: info.coordinateType,
       orientationAngle: info.orientationAngle,
-      isOnline: info.isOnline,
+      isOnline: online,
       specificData: info.specificData
     }
   ]

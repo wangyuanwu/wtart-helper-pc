@@ -112,7 +112,7 @@ import { getLandList } from '@/api/map'
 import { getWaterOutList } from '@/api/irrigationGroup'
 import { useFarmStore } from '@/store/farm'
 import OutletPortSelector from '@/components/OutletPortSelector.vue'
-import deviceImg from '@/assets/device/add/device_img_outl.png'
+import deviceImg from '@/assets/map/outlet-device-online.svg'
 
 const props = defineProps({
   from: { type: String, default: 'home' }

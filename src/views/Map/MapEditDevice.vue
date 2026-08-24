@@ -226,18 +226,36 @@ async function batchUpdateDeviceAddress() {
   syncEditDeviceMap()
 }
 
-function createDeviceMarkerContent(device, { isDefault = false } = {}) {
+function resolveDeviceOnline(device) {
+  const v = device?.isOnline
+  if (v === true || v === 1 || v === '1') return true
+  if (v === false || v === 0 || v === '0') return false
+  return !!v
+}
+
+function getDeviceMarkerIconSrc(device, { isDefault = false, isSelected = false } = {}) {
+  const isOnline = resolveDeviceOnline(device)
+  const normalSrc = isOnline
+    ? WATER_DV_MARKER_IMAGES.online
+    : WATER_DV_MARKER_IMAGES.offline
+  const activeSrc = isOnline
+    ? WATER_DV_MARKER_IMAGES.onlineActive
+    : WATER_DV_MARKER_IMAGES.offlineActive
+  if (isDefault || !isSelected) return { normalSrc, activeSrc, iconSrc: normalSrc }
+  return { normalSrc, activeSrc, iconSrc: activeSrc }
+}
+
+function createDeviceMarkerContent(
+  device,
+  { isDefault = false, isSelected = false } = {}
+) {
   const MARKER_SIZE = isDefault ? 40 : 48
   const LABEL_FONT_SIZE = isDefault ? 11 : 12
   const ICON_LABEL_GAP = 2
-  const isOnline = !!device.isOnline
-  const iconSrc = isDefault
-    ? isOnline
-      ? WATER_DV_MARKER_IMAGES.online
-      : WATER_DV_MARKER_IMAGES.offline
-    : isOnline || device.isOnline == null
-      ? WATER_DV_MARKER_IMAGES.onlineActive
-      : WATER_DV_MARKER_IMAGES.offlineActive
+  const { normalSrc, activeSrc, iconSrc } = getDeviceMarkerIconSrc(device, {
+    isDefault,
+    isSelected
+  })
   const calibratedAngle =
     device.orientationAngle != null
       ? normalizeAngle(Number(device.orientationAngle) - 45)
@@ -250,9 +268,9 @@ function createDeviceMarkerContent(device, { isDefault = false } = {}) {
     'height:auto',
     `min-height:${px2rem(MARKER_SIZE + LABEL_FONT_SIZE + ICON_LABEL_GAP)}`,
     isDefault ? 'cursor:default' : 'cursor:pointer',
-    isDefault ? 'transform:scale(1)' : 'transform:scale(1.1)',
+    isSelected ? 'transform:scale(1.1)' : 'transform:scale(1)',
     'transform-origin:center bottom',
-    `z-index:${isDefault ? 8000 : 20000}`,
+    `z-index:${isDefault ? 8000 : isSelected ? 20000 : 15000}`,
     'overflow:visible',
     'background:transparent',
     'display:flex',
@@ -305,6 +323,8 @@ function createDeviceMarkerContent(device, { isDefault = false } = {}) {
   const iconImg = document.createElement('img')
   iconImg.className = 'device-marker-image'
   iconImg.src = iconSrc
+  iconImg.dataset.normalSrc = normalSrc
+  iconImg.dataset.activeSrc = activeSrc
   iconImg.alt = ''
   iconImg.style.cssText = [
     `width:${px2rem(MARKER_SIZE)}`,
@@ -344,8 +364,31 @@ function createDeviceMarkerContent(device, { isDefault = false } = {}) {
   return dom
 }
 
+function refreshDeviceMarkerIcons() {
+  deviceMarkers.forEach((marker, index) => {
+    const device = logicDevicePoints.value[index]
+    const dom = marker.getContent?.()
+    if (!dom || !device) return
+
+    const isSelected = index === selectedDeviceIndex.value
+    const { normalSrc, activeSrc, iconSrc } = getDeviceMarkerIconSrc(device, {
+      isSelected
+    })
+    const img = dom.querySelector('.device-marker-image')
+    if (img) {
+      img.dataset.normalSrc = normalSrc
+      img.dataset.activeSrc = activeSrc
+      img.src = iconSrc
+    }
+    dom.style.transform = isSelected ? 'scale(1.1)' : 'scale(1)'
+    dom.style.zIndex = isSelected ? '20000' : '15000'
+    marker.setzIndex?.(isSelected ? 20000 + index : 15000 + index)
+  })
+}
+
 function openOrientationPanel(index) {
   selectedDeviceIndex.value = index
+  refreshDeviceMarkerIcons()
   const cur = logicDevicePoints.value[index]
   if (!cur) return
   orientViewAngle.value = normalizeAngle(
@@ -443,10 +486,13 @@ function drawDeviceMarkers() {
     let dragged = false
     const marker = new window.AMap.Marker({
       position: [lng, lat],
-      content: createDeviceMarkerContent(device, { isDefault: false }),
+      content: createDeviceMarkerContent(device, {
+        isDefault: false,
+        isSelected: index === selectedDeviceIndex.value
+      }),
       anchor: 'bottom-center',
       draggable: true,
-      zIndex: 20000 + index
+      zIndex: 15000 + index + (index === selectedDeviceIndex.value ? 5000 : 0)
     })
 
     marker.on('dragstart', () => {
@@ -634,7 +680,19 @@ async function loadFarmAndDraw() {
       ? farmStore.s_edit_device
       : []
     logicDevicePoints.value = (fromMap.length ? fromMap : fromEdit).map(
-      (item) => ({ ...item, farmId })
+      (item) => {
+        const live = (prepared.waterDvList || []).find(
+          (dev) =>
+            (item.id != null && String(dev.id) === String(item.id)) ||
+            (item.deviceCode != null &&
+              String(dev.deviceCode) === String(item.deviceCode))
+        )
+        return {
+          ...item,
+          farmId,
+          isOnline: live?.isOnline ?? item.isOnline
+        }
+      }
     )
   } else {
     logicDevicePoints.value = [

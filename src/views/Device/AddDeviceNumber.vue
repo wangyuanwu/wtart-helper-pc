@@ -26,7 +26,7 @@
     <div v-if="!deviceList.length" class="add-device-number__empty">
       <img
         class="add-device-number__empty-img"
-        :src="outletImg"
+        :src="addOutletSchemaImg"
         alt=""
       />
     </div>
@@ -104,7 +104,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { addCheck } from '@/api/device'
 import { useFarmStore } from '@/store/farm'
-import outletImg from '@/assets/device/add/device_img_outl.png'
+import outletImg from '@/assets/map/outlet-device-online.svg'
+import addOutletSchemaImg from '@/assets/device/add/device_img_add_out.svg'
 
 const router = useRouter()
 const farmStore = useFarmStore()

@@ -373,7 +373,7 @@ const getLocation = () => {
     const geo = new window.AMap.Geolocation({
       enableHighAccuracy: true,
       timeout: 10000,
-      noIpLocate: true,
+      noIpLocate: false,
       convert: true,
       showButton: false,
       showMarker: false,
@@ -684,7 +684,7 @@ onUnmounted(() => {
 
 .chose-farm-search {
   position: relative;
-  width: 330px;
+  width: 430px;
   flex-shrink: 0;
 }
 
@@ -812,6 +812,16 @@ onUnmounted(() => {
 .chose-farm-map {
   width: 100%;
   height: 100%;
+}
+
+/* 隐藏高德地图左下角 Logo / 版权 / 版本信息 */
+.chose-farm-map-wrap :deep(.amap-logo),
+.chose-farm-map-wrap :deep(.amap-copyright),
+.chose-farm-map-wrap :deep(.amap-mcode) {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .chose-farm-locating {

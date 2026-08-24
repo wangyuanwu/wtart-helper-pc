@@ -89,7 +89,7 @@ export function createFarmMarkerDrawer(hooks = {}) {
 
     const ICON_SIZE = farmMarkerSize
     const LABEL_GAP = 4
-    const LABEL_FONT_SIZE = 10
+    const LABEL_FONT_SIZE = 14
     const ANCHOR_OFFSET_Y = 16
 
     const totalAreaMu = farmItem.totalAreaMu || '0.00'

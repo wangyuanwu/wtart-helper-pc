@@ -167,14 +167,14 @@ export function createLandPolygonDrawer(hooks = {}) {
         zooms: LAND_TEXT_ZOOMS,
         style: {
           color: '#ffffff',
-          fontSize: px2rem(10),
+          fontSize: px2rem(14),
           fontWeight: '500',
           textAlign: 'center',
           verticalAlign: 'middle',
           backgroundColor: 'transparent',
           border: 'none',
           textShadow: '0 0 4px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.8)',
-          lineHeight: px2rem(22),
+          lineHeight: px2rem(26),
           padding: '0'
         },
         zIndex: readOnly ? 11 : 101,

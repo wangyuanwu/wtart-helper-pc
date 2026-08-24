@@ -29,7 +29,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import imgOutlet from '@/assets/device/add/device_img_outl.png'
+import imgOutlet from '@/assets/map/outlet-device-online.svg'
 import imgIot from '@/assets/device/add/farm_img_fis.png'
 import imgCamera from '@/assets/device/add/farm_img_Camera.png'
 

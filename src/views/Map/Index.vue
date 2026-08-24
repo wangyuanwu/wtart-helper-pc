@@ -1681,27 +1681,11 @@ const initMap = () => {
   }
 
   try {
-    // 原因：纯 Satellite 切片不含文字；showLabel/features 只作用于默认矢量底图。
-    // 做法：卫星底图 + 默认矢量层叠在上层；features 不含 bg，避免盖住卫星，
-    // 仅保留 point（行政区划/POI 标注），不加 RoadNet 彩色路网。
+    // 仅使用卫星底图，不叠加矢量标注层，避免展示行政区划/POI 等地理文字。
     const satelliteLayer = new window.AMap.TileLayer.Satellite({
       opacity: 1,
       zIndex: 1
     })
-    const labelLayer =
-      typeof window.AMap.createDefaultLayer === 'function'
-        ? window.AMap.createDefaultLayer({
-            zooms: [3, 26],
-            opacity: 1,
-            zIndex: 2,
-            visible: true
-          })
-        : new window.AMap.TileLayer({
-            zooms: [3, 26],
-            opacity: 1,
-            zIndex: 2,
-            visible: true
-          })
 
     const farmLngLat =
       resolveFarmLngLat(farmStore.selectFarm) ||
@@ -1714,15 +1698,11 @@ const initMap = () => {
       zooms: [3, 26],
       center: initialCenter,
       viewMode: '2D',
-      layers: [satelliteLayer, labelLayer],
-      showLabel: true,
-      features: ['point']
+      layers: [satelliteLayer],
+      showLabel: false
     })
     currentMapType.value = 'satellite'
     mapError.value = ''
-
-    // 再设一次，确保矢量层不绘制不透明背景
-    mapInstance.value.setFeatures(['point'])
 
     mapInstance.value.on('complete', onMapComplete)
     // 空白点击取消业务图形选中态（对齐移动端 resetAllPopups）

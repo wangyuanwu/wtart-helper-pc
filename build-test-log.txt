@@ -1,0 +1,129 @@
+﻿node.exe : npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help
+ npmrc` for supported config options.
+所在位置 C:\Program Files\nodejs\npm.ps1:16 字符: 5
++     & "$basedir/node$exe"  "$basedir/node_modules/npm/bin/npm-cli.js" ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...config options.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> wtart-helper-pc@1.0.0 build:test
+> vite build --mode test
+
+vite v4.5.14 building for test...
+transforming...
+鉁?2484 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                     0.71 kB 鈹?gzip:   0.50 kB
+dist/assets/arc-bg-67eb314c.png                     5.19 kB
+dist/assets/slogan-fa701e5c.png                    10.02 kB
+dist/assets/logo-4f12a31a.svg                      12.42 kB 鈹?gzip:   3.73 kB
+dist/assets/my_img_01-df48493a.svg                 13.07 kB 鈹?gzip:   4.17 kB
+dist/assets/farm-marker-normal-8bd8da03.svg        15.57 kB 鈹?gzip:   3.82 kB
+dist/assets/farm-marker-select-965859e6.svg        15.87 kB 鈹?gzip:   4.04 kB
+dist/assets/device_img_running-a6c52ffe.png        27.76 kB
+dist/assets/outlet-offline-b6314614.svg            32.30 kB 鈹?gzip:  23.33 kB
+dist/assets/outlet-offline-active-a7d31297.svg     32.46 kB 鈹?gzip:  23.45 kB
+dist/assets/farm_img_Camera-3cccfbcc.png           33.19 kB
+dist/assets/icon2_head-b52f630b.png                39.87 kB
+dist/assets/farm_img_fis-5bb890d3.png              40.55 kB
+dist/assets/mascot-64a4572d.png                    42.99 kB
+dist/assets/outlet-online-41613aba.svg             48.20 kB 鈹?gzip:  35.40 kB
+dist/assets/outlet-online-active-8be096ce.svg      48.34 kB 鈹?gzip:  35.50 kB
+dist/assets/device-empty-707e86a8.png             198.78 kB
+dist/assets/group-empty-d861b720.png              258.73 kB
+dist/assets/device_img_timing-d45ec8c4.png        350.96 kB
+dist/assets/satellite-2b0c48c3.png                404.73 kB
+dist/assets/outlet-device-offline-a9b51439.svg    577.03 kB 鈹?gzip: 429.63 kB
+dist/assets/device_img_add_out-91b44784.svg       814.42 kB 鈹?gzip: 611.51 kB
+dist/assets/outlet-device-online-956625ee.svg   1,068.59 kB 鈹?gzip: 799.01 kB
+dist/assets/DurationPickerDialog-37f91e73.css       0.34 kB 鈹?gzip:   0.21 kB
+dist/assets/Index-26420b09.css                      0.54 kB 鈹?gzip:   0.30 kB
+dist/assets/ForgotPassword-164f7d4a.css             0.57 kB 鈹?gzip:   0.34 kB
+dist/assets/AddDevice-18117f14.css                  1.63 kB 鈹?gzip:   0.63 kB
+dist/assets/AddFarm-9f5a469a.css                    2.51 kB 鈹?gzip:   0.75 kB
+dist/assets/LandEmptyDialog-d3edfecb.css            2.51 kB 鈹?gzip:   0.79 kB
+dist/assets/AddEditLand-baba96bb.css                2.54 kB 鈹?gzip:   0.74 kB
+dist/assets/EditLand-13b2b28d.css                   2.66 kB 鈹?gzip:   0.81 kB
+dist/assets/AddDeviceNumber-2c110c8a.css            2.77 kB 鈹?gzip:   0.77 kB
+dist/assets/GroupEdit-e60a230d.css                  2.85 kB 鈹?gzip:   0.84 kB
+dist/assets/EditFarmMember-1c16a242.css             3.17 kB 鈹?gzip:   0.90 kB
+dist/assets/Index-aeb858e9.css                      4.24 kB 鈹?gzip:   1.15 kB
+dist/assets/MapEditPlot-15336bf0.css                4.30 kB 鈹?gzip:   1.10 kB
+dist/assets/AddDeviceLocation-96ebd726.css          4.40 kB 鈹?gzip:   1.10 kB
+dist/assets/Index-317ae183.css                      5.05 kB 鈹?gzip:   1.44 kB
+dist/assets/MapEditDevice-3c575c80.css              5.07 kB 鈹?gzip:   1.27 kB
+dist/assets/AlarmSet-4aa77681.css                   5.31 kB 鈹?gzip:   1.21 kB
+dist/assets/MapEditGroup-ebffc840.css               5.66 kB 鈹?gzip:   1.34 kB
+dist/assets/DeviceDetail-0fe34da8.css               8.11 kB 鈹?gzip:   1.73 kB
+dist/assets/MapChoseFarm-d6366718.css               8.45 kB 鈹?gzip:   1.78 kB
+dist/assets/device_img_running-3b925650.css         8.82 kB 鈹?gzip:   1.83 kB
+dist/assets/EditFarm-ab869f8c.css                   9.20 kB 鈹?gzip:   1.89 kB
+dist/assets/ProgramEdit-7cc1e02b.css                9.45 kB 鈹?gzip:   1.86 kB
+dist/assets/Index-1a7ca45a.css                     10.32 kB 鈹?gzip:   2.22 kB
+dist/assets/Index-1554f3ab.css                     10.86 kB 鈹?gzip:   2.27 kB
+dist/assets/GroupDetail-4c5c54b1.css               13.74 kB 鈹?gzip:   2.75 kB
+dist/assets/ControlDevice-9a1e8d93.css             14.11 kB 鈹?gzip:   2.75 kB
+dist/assets/Index-6ad7410f.css                     15.64 kB 鈹?gzip:   3.10 kB
+dist/assets/Index-565f14f5.css                     27.93 kB 鈹?gzip:   4.53 kB
+dist/assets/index-5d8a81e7.css                    409.67 kB 鈹?gzip:  71.90 kB
+dist/assets/group-empty-5b34c843.js                 0.06 kB 鈹?gzip:   0.08 kB
+dist/assets/device_img_add_out-605cb242.js          0.07 kB 鈹?gzip:   0.09 kB
+dist/assets/outlet-device-online-d800b792.js        0.07 kB 鈹?gzip:   0.09 kB
+dist/assets/outlet-device-offline-d2b14d77.js       0.07 kB 鈹?gzip:   0.09 kB
+dist/assets/rem-12315223.js                         0.12 kB 鈹?gzip:   0.13 kB
+dist/assets/Pwd-c73b6b26.js                         0.46 kB 鈹?gzip:   0.42 kB
+dist/assets/Index-4707b426.js                       0.59 kB 鈹?gzip:   0.46 kB
+dist/assets/ForgotPassword-58b87008.js              0.61 kB 鈹?gzip:   0.54 kB
+dist/assets/Profile-e0bf777d.js                     0.95 kB 鈹?gzip:   0.53 kB
+dist/assets/farm-826b2259.js                        0.99 kB 鈹?gzip:   0.31 kB
+dist/assets/irrigationProgram-069eaab5.js           1.07 kB 鈹?gzip:   0.33 kB
+dist/assets/LandEmptyDialog-16596777.js             1.21 kB 鈹?gzip:   0.84 kB
+dist/assets/programTime-b7fe62fa.js                 1.34 kB 鈹?gzip:   0.74 kB
+dist/assets/AddDevice-a0cb6a04.js                   1.39 kB 鈹?gzip:   1.02 kB
+dist/assets/farmMapData-cf19c6a7.js                 1.42 kB 鈹?gzip:   0.64 kB
+dist/assets/irrigationGroup-2ec8ab65.js             1.67 kB 鈹?gzip:   0.44 kB
+dist/assets/DurationPickerDialog-ad7693fd.js        1.83 kB 鈹?gzip:   0.86 kB
+dist/assets/AddFarm-b6d95db4.js                     2.37 kB 鈹?gzip:   1.25 kB
+dist/assets/AddEditLand-795a587f.js                 2.82 kB 鈹?gzip:   1.51 kB
+dist/assets/device-8fc3f8bb.js                      3.64 kB 鈹?gzip:   0.62 kB
+dist/assets/EditLand-07677bbb.js                    3.79 kB 鈹?gzip:   1.79 kB
+dist/assets/AddDeviceNumber-d4f1e3a5.js             4.51 kB 鈹?gzip:   2.04 kB
+dist/assets/Index-f29b7845.js                       5.05 kB 鈹?gzip:   2.34 kB
+dist/assets/farmMapMarker-37cb116f.js               5.65 kB 鈹?gzip:   2.52 kB
+dist/assets/EditFarmMember-ea68d546.js              6.07 kB 鈹?gzip:   2.51 kB
+dist/assets/waterOutletMerge-a70133ee.js            6.33 kB 鈹?gzip:   2.25 kB
+dist/assets/GroupEdit-ffb63d6d.js                   6.34 kB 鈹?gzip:   2.52 kB
+dist/assets/AddDeviceLocation-f5f2c185.js           6.77 kB 鈹?gzip:   2.72 kB
+dist/assets/farmMapWaterDv-c56a673e.js             10.49 kB 鈹?gzip:   4.26 kB
+dist/assets/AlarmSet-408a72ea.js                   11.02 kB 鈹?gzip:   3.89 kB
+dist/assets/MapEditGroup-28078936.js               11.39 kB 鈹?gzip:   4.76 kB
+dist/assets/MapChoseFarm-ba124bf8.js               12.76 kB 鈹?gzip:   6.70 kB
+dist/assets/EditFarm-25936934.js                   14.49 kB 鈹?gzip:   5.17 kB
+dist/assets/MapEditDevice-95cab950.js              14.82 kB 鈹?gzip:   6.20 kB
+dist/assets/Index-86726776.js                      16.36 kB 鈹?gzip:   6.23 kB
+dist/assets/Index-b214a74c.js                      18.94 kB 鈹?gzip:   7.54 kB
+dist/assets/Index-19653264.js                      19.40 kB 鈹?gzip:   6.98 kB
+dist/assets/MapEditPlot-d2da08c7.js                19.94 kB 鈹?gzip:   7.48 kB
+dist/assets/ControlDevice-32707dfe.js              20.96 kB 鈹?gzip:   6.63 kB
+dist/assets/GroupDetail-9969a519.js                22.70 kB 鈹?gzip:   8.02 kB
+dist/assets/ProgramEdit-66512f3a.js                24.70 kB 鈹?gzip:   9.99 kB
+dist/assets/device_img_running-e5f162af.js         24.83 kB 鈹?gzip:   8.27 kB
+dist/assets/Index-4aff8f06.js                      30.33 kB 鈹?gzip:  12.33 kB
+dist/assets/Index-86a124d7.js                      71.65 kB 鈹?gzip:  24.72 kB
+dist/assets/DeviceDetail-731fb3f9.js            1,083.78 kB 鈹?gzip: 371.16 kB
+dist/assets/index-d896bb13.js                   1,290.25 kB 鈹?gzip: 424.70 kB
+
+(!) Some chunks are larger than 500 kBs after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-m
+anualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+鉁?built in 36.18s
+npm notice
+npm notice New minor version of npm available! 11.13.0 -> 11.19.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.19.0
+npm notice To update run: npm install -g npm@11.19.0
+npm notice
+EXIT_CODE:0

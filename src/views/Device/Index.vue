@@ -1549,7 +1549,17 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+/*
+ * 开关尺寸用父级 CSS 变量定义（会走 pxtorem），
+ * 再传给 :deep(.el-*) —— 后者因 selectorBlackList 不会转 rem，
+ * 大屏下圆钮与轨道才会同比例缩放，避免圆钮溢出轨道。
+ */
 .device-card__port-switch {
+  --port-switch-h: 35px;
+  --port-switch-inset: 2px;
+  --port-switch-knob: calc(var(--port-switch-h) - var(--port-switch-inset) * 2);
+  --port-switch-min-w: 100px;
+  --port-switch-pad: calc(var(--port-switch-knob) + 7px);
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -1558,28 +1568,29 @@ onUnmounted(() => {
 .device-card__port-switch :deep(.el-switch) {
   --el-switch-on-color: #00c970;
   --el-switch-off-color: #ff2f30;
-  height: 35px;
+  height: var(--port-switch-h);
 }
 
 .device-card__port-switch :deep(.el-switch__core) {
-  min-width: 100px;
-  height: 35px;
-  border-radius: 17.5px;
+  min-width: var(--port-switch-min-w);
+  height: var(--port-switch-h);
+  border-radius: calc(var(--port-switch-h) / 2);
+  box-sizing: border-box;
 }
 
 /* 隐藏原生滑块，改用自定义 A/B 白色圆 */
 .device-card__port-switch :deep(.el-switch__action) {
-  width: 31px;
-  height: 31px;
+  width: var(--port-switch-knob);
+  height: var(--port-switch-knob);
   opacity: 0;
 }
 
 .device-card__port-switch:first-child :deep(.el-switch__core) {
-  padding-left: 38px;
+  padding-left: var(--port-switch-pad);
 }
 
 .device-card__port-switch:nth-child(2) :deep(.el-switch__core) {
-  padding-right: 38px;
+  padding-right: var(--port-switch-pad);
 }
 
 .device-card__port-switch.is-muted :deep(.el-switch.is-disabled .el-switch__core) {
@@ -1592,8 +1603,8 @@ onUnmounted(() => {
   top: 50%;
   z-index: 2;
   transform: translateY(-50%);
-  width: 31px;
-  height: 31px;
+  width: var(--port-switch-knob);
+  height: var(--port-switch-knob);
   border-radius: 50%;
   background: #fff;
   display: inline-flex;
@@ -1612,11 +1623,11 @@ onUnmounted(() => {
 }
 
 .device-card__port-switch:first-child .device-card__port-badge {
-  left: 2px;
+  left: var(--port-switch-inset);
 }
 
 .device-card__port-switch:nth-child(2) .device-card__port-badge {
-  right: 2px;
+  right: var(--port-switch-inset);
 }
 
 .device-card__port-switch.is-open .device-card__port-badge {

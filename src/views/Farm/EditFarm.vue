@@ -170,11 +170,24 @@
             @click="onLandDetail(item)"
           >
             <div class="edit-farm-land-card__main">
-              <h3 class="edit-farm-land-card__name">{{ item.name }}</h3>
-              <div class="edit-farm-land-card__addr">
-                <i class="iconfont icon-farm_ic_locate_02"></i>
-                <span>{{ item.address || '暂无地址' }}</span>
-              </div>
+              <el-tooltip
+                :content="item.name || ''"
+                placement="top"
+                :disabled="!item.name"
+                :show-after="300"
+              >
+                <h3 class="edit-farm-land-card__name">{{ item.name }}</h3>
+              </el-tooltip>
+              <el-tooltip
+                :content="item.address || '暂无地址'"
+                placement="top"
+                :show-after="300"
+              >
+                <div class="edit-farm-land-card__addr">
+                  <i class="iconfont icon-farm_ic_locate_02"></i>
+                  <span>{{ item.address || '暂无地址' }}</span>
+                </div>
+              </el-tooltip>
             </div>
             <div class="edit-farm-land-card__devices" @click.stop>
               <button
@@ -182,7 +195,11 @@
                 class="edit-farm-device-btn"
                 @click="onDeviceList(50, item.id)"
               >
-                <i class="iconfont icon-home_ic_foot_outlet_01"></i>
+                <img
+                  class="edit-farm-device-btn__img"
+                  :src="landDeviceOutletImg"
+                  alt=""
+                />
                 <span>智能出水桩</span>
               </button>
               <button
@@ -190,7 +207,11 @@
                 class="edit-farm-device-btn"
                 @click="onDeviceList(15, item.id)"
               >
-                <i class="iconfont icon-map_ic_sfj"></i>
+                <img
+                  class="edit-farm-device-btn__img"
+                  :src="landDeviceFisImg"
+                  alt=""
+                />
                 <span>物联网设备</span>
               </button>
               <button
@@ -198,7 +219,11 @@
                 class="edit-farm-device-btn"
                 @click="onDeviceList(14, item.id)"
               >
-                <i class="iconfont icon-map_ic_sxt"></i>
+                <img
+                  class="edit-farm-device-btn__img"
+                  :src="landDeviceCameraImg"
+                  alt=""
+                />
                 <span>添加摄像头</span>
               </button>
             </div>
@@ -260,6 +285,9 @@ import { getLandList, getLandPlotById } from '@/api/map'
 import { useFarmStore } from '@/store/farm'
 import { useUserStore } from '@/store/user'
 import defaultAvatar from '@/assets/my_img_01.svg'
+import landDeviceOutletImg from '@/assets/map/outlet-device-online.svg'
+import landDeviceFisImg from '@/assets/device/add/farm_img_fis.png'
+import landDeviceCameraImg from '@/assets/device/add/farm_img_Camera.png'
 import FarmLandDeviceDialog from './FarmLandDeviceDialog.vue'
 
 const router = useRouter()
@@ -880,9 +908,13 @@ onActivated(() => {
 }
 
 .edit-farm-land-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
   background: #fff;
   border-radius: 12px;
-  padding: 18px 20px;
+  padding: 20px 28px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   cursor: pointer;
   transition: box-shadow 0.15s;
@@ -892,63 +924,93 @@ onActivated(() => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
+.edit-farm-land-card__main {
+  flex: 0 0 360px;
+  width: 360px;
+  min-width: 360px;
+  max-width: 360px;
+  overflow: hidden;
+}
+
+.edit-farm-land-card__main :deep(.el-tooltip__trigger) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 .edit-farm-land-card__name {
   margin: 0 0 8px;
   font-size: 16px;
   font-weight: 700;
-  color: #111;
+  color: #3653a0;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
 }
 
 .edit-farm-land-card__addr {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
+  width: 100%;
+  min-width: 0;
   font-size: 13px;
-  color: #666;
+  color: #8a8f99;
   line-height: 1.4;
 }
 
 .edit-farm-land-card__addr .iconfont {
-  color: #2f6bff;
-  font-size: 16px;
+  color: #8a8f99;
+  font-size: 14px;
   flex-shrink: 0;
-  margin-top: 1px;
+}
+
+.edit-farm-land-card__addr span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .edit-farm-land-card__devices {
+  flex: 1 1 auto;
   display: flex;
-  gap: 12px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
+  align-items: center;
+  justify-content: space-around;
+  gap: 16px;
+  min-width: 0;
 }
 
 .edit-farm-device-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   border: none;
-  background: #f8fafc;
-  border-radius: 10px;
-  padding: 12px 8px;
+  background: transparent;
+  padding: 4px 8px;
   cursor: pointer;
-  color: #444;
-  font-size: 12px;
+  color: #333;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
 }
 
-.edit-farm-device-btn .iconfont {
-  font-size: 28px;
-  color: #555;
+.edit-farm-device-btn__img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
 }
 
 .edit-farm-device-btn:hover {
-  background: #eef4ff;
-  color: #2f6bff;
-}
-
-.edit-farm-device-btn:hover .iconfont {
+  background: #f5f8ff;
   color: #2f6bff;
 }
 

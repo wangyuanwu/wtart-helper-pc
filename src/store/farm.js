@@ -102,10 +102,11 @@ export const useFarmStore = defineStore(
      * 拉取农场列表（对齐移动端 index.vue farmListHttp）
      * - 始终传 searchText（可为空）
      * - 有结果：更新列表、同步选中农场、farmChange
-     * - 无结果：仅清空展示列表；全量拉取且 isFirst 时标记空农场
+     * - 无结果：有关键词仅清空展示列表；无关键词（全量）标记无农场并清空选中
      */
     async function fetchFarmList(searchText = '', options = {}) {
-      const { isFirst = false } = options
+      // options.isFirst 保留兼容旧调用；全量列表为空时一律标记无农场
+      void options
       isFarmLoading.value = true
       const keyword = typeof searchText === 'string' ? searchText : ''
       const hasKeyword = keyword.length > 0
@@ -116,13 +117,14 @@ export const useFarmStore = defineStore(
         if (!farmList.length) {
           s_farm_list.value = []
           if (!hasKeyword) {
+            // 全量列表为空：删除最后一座农场 / 首次进入无农场都走这里
             s_farm_list_all.value = []
-            if (isFirst) {
-              isFarmEmpty.value = true
-              selectFarm.value = null
-              s_selectFarm.value = null
-              s_farm_info.value = null
-            }
+            isFarmEmpty.value = true
+            selectFarm.value = null
+            s_selectFarm.value = null
+            s_farm_info.value = null
+            isFarmLoading.value = false
+            farmChange()
           }
           return farmList
         }

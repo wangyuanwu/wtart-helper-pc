@@ -270,7 +270,7 @@ export function createWaterDvMarkerDrawer(hooks = {}) {
     if (longitude == null || latitude == null) return null
 
     const MARKER_SIZE = DEFAULT_MARKER_SIZE
-    const LABEL_FONT_SIZE = 12
+    const LABEL_FONT_SIZE = 14
     const ICON_LABEL_GAP = 2
     const isOnline = !!dv.isOnline
     const iconSrc = isOnline

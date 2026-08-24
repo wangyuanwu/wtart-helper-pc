@@ -149,7 +149,7 @@ import { Loading } from '@element-plus/icons-vue'
 import { getPositon, startPositon } from '@/api/device'
 import { useFarmStore } from '@/store/farm'
 import { wgs84ToGcj02 } from '@/utils/coordTransform'
-import outletImg from '@/assets/device/add/device_img_outl.png'
+import outletImg from '@/assets/map/outlet-device-online.svg'
 import satelliteImg from '@/assets/device/add/satellite.png'
 
 const router = useRouter()

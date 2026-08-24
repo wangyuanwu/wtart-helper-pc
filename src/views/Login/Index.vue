@@ -29,46 +29,49 @@
           :model="form"
           :rules="rules"
           label-width="0"
+          label-position="top"
           class="code-form"
         >
-          <el-form-item prop="phoneNumber" class="form-item">
-            <el-input
-              v-model="form.phoneNumber"
-              placeholder="手机号"
-              maxlength="11"
-              class="login-field"
-            />
-          </el-form-item>
-
-          <el-form-item prop="code" class="form-item">
-            <div class="code-field">
+          <div class="code-form-fields">
+            <el-form-item prop="phoneNumber" class="form-item">
               <el-input
-                v-model="form.code"
-                placeholder="验证码"
-                maxlength="6"
-                class="login-field code-input"
-                @keyup.enter="handleLogin"
+                v-model="form.phoneNumber"
+                placeholder="手机号"
+                maxlength="11"
+                class="login-field"
               />
-              <button
-                type="button"
-                class="send-code-btn"
-                :disabled="countdown > 0 || sendingCode"
-                @click="handleSendCode"
-              >
-                {{ countdown > 0 ? `${countdown}s 后重发` : '获取短信验证码' }}
-              </button>
-            </div>
-          </el-form-item>
+            </el-form-item>
 
-          <div class="submit-wrap">
-            <el-button
-              type="primary"
-              class="submit-btn"
-              :loading="loggingIn"
-              @click="handleLogin"
-            >
-              登录
-            </el-button>
+            <el-form-item prop="code" class="form-item">
+              <div class="code-field">
+                <el-input
+                  v-model="form.code"
+                  placeholder="验证码"
+                  maxlength="6"
+                  class="login-field code-input"
+                  @keyup.enter="handleLogin"
+                />
+                <button
+                  type="button"
+                  class="send-code-btn"
+                  :disabled="countdown > 0 || sendingCode"
+                  @click="handleSendCode"
+                >
+                  {{ countdown > 0 ? `${countdown}s 后重发` : '获取短信验证码' }}
+                </button>
+              </div>
+            </el-form-item>
+
+            <div class="submit-wrap">
+              <el-button
+                type="primary"
+                class="submit-btn"
+                :loading="loggingIn"
+                @click="handleLogin"
+              >
+                登录
+              </el-button>
+            </div>
           </div>
         </el-form>
 
@@ -441,19 +444,25 @@ onUnmounted(() => {
 }
 
 .login-card {
-  width: 480px;
+  width: 778px;
+  height: 478px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   background: #fff;
-  border-radius: 32px;
-  border: 2px solid #3d5a9a;
+  border-radius: 52px;
+  border: 4px solid #3d5a9a;
   box-shadow: 0 6px 24px rgba(61, 90, 154, 0.12);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .login-tabs {
   display: flex;
   justify-content: center;
-  gap: 56px;
-  padding: 32px 24px 0;
+  gap: 91px;
+  flex-shrink: 0;
+  padding: 34px 39px 0;
 }
 
 .login-tab {
@@ -484,34 +493,49 @@ onUnmounted(() => {
 }
 
 .login-body {
-  height: 280px;
-  padding: 28px 40px 16px;
+  flex: 1;
+  min-height: 0;
+  padding: 29px 65px 17px;
   box-sizing: border-box;
-}
-
-.form-item {
-  margin-bottom: 20px;
-  width: 100%;
 }
 
 .code-form {
   height: 100%;
+  width: 100%;
+}
+
+.code-form-fields {
+  width: 336px;
+  max-width: 100%;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  width: 100%;
+  align-items: stretch;
+  height: 100%;
 }
 
-.code-form :deep(.el-form-item) {
+.code-form-fields :deep(.el-form-item) {
   width: 100%;
-  margin-bottom: 20px;
+  margin: 0 0 20px;
+  display: block;
 }
 
-.code-form :deep(.el-form-item__content) {
-  width: 100%;
+.code-form-fields :deep(.el-form-item__label) {
+  display: none !important;
+  width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.code-form-fields :deep(.el-form-item__content) {
+  width: 100% !important;
+  margin-left: 0 !important;
   line-height: normal;
+  flex: none;
+  display: block;
 }
 
-.code-form :deep(.el-form-item__error) {
+.code-form-fields :deep(.el-form-item__error) {
   padding-top: 4px;
 }
 
@@ -572,12 +596,12 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   align-items: flex-start;
-  justify-content: center;
+  width: 100%;
   padding-top: 8px;
 }
 
 .submit-btn {
-  width: 200px;
+  width: 100%;
   height: 48px;
   border: none;
   border-radius: 8px;
@@ -671,9 +695,10 @@ onUnmounted(() => {
 
 .login-footer {
   position: relative;
-  height: 110px;
-  margin: 0 -2px -2px;
-  width: calc(100% + 4px);
+  flex-shrink: 0;
+  height: 116px;
+  margin: 0 -4px -4px;
+  width: calc(100% + 8px);
   overflow: hidden;
 }
 
@@ -730,18 +755,25 @@ onUnmounted(() => {
   }
 
   .login-card {
-    width: 100%;
-    max-width: 480px;
-    border-radius: 24px;
+    width: calc(100vw - 40px);
+    max-width: 778px;
+    height: auto;
+    aspect-ratio: 778 / 478;
+    border-radius: 40px;
   }
 
   .login-body {
-    height: 280px;
-    padding: 24px 24px 12px;
+    padding: 24px 32px 12px;
   }
 
   .login-tabs {
-    gap: 36px;
+    gap: 48px;
+    padding: 28px 24px 0;
+  }
+
+  .code-form-fields {
+    width: 100%;
+    max-width: 336px;
   }
 }
 </style>

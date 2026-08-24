@@ -49,7 +49,7 @@
 <script setup>
 import { reactive, watch } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
-import positionImg from '@/assets/device/add/position.svg'
+import positionImg from '@/assets/device/add/device_img_add_out.svg'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
