@@ -138,7 +138,8 @@ const handleCreateLand = () => {
 .land-empty-desc {
   margin: 20px 0 0;
   max-width: 460px;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 700;
   color: #8c8c8c;
   line-height: 1.7;
   text-align: left;

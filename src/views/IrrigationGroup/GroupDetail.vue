@@ -18,6 +18,15 @@
         <div class="group-detail-map-card">
           <div v-if="!mapReady" class="group-detail-map-card__loading">地图加载中...</div>
           <div id="group-detail-map" class="group-detail-map-card__map"></div>
+          <!-- 对齐移动端 customLogo：隐藏高德标志，展示能手地图 -->
+          <div class="group-detail-map-brand" aria-hidden="true">
+            <img
+              class="group-detail-map-brand__img"
+              src="https://cdzp-oss.farm-net.cn/app/uniapp/water_helper/logo.png"
+              alt=""
+            />
+            <span class="group-detail-map-brand__text">能手地图</span>
+          </div>
           <div v-if="areaLabel" class="group-detail-map-card__area">
             圈地面积：{{ areaLabel }}
           </div>
@@ -73,8 +82,7 @@
                   <div class="group-detail-side__stat is-next">
                     <span class="group-detail-side__stat-label">下次启动时间</span>
                     <span class="group-detail-side__stat-value">
-                      {{ nextRunDateText }}
-                      <strong v-if="nextRunClockText">{{ nextRunClockText }}</strong>
+                      {{ nextRunText }}
                     </span>
                   </div>
                 </template>
@@ -112,13 +120,17 @@
               <i class="iconfont icon-device_ic_calendar"></i>
               <span>记录</span>
             </button>
-            <button type="button" class="group-detail-side__action" @click="onTimer">
-              <i class="iconfont icon-home_ic_foot_program_01"></i>
-              <span>定时控制</span>
-            </button>
             <button type="button" class="group-detail-side__action" @click="onAvePress">
               <i class="iconfont icon-group_ic_pressure"></i>
               <span>一键均压</span>
+            </button>
+            <button
+              type="button"
+              class="group-detail-side__action is-primary"
+              @click="onTimer"
+            >
+              <i class="iconfont icon-home_ic_foot_program_01"></i>
+              <span>定时控制</span>
             </button>
           </div>
         </aside>
@@ -145,6 +157,11 @@
                 {{ getOnlineText(pile) }}
               </span>
               <div class="outlet-card__top-right">
+                <i
+                  v-if="Number(pile.ds) === 9"
+                  class="iconfont icon-a-lujing1 outlet-card__manual"
+                  title="手动态"
+                ></i>
                 <i
                   v-if="isDvAlarm(pile.id)"
                   class="iconfont icon-lujing-1 outlet-card__alarm"
@@ -231,7 +248,7 @@
  */
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { getFarmInfo } from '@/api/map'
 import {
   closeAllWaterDv,
@@ -241,6 +258,10 @@ import {
 import { closeWaterDv, openWaterDv } from '@/api/device'
 import { useFarmStore } from '@/store/farm'
 import { useAlarmStore } from '@/store/alarm'
+import {
+  confirmWaterOutletRisk,
+  RISK_MSG_OPEN
+} from '@/composables/useWaterOutletRiskDialog'
 import { parseAreaJson } from '@/utils/farmMapData'
 import { createLandPolygonDrawer } from '@/utils/farmMapLand'
 import { createWaterDvMarkerDrawer } from '@/utils/farmMapWaterDv'
@@ -279,6 +300,8 @@ const batchSwitchLocked = ref(null)
 const recordVisible = ref(false)
 const timerListVisible = ref(false)
 const avePressVisible = ref(false)
+/** 对齐移动端 isModalShow：40102 风险弹窗期间暂停轮询 */
+const isModalShow = ref(false)
 
 let map = null
 let farmDevices = []
@@ -286,6 +309,8 @@ let pollTimer = null
 let runTickTimer = null
 let detailRequestId = 0
 let lockUntil = 0
+/** 对齐移动端 hasFittedView：仅首次适配视野 */
+let hasFittedView = false
 /** 乐观控制中的出水桩 id → 本地 pile 快照 */
 const controlWaterOutletList = {}
 
@@ -368,7 +393,8 @@ const runIconText = computed(() => {
       ? groupInfo.value.deviceRuntime
       : groupInfo.value?.deviceNexRunTime
   if (!src) return '--'
-  if (src.tiggerObject == 2 || src.tiggerObject == 3) return '自动轮灌'
+  // 对齐移动端 control-group：仅 tiggerObject==2 为自动轮灌
+  if (src.tiggerObject == 2) return '自动轮灌'
   if (src.mode == 0) return '手动'
   if (src.mode == 1) return '定时'
   return '--'
@@ -380,7 +406,7 @@ const runIconClass = computed(() => {
       ? groupInfo.value.deviceRuntime
       : groupInfo.value?.deviceNexRunTime
   if (!src) return 'icon-device_ic_timing'
-  if (src.tiggerObject == 2 || src.tiggerObject == 3) return 'icon-home_ic_foot_program_01'
+  if (src.tiggerObject == 2) return 'icon-home_ic_foot_program_01'
   if (src.mode == 0) return 'icon-device_ic_manual'
   if (src.mode == 1) return 'icon-device_ic_timing'
   return 'icon-device_ic_timing'
@@ -425,27 +451,8 @@ const runDurationText = computed(() =>
 
 const nextRunText = computed(
   () =>
-    formatUtc(groupInfo.value?.deviceNexRunTime?.nextRunTime, 'cn') || '--'
+    formatUtc(groupInfo.value?.deviceNexRunTime?.nextRunTime, 'full') || '--'
 )
-
-const nextRunDateText = computed(() => {
-  const t = groupInfo.value?.deviceNexRunTime?.nextRunTime
-  if (!t) return '--'
-  const d = new Date(t)
-  if (Number.isNaN(d.getTime())) return nextRunText.value
-  const y = d.getFullYear()
-  const m = pad2(d.getMonth() + 1)
-  const day = pad2(d.getDate())
-  return `${y}-${m}-${day}`
-})
-
-const nextRunClockText = computed(() => {
-  const t = groupInfo.value?.deviceNexRunTime?.nextRunTime
-  if (!t) return ''
-  const d = new Date(t)
-  if (Number.isNaN(d.getTime())) return ''
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
-})
 
 const flowText = computed(() => {
   const v =
@@ -515,57 +522,189 @@ function isPortDisabled(pile) {
   return false
 }
 
+/** 对齐移动端 getOnlienText：在线 / 关机原因 / 离线；手动态用独立图标 */
 function getOnlineText(pile) {
-  if (pile?.isOnline) return '在线运行'
+  if (pile?.isOnline) return '在线'
   const ds = Number(pile?.ds)
   const map = {
     1: '定时关机',
     2: '低温关机',
     3: '低电量关机',
     4: '本地关机',
-    5: '远程关机',
-    9: '手动态'
+    5: '远程关机'
   }
-  return map[ds] || '离线状态'
+  return map[ds] || '离线'
 }
 
 function normalizePorts(info) {
   const piles = Array.isArray(info?.outletPiles) ? info.outletPiles : []
-  piles.forEach((pile) => {
-    const ports = pile.waterOutletPile?.ports || []
-    ports.forEach((port) => {
-      if (port.isOpen == null) {
-        port.isOpen = Number(port.currentOpening) > 0
-      }
-    })
-  })
+  piles.forEach((pile) => normalizePile(pile))
   return info
 }
 
+function normalizePile(pile) {
+  if (!pile) return pile
+  const ports = pile.waterOutletPile?.ports || []
+  ports.forEach((port) => {
+    if (port.isOpen == null) {
+      port.isOpen = Number(port.currentOpening) > 0
+    }
+  })
+  return pile
+}
+
+function getPortFromWaterOut(waterOut, outletNo) {
+  return (waterOut?.ports || []).find(
+    (p) => Number(p.outletNo) === Number(outletNo)
+  )
+}
+
+/**
+ * 对齐移动端 getReplace0：阀动作结束后，确认开度是否到达目标再替换本地乐观态
+ */
+function getReplace0(oldWaterOut, waterOut) {
+  if (!oldWaterOut || !waterOut) return false
+  const action = Number(oldWaterOut.valveAction)
+  if (action === 99) return true
+
+  const portA = getPortFromWaterOut(waterOut, 1)
+  const portB = getPortFromWaterOut(waterOut, 2)
+
+  if (action === 1 && portA) {
+    return (
+      Math.round(Number(portA.currentOpening) || 0) >=
+      Math.round(Number(portA.defaultOpening) || 0)
+    )
+  }
+  if (action === 3 && portB) {
+    return (
+      Math.round(Number(portB.currentOpening) || 0) >=
+      Math.round(Number(portB.defaultOpening) || 0)
+    )
+  }
+  if (action === 2 && portA) {
+    return Math.round(Number(portA.currentOpening) || 0) <= 0
+  }
+  if (action === 4 && portB) {
+    return Math.round(Number(portB.currentOpening) || 0) <= 0
+  }
+  return false
+}
+
+function syncPortOpeningPressure(oldWaterOut, newWaterOut) {
+  ;(newWaterOut?.ports || []).forEach((newPort) => {
+    const oldPort = (oldWaterOut?.ports || []).find(
+      (op) => Number(op.outletNo) === Number(newPort.outletNo)
+    )
+    if (oldPort) {
+      oldPort.currentOpening = newPort.currentOpening
+      oldPort.pressure = newPort.pressure
+    }
+  })
+}
+
+/**
+ * 对齐移动端 mergeData + getReplace0：
+ * - 控制中且服务端 valveAction!=0：保留乐观态，仅同步开度/压力
+ * - 控制中且服务端 valveAction==0：按 getReplace0 决定是否替换
+ * - 无控制缓存：采用服务端
+ */
 function mergeDetailKeepControl(newInfo) {
   if (!newInfo) return null
   const next = normalizePorts({ ...newInfo })
-  const piles = next.outletPiles || []
-  piles.forEach((pile) => {
-    const waterOut = pile.waterOutletPile
-    if (!waterOut?.id) return
-    const cached = controlWaterOutletList[waterOut.id]
-    if (!cached) return
-    // 动作未结束：保留本地 isOpen / valveAction 乐观态，只同步开度数值
-    if (Number(waterOut.valveAction) !== 0) {
-      waterOut.valveAction = cached.valveAction
-      ;(waterOut.ports || []).forEach((port) => {
-        const oldPort = (cached.ports || []).find(
-          (p) => Number(p.outletNo) === Number(port.outletNo)
-        )
-        if (oldPort && oldPort.isOpen != null) port.isOpen = oldPort.isOpen
-      })
-      return
+  const oldPiles = Array.isArray(groupInfo.value?.outletPiles)
+    ? groupInfo.value.outletPiles
+    : []
+  const newPiles = Array.isArray(next.outletPiles) ? next.outletPiles : []
+
+  // 首次：直接用服务端
+  if (!oldPiles.length) {
+    return next
+  }
+
+  const newIdSet = new Set(newPiles.map((p) => String(p.id)))
+  const mergedPiles = oldPiles
+    .filter((oldDev) => {
+      const exist = newIdSet.has(String(oldDev.id))
+      if (!exist) {
+        const waterOutId = oldDev.waterOutletPile?.id
+        if (waterOutId != null && controlWaterOutletList[waterOutId]) {
+          delete controlWaterOutletList[waterOutId]
+        }
+      }
+      return exist
+    })
+    .map((oldDev) => {
+      const newDev = newPiles.find((nd) => String(nd.id) === String(oldDev.id))
+      if (!newDev) return oldDev
+
+      const waterOut = newDev.waterOutletPile
+      const oldWaterOutCached = waterOut?.id
+        ? controlWaterOutletList[waterOut.id]
+        : null
+
+      if (oldWaterOutCached) {
+        if (
+          Number(oldWaterOutCached.valveAction) !== 0 &&
+          Number(waterOut?.valveAction) === 0
+        ) {
+          if (getReplace0(oldWaterOutCached, waterOut)) {
+            delete controlWaterOutletList[waterOut.id]
+            return normalizePile({ ...newDev })
+          }
+          // 尚未到达目标开度：保留本地乐观态，只同步开度/压力
+          const kept = JSON.parse(JSON.stringify(oldDev))
+          if (kept.waterOutletPile) {
+            kept.waterOutletPile.valveAction = oldWaterOutCached.valveAction
+            syncPortOpeningPressure(kept.waterOutletPile, waterOut)
+            ;(kept.waterOutletPile.ports || []).forEach((port) => {
+              const cachedPort = (oldWaterOutCached.ports || []).find(
+                (p) => Number(p.outletNo) === Number(port.outletNo)
+              )
+              if (cachedPort && cachedPort.isOpen != null) {
+                port.isOpen = cachedPort.isOpen
+              }
+            })
+          }
+          return kept
+        }
+
+        // 服务端仍在动作中，或本地与服务端都未结束：保留乐观态，同步开度
+        const kept = JSON.parse(JSON.stringify(oldDev))
+        if (kept.waterOutletPile) {
+          kept.waterOutletPile.valveAction = oldWaterOutCached.valveAction
+          syncPortOpeningPressure(kept.waterOutletPile, waterOut)
+          ;(kept.waterOutletPile.ports || []).forEach((port) => {
+            const cachedPort = (oldWaterOutCached.ports || []).find(
+              (p) => Number(p.outletNo) === Number(port.outletNo)
+            )
+            if (cachedPort && cachedPort.isOpen != null) {
+              port.isOpen = cachedPort.isOpen
+            }
+          })
+        }
+        // 同步非控制字段
+        kept.isOnline = newDev.isOnline
+        kept.batteryPercent = newDev.batteryPercent
+        kept.ds = newDev.ds
+        kept.name = newDev.name
+        return kept
+      }
+
+      return normalizePile({ ...newDev })
+    })
+
+  // 追加服务端新增出水桩
+  newPiles.forEach((newDev) => {
+    if (!mergedPiles.some((old) => String(old.id) === String(newDev.id))) {
+      mergedPiles.push(normalizePile({ ...newDev }))
     }
-    // 动作结束：清缓存，采用服务端
-    delete controlWaterOutletList[waterOut.id]
   })
-  return next
+
+  return {
+    ...next,
+    outletPiles: mergedPiles
+  }
 }
 
 function ensureRunTick() {
@@ -599,9 +738,27 @@ async function fetchDetail({ silent = false, showLoading = false } = {}) {
   try {
     const res = await getGroupDetail(id, { silent })
     if (requestId !== detailRequestId) return
-    const data = mergeDetailKeepControl(res?.data || null)
-    groupInfo.value = data
-    farmStore.setGroupDetailInfo(data)
+    const raw = res?.data || null
+    if (!raw) {
+      if (!groupInfo.value) ElMessage.error('获取轮灌组详情失败')
+      return
+    }
+
+    // 对齐移动端：首次整量赋值；之后合并运行态 + outletPiles（getReplace0）
+    if (!groupInfo.value) {
+      groupInfo.value = normalizePorts({ ...raw })
+    } else {
+      const merged = mergeDetailKeepControl(raw)
+      groupInfo.value = {
+        ...groupInfo.value,
+        ...merged,
+        deviceRuntime: raw.deviceRuntime,
+        deviceNexRunTime: raw.deviceNexRunTime,
+        accumulatedFlow: raw.accumulatedFlow,
+        outletPiles: merged?.outletPiles || groupInfo.value.outletPiles
+      }
+    }
+    farmStore.setGroupDetailInfo(groupInfo.value)
     syncTimeText.value = formatUtc(new Date().toISOString(), 'mdhms') || '--'
     ensureRunTick()
     refreshMapFromDetail()
@@ -647,24 +804,25 @@ async function onBatchToggle() {
   } catch (e) {
     const code = e?.code
     if (prevClose && code === 40102) {
+      isModalShow.value = true
       try {
-        await ElMessageBox.confirm(
-          `${e?.message || '关闭失败'}，是否强制关闭？`,
-          '提示',
-          {
-            confirmButtonText: '强制关闭',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
-        )
-        await closeAllWaterDv({ id, force: true }, { silent: true })
-        ElMessage.success('操作成功')
-        setBatchLock(false)
-        await fetchDetail({ silent: true })
-        return
-      } catch {
-        lockUntil = 0
-        batchSwitchLocked.value = prevClose
+        const ok = await confirmWaterOutletRisk({
+          message: e?.message
+            ? `${e.message}是否强制关闭？`
+            : '是否强制关闭？',
+          confirmText: '强制关闭'
+        })
+        if (ok) {
+          await closeAllWaterDv({ id, force: true }, { silent: true })
+          ElMessage.success('操作成功')
+          setBatchLock(false)
+          await fetchDetail({ silent: true })
+        } else {
+          lockUntil = 0
+          batchSwitchLocked.value = prevClose
+        }
+      } finally {
+        isModalShow.value = false
       }
     } else {
       lockUntil = 0
@@ -680,7 +838,7 @@ async function onBatchToggle() {
 async function onPortToggle(pile, outletNo) {
   if (isPortDisabled(pile)) {
     if (Number(pile?.ds) === 9) {
-      ElMessage.warning('当前设备处于手动状态，只能现场操作')
+      ElMessage.warning('当前设备处于手动状态，无法远程操作，只能现场操作')
     }
     return
   }
@@ -733,23 +891,22 @@ async function openPortHttp(waterOut, port, force) {
     await fetchDetail({ silent: true })
   } catch (e) {
     if (e?.code === 40102 && !force) {
+      isModalShow.value = true
       try {
-        await ElMessageBox.confirm(
-          '强制打开可能有爆管风险，是否强制打开？',
-          '提示',
-          {
-            confirmButtonText: '强制打开',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
-        )
-        await openPortHttp(waterOut, port, true)
-        return
-      } catch {
-        delete controlWaterOutletList[waterOut.id]
-        await fetchDetail({ silent: true })
-        return
+        const ok = await confirmWaterOutletRisk({
+          message: RISK_MSG_OPEN,
+          confirmText: '强制打开'
+        })
+        if (ok) {
+          await openPortHttp(waterOut, port, true)
+        } else {
+          delete controlWaterOutletList[waterOut.id]
+          await fetchDetail({ silent: true })
+        }
+      } finally {
+        isModalShow.value = false
       }
+      return
     }
     delete controlWaterOutletList[waterOut.id]
     await fetchDetail({ silent: true })
@@ -772,23 +929,24 @@ async function closePortHttp(waterOut, port, force) {
     await fetchDetail({ silent: true })
   } catch (e) {
     if (e?.code === 40102 && !force) {
+      isModalShow.value = true
       try {
-        await ElMessageBox.confirm(
-          `${e?.message || '关闭失败'}，是否强制关闭？`,
-          '提示',
-          {
-            confirmButtonText: '强制关闭',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
-        )
-        await closePortHttp(waterOut, port, true)
-        return
-      } catch {
-        delete controlWaterOutletList[waterOut.id]
-        await fetchDetail({ silent: true })
-        return
+        const ok = await confirmWaterOutletRisk({
+          message: e?.message
+            ? `${e.message}是否强制关闭？`
+            : '是否强制关闭？',
+          confirmText: '强制关闭'
+        })
+        if (ok) {
+          await closePortHttp(waterOut, port, true)
+        } else {
+          delete controlWaterOutletList[waterOut.id]
+          await fetchDetail({ silent: true })
+        }
+      } finally {
+        isModalShow.value = false
       }
+      return
     }
     delete controlWaterOutletList[waterOut.id]
     await fetchDetail({ silent: true })
@@ -897,19 +1055,24 @@ function refreshMapFromDetail() {
   ]
   landPolygonDrawer.drawLandPolygon(map, landList, {
     layerOptions,
-    readOnly: true
+    readOnly: true,
+    labelSuffix: '(轮灌组)'
   })
   waterDvMarkerDrawer.drawAllWaterDvMarker(map, devices, { layerOptions })
 
-  const overlays = [
-    ...(landPolygonDrawer.landPolygonList || []),
-    ...(waterDvMarkerDrawer.waterDvMarkers || [])
-  ]
-  if (overlays.length) {
-    try {
-      map.setFitView(overlays, false, [40, 40, 40, 40])
-    } catch (e) {
-      /* ignore */
+  // 对齐移动端 hasFittedView：仅首次 setFitView，轮询刷新不跳视野
+  if (!hasFittedView) {
+    const overlays = [
+      ...(landPolygonDrawer.landPolygonList || []),
+      ...(waterDvMarkerDrawer.waterDvMarkers || [])
+    ]
+    if (overlays.length) {
+      try {
+        map.setFitView(overlays, false, [40, 40, 40, 40])
+        hasFittedView = true
+      } catch (e) {
+        /* ignore */
+      }
     }
   }
 }
@@ -938,6 +1101,7 @@ function destroyMap() {
   }
   map = null
   mapReady.value = false
+  hasFittedView = false
 }
 
 function initMap() {
@@ -971,6 +1135,8 @@ function initMap() {
 function startPoll() {
   clearPoll()
   pollTimer = setInterval(() => {
+    // 对齐移动端 isModalShow：风险弹窗期间不轮询
+    if (isModalShow.value) return
     fetchDetail({ silent: true })
   }, POLL_MS)
 }
@@ -1096,6 +1262,44 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+/* 隐藏高德地图左下角 Logo / 版权 */
+.group-detail-map-card :deep(.amap-logo),
+.group-detail-map-card :deep(.amap-copyright),
+.group-detail-map-card :deep(.amap-mcode) {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* 对齐移动端：左下角能手地图标志 */
+.group-detail-map-brand {
+  position: absolute;
+  left: 8px;
+  bottom: 12px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.group-detail-map-brand__img {
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  object-fit: contain;
+  display: block;
+}
+
+.group-detail-map-brand__text {
+  font-size: 12px;
+  color: #fff;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
 }
 
 .group-detail-map-card__loading {
@@ -1407,6 +1611,18 @@ onUnmounted(() => {
   background: #f5f7fa;
 }
 
+.group-detail-side__action.is-primary {
+  background: #3653a0;
+  border-color: #3653a0;
+  color: #fff;
+}
+
+.group-detail-side__action.is-primary:hover {
+  background: #2f4a90;
+  border-color: #2f4a90;
+  color: #fff;
+}
+
 .group-detail-outlets {
   flex-shrink: 0;
   height: 258px;
@@ -1501,6 +1717,12 @@ onUnmounted(() => {
 }
 
 .outlet-card__alarm {
+  font-size: 14px;
+  color: #ef4444;
+  line-height: 1;
+}
+
+.outlet-card__manual {
   font-size: 14px;
   color: #ef4444;
   line-height: 1;

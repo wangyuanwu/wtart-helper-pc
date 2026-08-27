@@ -15,49 +15,56 @@
 
     <!-- 有数据：按地块分组 -->
     <template v-else-if="landList != null">
-      <!-- 搜索：对齐移动端 group.vue inputBack / getGroupListLandHttp -->
-      <div class="group-search">
-        <i
-          class="iconfont icon-farm_ic_search group-search__icon"
-          @click="handleSearchClick"
-        ></i>
-        <input
-          v-model="searchText"
-          class="group-search__input"
-          type="text"
-          placeholder="输入轮灌组名称"
-          @input="handleSearchInput"
-          @keyup.enter="handleSearchClick"
-        />
-        <i
-          v-if="searchText"
-          class="iconfont icon-shanchu group-search__clear"
-          @click="clearSearch"
-        ></i>
-      </div>
-
-      <div class="group-toolbar">
-        <el-radio-group
-          v-model="tabIndex"
-          class="group-tabs"
-          @change="onChangeTab"
-        >
-          <el-radio-button
-            v-for="(tab, idx) in tabList"
-            :key="tab.key"
-            :value="idx"
+      <div class="group-page-header">
+        <div class="group-page-header__row">
+          <h2 class="group-page-header__title">轮灌组列表</h2>
+          <el-button
+            type="primary"
+            class="group-toolbar__add"
+            @click.stop="onAddGroup"
           >
-            {{ tab.label }}
-          </el-radio-button>
-        </el-radio-group>
-        <el-button
-          type="primary"
-          class="group-toolbar__add"
-          @click.stop="onAddGroup"
-        >
-          <span class="group-toolbar__add-icon">+</span>
-          添加轮灌组
-        </el-button>
+            <span class="group-toolbar__add-icon">+</span>
+            添加轮灌组
+          </el-button>
+        </div>
+
+        <div class="group-page-header__panel">
+          <div class="group-search">
+            <i
+              class="iconfont icon-farm_ic_search group-search__icon"
+              @click="handleSearchClick"
+            ></i>
+            <input
+              v-model="searchText"
+              class="group-search__input"
+              type="text"
+              placeholder="输入轮灌组名称"
+              @input="handleSearchInput"
+              @keyup.enter="handleSearchClick"
+            />
+            <i
+              v-if="searchText"
+              class="iconfont icon-shanchu group-search__clear"
+              @click="clearSearch"
+            ></i>
+          </div>
+
+          <div class="group-filter">
+            <el-radio-group
+              v-model="tabIndex"
+              class="group-tabs"
+              @change="onChangeTab"
+            >
+              <el-radio-button
+                v-for="(tab, idx) in tabList"
+                :key="tab.key"
+                :value="idx"
+              >
+                {{ tab.label }}
+              </el-radio-button>
+            </el-radio-group>
+          </div>
+        </div>
       </div>
 
       <div class="group-scroll">
@@ -181,6 +188,12 @@
                     {{ getRunTimeText(item) }}
                   </div>
                 </div>
+                <div v-if="showPlanDuration(item)" class="group-card__stat">
+                  <div class="group-card__stat-label">计划时长</div>
+                  <div class="group-card__stat-value is-accent">
+                    {{ formatPlanDuration(item) }}
+                  </div>
+                </div>
                 <div v-if="showProgram(item)" class="group-card__stat">
                   <div class="group-card__stat-label">轮灌程序</div>
                   <div class="group-card__stat-value">
@@ -193,13 +206,6 @@
                     {{ getRunText(item) }}
                   </div>
                 </div>
-              </div>
-
-              <div class="group-card__footer">
-                <span class="group-card__footer-label">启动方式</span>
-                <span class="group-card__footer-value">{{
-                  getRunText(item)
-                }}</span>
               </div>
             </article>
           </div>
@@ -251,9 +257,11 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { MoreFilled, Operation } from '@element-plus/icons-vue'
+import { confirmWaterOutletRisk } from '@/composables/useWaterOutletRiskDialog'
 import { useFarmStore } from '@/store/farm'
+import { second2Time } from '@/utils/programTime'
 import { deleteLand, getLandPlotById } from '@/api/map'
 import {
   closeAllWaterDv,
@@ -362,6 +370,7 @@ const formatUtc = (utcStr, fmt = 'full') => {
   const mi = pad2(d.getMinutes())
   const s = pad2(d.getSeconds())
   if (fmt === 'mdhm') return `${m}月${day}日 ${h}:${mi}`
+  if (fmt === 'mdhms') return `${m}-${day} ${h}:${mi}:${s}`
   return `${y}-${m}-${day} ${h}:${mi}:${s}`
 }
 
@@ -392,9 +401,9 @@ const getRunText = (item) => {
     if (!src) return null
     const tiggerObject = src.tiggerObject
     const mode = src.mode
-    if (tiggerObject == 2 || tiggerObject == 3) return '自动轮灌'
-    if (mode == 0) return '手动启动'
-    if (mode == 1) return '定时启动'
+    if (tiggerObject == 2) return '自动轮灌'
+    if (mode == 0) return '手动'
+    if (mode == 1) return '定时'
     return null
   }
 
@@ -436,6 +445,14 @@ const showRunDuration = (item) =>
     item.localSwitch
   )
 
+/** 对齐移动端：未运行且有计划时长时展示 */
+const showPlanDuration = (item) =>
+  item.deviceNexRunTime?.duration != null &&
+  (!item.deviceRuntime || !item.deviceRuntime.isRunning)
+
+const formatPlanDuration = (item) =>
+  second2Time(item.deviceNexRunTime?.duration)
+
 const showProgram = (item) => {
   const t = resolveTiggerObject(item)
   const name = resolveProgramName(item)
@@ -450,7 +467,7 @@ const showModeStat = (item) => {
 }
 
 const formatNextRun = (item) =>
-  formatUtc(item.deviceNexRunTime?.nextRunTime, 'mdhm') || '--'
+  formatUtc(item.deviceNexRunTime?.nextRunTime, 'mdhms') || '--'
 
 /** 对齐移动端：以开阀口数判断运行态 */
 const getStatus = (item) => (item.portOpeningCnt ?? 0) > 0
@@ -610,23 +627,19 @@ const closeAllWaterDvHttp = async (closeOrder, waterId) => {
   } catch (e) {
     const code = e?.code
     if (code === 40102 && !closeOrder.force) {
-      try {
-        await ElMessageBox.confirm(
-          `${e?.message || '关闭失败'}，是否强制关闭？`,
-          '提示',
-          {
-            confirmButtonText: '强制关闭',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
-        )
+      const ok = await confirmWaterOutletRisk({
+        message: e?.message
+          ? `${e.message}是否强制关闭？`
+          : '是否强制关闭？',
+        confirmText: '强制关闭'
+      })
+      if (ok) {
         await closeAllWaterDvHttp({ ...closeOrder, force: true }, waterId)
-        return
-      } catch {
+      } else {
         updateLockUntil(waterId, 0)
         await fetchGroupList({ silent: true })
-        return
       }
+      return
     }
     updateLockUntil(waterId, 0)
     await fetchGroupList({ silent: true })
@@ -887,20 +900,61 @@ onUnmounted(() => {
   background: #2f4a90;
 }
 
+.group-page-header {
+  flex-shrink: 0;
+  padding: 16px 20px 0;
+}
+
+.group-page-header__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.group-page-header__title {
+  margin: 0;
+  font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 22px;
+  font-weight: bold;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.group-page-header__panel {
+  height: 152px;
+  border-radius: 12px;
+  background: #fff;
+  padding: 26px 16px 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .group-search {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 500px;
-  max-width: 100%;
-  height: 44px;
-  margin: 16px 20px 0;
-  padding: 0 14px;
-  border-radius: 22px;
-  background: #fff;
-  box-shadow: 0 4px 14px rgba(31, 45, 61, 0.08);
+  width: 100%;
+  height: 40px;
+  margin: 0;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: #f7f7f7;
   box-sizing: border-box;
+}
+
+.group-filter {
+  flex-shrink: 0;
+  align-self: flex-start;
+  max-width: 100%;
+  border-radius: 11.6px;
+  background: #edf1f6;
+  overflow: hidden;
 }
 
 .group-search__icon {
@@ -939,30 +993,23 @@ onUnmounted(() => {
   color: #8c8c8c;
 }
 
-.group-toolbar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 20px 0;
-  background: #f7fafc;
-}
-
 .group-tabs {
   display: inline-flex;
   align-items: stretch;
-  width: 372px;
-  height: 58px;
+  width: auto;
+  max-width: 100%;
+  height: 48.4px;
   box-sizing: border-box;
-  padding: 6px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 4px 14px rgba(31, 45, 61, 0.08);
+  padding: 5px 10px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
 }
 
 .group-tabs :deep(.el-radio-button) {
-  flex: 1;
+  flex: 0 0 auto;
+  min-width: 88px;
   height: auto;
   margin: 0;
   display: flex !important;
@@ -977,31 +1024,74 @@ onUnmounted(() => {
   width: 100%;
   height: 100% !important;
   min-height: 0;
-  padding: 0 12px !important;
+  padding: 0 10px !important;
   border: 0 !important;
   border-color: transparent !important;
   border-radius: 0 !important;
   outline: none !important;
+  outline-offset: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
   font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
     'PingFang SC', 'Microsoft YaHei', sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: bold;
   line-height: 20px;
   text-align: center;
   display: flex !important;
   align-items: center;
   justify-content: center;
+  letter-spacing: 0;
+  color: #3653a0;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.group-tabs :deep(.el-radio-button__inner:hover) {
   color: #3653a0;
 }
 
 .group-tabs :deep(.el-radio-button.is-active .el-radio-button__inner),
-.group-tabs
-  :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+.group-tabs :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
   background: #3653a0 !important;
   color: #fff !important;
-  border-radius: 12px !important;
+  font-weight: bold;
+  border: 0 !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.group-tabs :deep(.el-radio-button:first-child .el-radio-button__inner),
+.group-tabs :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 0 !important;
+}
+
+.group-tabs :deep(.el-radio-button.is-active:first-child .el-radio-button__inner),
+.group-tabs :deep(.el-radio-button.is-active:last-child .el-radio-button__inner),
+.group-tabs
+  :deep(
+    .el-radio-button:first-child
+      .el-radio-button__original-radio:checked
+      + .el-radio-button__inner
+  ),
+.group-tabs
+  :deep(
+    .el-radio-button:last-child
+      .el-radio-button__original-radio:checked
+      + .el-radio-button__inner
+  ) {
+  border-radius: 7px !important;
+}
+
+.group-tabs :deep(.el-radio-button + .el-radio-button) {
+  margin-left: 0;
+}
+
+.group-tabs :deep(.el-radio-button__original-radio:focus-visible + .el-radio-button__inner) {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .group-toolbar__add {
@@ -1015,6 +1105,12 @@ onUnmounted(() => {
     'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-size: 16px;
   font-weight: bold;
+  line-height: 24px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.4px;
 }
 
 .group-toolbar__add:hover,
@@ -1027,13 +1123,14 @@ onUnmounted(() => {
   margin-right: 4px;
   font-size: 16px;
   font-weight: bold;
+  line-height: 24px;
+  letter-spacing: 0.4px;
 }
 
 .group-scroll {
   flex: 1;
   overflow: auto;
-  margin-top: 16px;
-  padding: 0 20px 24px;
+  padding: 16px 20px 24px;
 }
 
 .group-land {
@@ -1066,8 +1163,6 @@ onUnmounted(() => {
 }
 
 .group-land__more-btn {
-  width: 32px;
-  height: 32px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -1076,6 +1171,14 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  /* 暂时隐藏三点菜单，恢复时删除以下样式 */
+  visibility: hidden;
+  width: 0;
+  height: 0;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .group-land__more-btn:hover {
@@ -1138,7 +1241,7 @@ onUnmounted(() => {
 
 .group-card__area {
   margin: 6px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   color: #909399;
   line-height: 1.4;
 }
@@ -1254,29 +1357,6 @@ onUnmounted(() => {
 
 .group-card__stat-value.is-accent {
   color: #3653a0;
-}
-
-.group-card__footer {
-  flex-shrink: 0;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #edf1f7;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.group-card__footer-label {
-  font-size: 12px;
-  color: #909399;
-}
-
-.group-card__footer-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f172a;
-  text-align: right;
 }
 
 .group-land-menu {

@@ -1,6 +1,11 @@
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { closeWaterDv, openWaterDv } from '@/api/device'
+import {
+  confirmWaterOutletRisk,
+  RISK_MSG_CLOSE,
+  RISK_MSG_OPEN
+} from '@/composables/useWaterOutletRiskDialog'
 
 /**
  * 出水桩 A/B 口开关控制（对齐移动端 device.vue + WaterDvPopup）
@@ -81,15 +86,14 @@ export function useWaterOutletValve() {
     } catch (e) {
       if (e?.code === 40102) {
         try {
-          await ElMessageBox.confirm(
-            '系统监测到该地块下其它出水口处于关闭状态，仍打开当前出水口可能会出现爆管风险。是否强制打开？',
-            '提示',
-            {
-              confirmButtonText: '强制打开',
-              cancelButtonText: '取消',
-              type: 'warning'
-            }
-          )
+          const ok = await confirmWaterOutletRisk({
+            message: RISK_MSG_OPEN,
+            confirmText: '确定'
+          })
+          if (!ok) {
+            rollbackControl(controlWaterOutlet)
+            return
+          }
           const retryOrder = { ...closeOpenOrderCache.value, force: true }
           await openWaterDv(retryOrder, { loading: true, silent: true })
           ElMessage.success('操作成功')
@@ -116,15 +120,14 @@ export function useWaterOutletValve() {
     } catch (e) {
       if (e?.code === 40102) {
         try {
-          await ElMessageBox.confirm(
-            `${e?.message || '关闭失败'}，是否强制关闭？`,
-            '提示',
-            {
-              confirmButtonText: '强制关闭',
-              cancelButtonText: '取消',
-              type: 'warning'
-            }
-          )
+          const ok = await confirmWaterOutletRisk({
+            message: RISK_MSG_CLOSE,
+            confirmText: '确定'
+          })
+          if (!ok) {
+            rollbackControl(controlWaterOutlet)
+            return
+          }
           const retryOrder = { ...closeOpenOrderCache.value, force: true }
           await closeWaterDv(retryOrder, { loading: true, silent: true })
           ElMessage.success('操作成功')

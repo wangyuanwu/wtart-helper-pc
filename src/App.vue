@@ -1,10 +1,12 @@
 <template>
   <div class="app">
     <router-view />
+    <WaterOutletRiskDialog />
   </div>
 </template>
 
 <script setup>
+import WaterOutletRiskDialog from '@/components/WaterOutletRiskDialog.vue'
 </script>
 
 <style>

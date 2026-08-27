@@ -10,23 +10,14 @@
     </div>
 
     <template v-else-if="statusInfo">
-      <!-- 上部：在线/离线共用（标题、查看详情、同步数据、最后同步） -->
+      <!-- 上部：标题 + 查看详情 -->
       <div class="water-dv-popup__header">
         <div class="water-dv-popup__title-row">
           <h3 class="water-dv-popup__title">{{ statusInfo.name || '出水桩' }}</h3>
-          <div class="water-dv-popup__actions">
-            <button type="button" class="water-dv-popup__link" @click="onViewDetail">
-              查看详情 &gt;
-            </button>
-            <button type="button" class="water-dv-popup__sync-btn" @click="onSync">
-              同步数据
-            </button>
-          </div>
+          <button type="button" class="water-dv-popup__link" @click="onViewDetail">
+            查看详情 &gt;
+          </button>
         </div>
-        <p class="water-dv-popup__sync-time">
-          最后同步: {{ syncTimeText }}
-        </p>
-        <!-- PC 需求：弹窗暂不展示地址（逆地理逻辑保留） -->
       </div>
 
       <div
@@ -53,51 +44,79 @@
           </div>
         </div>
 
+        <div
+          v-if="hasWaterOutletPile"
+          class="water-dv-popup__sync-row"
+        >
+          <span class="water-dv-popup__sync-time">
+            同步时间:{{ syncTimeText }}
+          </span>
+          <button
+            type="button"
+            class="water-dv-popup__sync-btn"
+            @click="onSync"
+          >
+            立即同步
+          </button>
+        </div>
+
         <!-- 有水桩数据：设备图 + 压力/流量 + 控制区 -->
         <template v-if="hasWaterOutletPile">
-          <div class="water-dv-popup__device">
-            <img
-              class="water-dv-popup__device-img"
-              :src="deviceOnlineImg"
-              alt=""
-            />
-            <span
-              class="water-dv-popup__outlet-marker is-left"
-              :class="{ 'is-on': isPortOpen(portA) }"
-            >
-              {{ portA?.outletName || 'A' }}
-            </span>
-            <span
-              class="water-dv-popup__outlet-marker is-right"
-              :class="{ 'is-on': isPortOpen(portB) }"
-            >
-              {{ portB?.outletName || 'B' }}
-            </span>
-            <div class="water-dv-popup__pressure is-left">
-              <span class="water-dv-popup__pressure-val">{{ formatPressure(portA) }}</span>
-              <span class="water-dv-popup__pressure-unit">bar</span>
+          <div class="water-dv-popup__device-panel">
+            <div class="water-dv-popup__device">
+              <img
+                class="water-dv-popup__device-img"
+                :src="deviceOnlineImg"
+                alt=""
+              />
+              <span
+                class="water-dv-popup__outlet-marker is-left"
+                :class="{ 'is-on': isPortOpen(portA) }"
+              >
+                {{ portA?.outletName || 'A' }}
+              </span>
+              <span
+                class="water-dv-popup__outlet-marker is-right"
+                :class="{ 'is-on': isPortOpen(portB) }"
+              >
+                {{ portB?.outletName || 'B' }}
+              </span>
+              <div class="water-dv-popup__pressure is-left">
+                <span class="water-dv-popup__pressure-val">{{ formatPressure(portA) }}</span>
+                <span class="water-dv-popup__pressure-units">
+                  <em>公斤</em>
+                  <em>bar</em>
+                </span>
+              </div>
+              <div class="water-dv-popup__pressure is-right">
+                <span class="water-dv-popup__pressure-val">{{ formatPressure(portB) }}</span>
+                <span class="water-dv-popup__pressure-units">
+                  <em>公斤</em>
+                  <em>bar</em>
+                </span>
+              </div>
+              <div class="water-dv-popup__flow">
+                {{ flowText }}
+                <span class="water-dv-popup__flow-unit">m³/h</span>
+              </div>
+              <div v-if="isDvAlarm" class="water-dv-popup__alarm">
+                <i class="iconfont icon-lujing-1" title="告警中"></i>
+                <span
+                  v-if="alarmEventText"
+                  class="water-dv-popup__alarm-desc"
+                >
+                  {{ alarmEventText }}
+                </span>
+              </div>
+              <button
+                v-if="isManualMode"
+                type="button"
+                class="water-dv-popup__manual-exit"
+                @click="onExitManualMode"
+              >
+                退出
+              </button>
             </div>
-            <div class="water-dv-popup__pressure is-right">
-              <span class="water-dv-popup__pressure-val">{{ formatPressure(portB) }}</span>
-              <span class="water-dv-popup__pressure-unit">bar</span>
-            </div>
-            <div class="water-dv-popup__flow">
-              {{ flowText }}
-              <span class="water-dv-popup__flow-unit">m³/h</span>
-            </div>
-            <i
-              v-if="isDvAlarm"
-              class="iconfont icon-lujing-1 water-dv-popup__alarm"
-              aria-hidden="true"
-            ></i>
-            <button
-              v-if="isManualMode"
-              type="button"
-              class="water-dv-popup__manual-exit"
-              @click="onExitManualMode"
-            >
-              退出
-            </button>
           </div>
 
           <div class="water-dv-popup__controls">
@@ -130,7 +149,7 @@
 
             <div
               class="water-dv-popup__pod water-dv-popup__pod--gauge"
-              :class="{ 'is-disabled': valveBusy }"
+              :class="{ 'is-disabled': valveBusy || !isOnline }"
               @click="onEditOpen"
             >
               <div class="water-dv-popup__pod-title">默认开度</div>
@@ -185,6 +204,12 @@
     </template>
 
     <div v-else class="water-dv-popup__empty">暂无设备数据</div>
+
+    <SetDefaultOpenDialog
+      v-model="openDialogVisible"
+      :status-info="statusInfo"
+      @saved="onOpeningSaved"
+    />
   </div>
 </template>
 
@@ -201,8 +226,14 @@ import {
 } from '@/api/device'
 import { useFarmStore } from '@/store/farm'
 import { useAlarmStore } from '@/store/alarm'
+import {
+  confirmWaterOutletRisk,
+  RISK_MSG_CLOSE,
+  RISK_MSG_OPEN
+} from '@/composables/useWaterOutletRiskDialog'
 import deviceOnlineImg from '@/assets/map/outlet-device-online.svg'
 import deviceOfflineImg from '@/assets/map/outlet-device-offline.svg'
+import SetDefaultOpenDialog from '@/views/Device/SetDefaultOpenDialog.vue'
 
 const POLL_MS = 3000
 
@@ -225,6 +256,7 @@ const visible = computed({
 
 const loading = ref(false)
 const portToggleLoading = ref(false)
+const openDialogVisible = ref(false)
 const statusInfo = ref(null)
 const controlWaterOutletList = ref({})
 const closeOpenOrderCache = ref(null)
@@ -281,6 +313,13 @@ const isDvAlarm = computed(() => {
   return alarmStore.isDvAlarm(deviceId)
 })
 
+/** 对齐移动端 isDvAlarmBean(dvStatusInfo.id).eventDescription */
+const alarmEventText = computed(
+  () =>
+    alarmStore.getDvAlarmBean(statusInfo.value?.id ?? props.device?.id)
+      ?.eventDescription || ''
+)
+
 const syncTimeText = computed(() =>
   formatSyncTime(statusInfo.value?.updateTimeUtc)
 )
@@ -312,10 +351,11 @@ function formatSyncTime(utc) {
   if (!utc) return '--'
   const d = new Date(utc)
   if (Number.isNaN(d.getTime())) return '--'
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
-  const ss = String(d.getSeconds()).padStart(2, '0')
-  return `${hh}:${mm}:${ss}`
+  return `${month}/${day} ${hh}:${mm}`
 }
 
 function formatPressure(port) {
@@ -518,6 +558,7 @@ async function onSync() {
 }
 
 function onEditOpen() {
+  if (!isOnline.value) return
   if (!hasWaterOutletPile.value) {
     ElMessage.warning('暂无设备数据')
     return
@@ -526,7 +567,12 @@ function onEditOpen() {
     ElMessage.warning('阀门开关过程中，无法修改默认开度')
     return
   }
-  ElMessage.info('默认开度设置功能开发中')
+  farmStore.setDvStatusInfo(statusInfo.value)
+  openDialogVisible.value = true
+}
+
+async function onOpeningSaved() {
+  await fetchStatus({ isRefresh: true })
 }
 
 async function onExitManualMode() {
@@ -615,11 +661,17 @@ async function openWaterDvHttp(order, controlWaterOutlet) {
   } catch (e) {
     if (e?.code === 40102) {
       try {
-        await ElMessageBox.confirm(
-          '系统监测到该地块下其它出水口处于关闭状态，仍打开当前出水口可能会出现爆管风险。是否强制打开？',
-          '提示',
-          { confirmButtonText: '强制打开', cancelButtonText: '取消', type: 'warning' }
-        )
+        const ok = await confirmWaterOutletRisk({
+          message: RISK_MSG_OPEN,
+          confirmText: '确定'
+        })
+        if (!ok) {
+          delete controlWaterOutletList.value[controlWaterOutlet.id]
+          if (statusInfo.value?.waterOutletPile) {
+            statusInfo.value.waterOutletPile.valveAction = 0
+          }
+          return
+        }
         const retryOrder = { ...closeOpenOrderCache.value, force: true }
         await openWaterDv(retryOrder, { loading: true, silent: true })
         ElMessage.success('操作成功')
@@ -654,11 +706,17 @@ async function closeWaterDvHttp(order, controlWaterOutlet) {
   } catch (e) {
     if (e?.code === 40102) {
       try {
-        await ElMessageBox.confirm(
-          `${e?.message || '关闭失败'}，是否强制关闭？`,
-          '提示',
-          { confirmButtonText: '强制关闭', cancelButtonText: '取消', type: 'warning' }
-        )
+        const ok = await confirmWaterOutletRisk({
+          message: RISK_MSG_CLOSE,
+          confirmText: '确定'
+        })
+        if (!ok) {
+          delete controlWaterOutletList.value[controlWaterOutlet.id]
+          if (statusInfo.value?.waterOutletPile) {
+            statusInfo.value.waterOutletPile.valveAction = 0
+          }
+          return
+        }
         const retryOrder = { ...closeOpenOrderCache.value, force: true }
         await closeWaterDv(retryOrder, { loading: true, silent: true })
         ElMessage.success('操作成功')
@@ -813,7 +871,7 @@ defineExpose({
 
 .water-dv-popup__title-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
@@ -829,14 +887,8 @@ defineExpose({
   word-break: break-all;
 }
 
-.water-dv-popup__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 .water-dv-popup__link {
+  flex-shrink: 0;
   border: none;
   background: transparent;
   color: #2f6bff;
@@ -846,29 +898,56 @@ defineExpose({
   white-space: nowrap;
 }
 
-.water-dv-popup__sync-btn {
-  border: none;
-  background: #fff;
-  color: #2f6bff;
-  font-size: 12px;
-  border-radius: 6px;
-  padding: 4px 10px;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  white-space: nowrap;
+.water-dv-popup__device-panel {
+  flex: 1;
+  min-height: 0;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.water-dv-popup__sync-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  flex-shrink: 0;
 }
 
 .water-dv-popup__sync-time {
-  margin: 6px 0 0;
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
-  color: #999;
+  color: #909399;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.water-dv-popup__sync-btn {
+  flex-shrink: 0;
+  border: 1px solid rgba(47, 107, 255, 0.35);
+  background: rgba(255, 255, 255, 0.92);
+  color: #2f6bff;
+  font-size: 12px;
+  border-radius: 14px;
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.water-dv-popup__sync-btn:hover {
+  background: #fff;
+  border-color: #2f6bff;
 }
 
 .water-dv-popup__metrics {
   margin-top: 10px;
+  align-self: center;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 0;
   width: fit-content;
@@ -921,7 +1000,6 @@ defineExpose({
   position: relative;
   flex: 1;
   min-height: 0;
-  margin-top: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -975,12 +1053,28 @@ defineExpose({
 
 .water-dv-popup__alarm {
   position: absolute;
-  right: 24px;
+  left: 16px;
   bottom: 38px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 120px;
+  text-align: center;
+}
+
+.water-dv-popup__alarm .iconfont {
   font-size: 18px;
   color: #ef4444;
   line-height: 1;
-  z-index: 2;
+}
+
+.water-dv-popup__alarm-desc {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #909399;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .water-dv-popup__manual-exit {
@@ -1004,7 +1098,7 @@ defineExpose({
   top: 42%;
   display: flex;
   align-items: baseline;
-  gap: 2px;
+  gap: 4px;
 }
 
 .water-dv-popup__pressure.is-left {
@@ -1022,9 +1116,18 @@ defineExpose({
   line-height: 1;
 }
 
-.water-dv-popup__pressure-unit {
+.water-dv-popup__pressure-units {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.15;
+}
+
+.water-dv-popup__pressure-units em {
+  font-style: normal;
   font-size: 12px;
-  color: #999;
+  font-weight: 500;
+  color: #909399;
 }
 
 .water-dv-popup__flow {

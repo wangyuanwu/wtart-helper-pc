@@ -130,6 +130,8 @@ export function createLandPolygonDrawer(hooks = {}) {
     if (!Array.isArray(landArr) || !landArr.length) return
 
     const readOnly = !!options.readOnly
+    /** 标签后缀：地图页「(地块)」/ 轮灌组详情「(轮灌组)」 */
+    const labelSuffix = options.labelSuffix || '(地块)'
 
     landArr.forEach((item, index) => {
       if (!item?.landPoint?.length) return
@@ -162,7 +164,7 @@ export function createLandPolygonDrawer(hooks = {}) {
       const center = getPolygonCenter(path)
       const label = new window.AMap.Text({
         position: center,
-        text: `${item.name || '未命名'}(地块)<br>${areaMu} 亩`,
+        text: `${item.name || '未命名'}${labelSuffix}<br>${areaMu} 亩`,
         anchor: 'center',
         zooms: LAND_TEXT_ZOOMS,
         style: {

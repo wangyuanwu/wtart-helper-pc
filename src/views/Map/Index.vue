@@ -2,6 +2,15 @@
   <div class="map-page">
     <template v-if="showMapContainer">
       <div id="map-container" class="map-container"></div>
+      <!-- 对齐移动端 customLogo：隐藏高德标志，展示能手地图 -->
+      <div class="map-brand-logo" aria-hidden="true">
+        <img
+          class="map-brand-logo__img"
+          src="https://cdzp-oss.farm-net.cn/app/uniapp/water_helper/logo.png"
+          alt=""
+        />
+        <span class="map-brand-logo__text">能手地图</span>
+      </div>
       <!-- 对齐移动端 mapLoading 遮罩 -->
       <div v-if="mapLoading" class="map-loading-mask">
         <span class="map-loading-mask__text">正在加载地图...</span>
@@ -1226,6 +1235,7 @@ const destroyMap = () => {
   landPolygonDrawer.destroy(mapInstance.value)
   landGroupPolygonDrawer.destroy(mapInstance.value)
   waterDvMarkerDrawer.destroy(mapInstance.value)
+  clearAutoFitTimer()
   if (mapInstance.value) {
     mapInstance.value.off('click', onMapBlankClick)
     mapInstance.value.off('zoomchange', refreshAllLayerVisible)
@@ -1241,6 +1251,80 @@ const destroyMap = () => {
 /** 进入地图 / 切换农场时适配视野层级 */
 const FARM_VIEW_ZOOM = 17
 const DEFAULT_MAP_CENTER = [116.397428, 39.90923]
+/** 对齐移动端 autoFitMapView setFitView padding */
+const FIT_VIEW_PADDING = [80, 80, 80, 80]
+
+let autoFitTimer = null
+
+/** 收集当前农场相关覆盖物，供 setFitView 使用（对齐移动端 autoFitMapView） */
+const collectFitViewOverlays = () => {
+  const currentFarmId = farmStore.selectFarm?.id
+  const activeFarmMarkers =
+    currentFarmId != null
+      ? farmMarkerDrawer.farmMarkers.filter(
+          (m) => String(m.__farmId) === String(currentFarmId)
+        )
+      : []
+
+  const isOnMap = (overlay) => {
+    try {
+      return overlay?.getMap?.() != null
+    } catch {
+      return false
+    }
+  }
+
+  return [
+    ...activeFarmMarkers,
+    ...waterDvMarkerDrawer.waterDvMarkers,
+    ...landPolygonDrawer.landPolygonList,
+    ...landGroupPolygonDrawer.landGroupPolygonList
+  ].filter(isOnMap)
+}
+
+/**
+ * 按覆盖物自适应视野（对齐移动端 renderjs autoFitMapView）
+ */
+const autoFitMapView = () => {
+  if (!mapInstance.value) return
+
+  const overlays = collectFitViewOverlays()
+  if (!overlays.length) {
+    centerMapByFarm(farmStore.selectFarm)
+    return
+  }
+
+  setTimeout(() => {
+    if (!mapInstance.value) return
+    try {
+      mapInstance.value.setFitView(overlays, false, FIT_VIEW_PADDING)
+    } catch (e) {
+      console.warn('[Map] setFitView 失败，回退农场中心定位', e)
+      centerMapByFarm(farmStore.selectFarm)
+    }
+  }, 100)
+}
+
+/** 绘制完成后延迟适配；有待定位设备时跳过（对齐移动端 pendingFitDeviceId） */
+const scheduleAutoFitMapView = (hadPendingDevice = false) => {
+  if (autoFitTimer) {
+    clearTimeout(autoFitTimer)
+    autoFitTimer = null
+  }
+  if (hadPendingDevice) return
+
+  autoFitTimer = setTimeout(() => {
+    autoFitTimer = null
+    autoFitMapView()
+  }, 250)
+}
+
+const clearAutoFitTimer = () => {
+  if (autoFitTimer) {
+    clearTimeout(autoFitTimer)
+    autoFitTimer = null
+  }
+}
 
 /** 解析农场经纬度，无效则返回 null */
 const resolveFarmLngLat = (farm) => {
@@ -1633,18 +1717,21 @@ const getFarmInfoHttp = async (farmId) => {
     if (requestId !== fullInfoRequestId) return null
 
     const prepared = applyFarmFullResources(fullData)
-    // 进入页时 initMap 已用 selectFarm 定位；坐标未变则跳过，避免瓦片重载白闪
-    centerMapByFarm(prepared.farmInfo || farmStore.selectFarm, {
-      skipIfSame: true
-    })
+    const hadPendingDevice = farmStore.s_pending_map_device_id != null
     drawAllFarmMarker()
     drawLandPolygon()
     drawLandGroupPolygon()
     drawAllWaterDvMarker()
+    // 对齐移动端：覆盖物绘制完成后 setFitView；有待定位设备时不适配
+    scheduleAutoFitMapView(hadPendingDevice)
     // 对齐移动端 setTimer：full 就绪后轮询出水桩 + 轮灌组
     setMapStatusTimers()
-    // 设备控制页跳转地图时打开对应出水桩
-    nextTick(() => tryOpenPendingMapDevice())
+    // 设备控制页跳转地图：延迟定位设备，避免被 autoFit 覆盖
+    if (hadPendingDevice) {
+      setTimeout(() => tryOpenPendingMapDevice(), 300)
+    } else {
+      nextTick(() => tryOpenPendingMapDevice())
+    }
     return prepared
   } catch (e) {
     if (requestId !== fullInfoRequestId) return null
@@ -1873,6 +1960,43 @@ defineExpose({
 .map-container {
   width: 100%;
   height: 100%;
+}
+
+/* 隐藏高德地图左下角 Logo / 版权 */
+.map-page :deep(.amap-logo),
+.map-page :deep(.amap-copyright),
+.map-page :deep(.amap-mcode) {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* 对齐移动端：左下角能手地图标志 */
+.map-brand-logo {
+  position: absolute;
+  left: 8px;
+  bottom: 12px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.map-brand-logo__img {
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  object-fit: contain;
+  display: block;
+}
+
+.map-brand-logo__text {
+  font-size: 12px;
+  color: #fff;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .map-loading-mask {

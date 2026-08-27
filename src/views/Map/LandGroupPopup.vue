@@ -6,7 +6,16 @@
     @mousedown.stop
   >
     <div class="land-group-popup__header">
-      <h3 class="land-group-popup__title">{{ displayName }}</h3>
+      <div class="land-group-popup__title-row">
+        <h3 class="land-group-popup__title">{{ displayName }}</h3>
+        <button
+          type="button"
+          class="land-group-popup__link"
+          @click="onViewDetail"
+        >
+          查看详情 &gt;
+        </button>
+      </div>
       <button
         type="button"
         class="land-group-popup__close"
@@ -85,6 +94,7 @@
 
 <script setup>
 import { computed, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, RefreshRight } from '@element-plus/icons-vue'
 import {
@@ -92,6 +102,7 @@ import {
   getGroupDetail,
   openAllWaterDv
 } from '@/api/irrigationGroup'
+import { useFarmStore } from '@/store/farm'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -100,6 +111,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'close'])
+
+const router = useRouter()
+const farmStore = useFarmStore()
 
 const visible = computed({
   get: () => props.modelValue,
@@ -466,6 +480,22 @@ const onClose = () => {
   emit('close')
 }
 
+/** 对齐移动端 toGroupControl → map-group-detail / 轮灌组列表 onGroupClick */
+const onViewDetail = () => {
+  const id = groupDetail.value?.id ?? props.group?.id
+  if (id == null) {
+    ElMessage.warning('缺少轮灌组信息')
+    return
+  }
+  const item = groupDetail.value || props.group
+  farmStore.setGroupListItem(item ? { ...item } : { id })
+  onClose()
+  router.push({
+    path: '/irrigation-group/detail',
+    query: { id: String(id) }
+  })
+}
+
 const resetState = () => {
   clearDetailPoll()
   clearRunTick()
@@ -537,15 +567,35 @@ defineExpose({
   flex-shrink: 0;
 }
 
+.land-group-popup__title-row {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+}
+
 .land-group-popup__title {
   margin: 0;
-  flex: 1;
   min-width: 0;
   font-size: 18px;
   font-weight: 700;
   color: #1a1a1a;
   line-height: 1.3;
   word-break: break-all;
+}
+
+.land-group-popup__link {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #2f6bff;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .land-group-popup__close {

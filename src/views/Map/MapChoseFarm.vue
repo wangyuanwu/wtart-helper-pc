@@ -86,7 +86,7 @@
           type="button"
           class="chose-farm-map-tools__btn chose-farm-map-tools__locate"
           title="回到当前位置"
-          @click="getLocation"
+          @click="getLocation({ forceAsk: true })"
         >
           <svg
             class="chose-farm-map-tools__locate-icon"
@@ -205,17 +205,39 @@
         </div>
       </div>
     </div>
+
+    <!-- 保存成功提示（纯 UI，约 3 秒后进入后续跳转） -->
+    <div v-if="successDialogVisible" class="chose-farm-success-mask">
+      <div class="chose-farm-success-dialog" role="status" aria-live="polite">
+        <img
+          class="chose-farm-success-dialog__icon"
+          :src="farmSucceedImg"
+          alt=""
+        />
+        <p class="chose-farm-success-dialog__title">保存成功！</p>
+        <p class="chose-farm-success-dialog__desc">正在进入农场管理页面...</p>
+        <div class="chose-farm-success-dialog__dots-wrap" aria-hidden="true">
+          <img
+            class="chose-farm-success-dialog__dots"
+            :src="farmSaveLoadingDotsImg"
+            alt=""
+          />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useFarmStore } from '@/store/farm'
 import { useUserStore } from '@/store/user'
 import { addFarm } from '@/api/map'
 import centerMarkerImg from '@/assets/map/location-farm-chose.png'
+import farmSucceedImg from '@/assets/farm/farm_img_succeed.png'
+import farmSaveLoadingDotsImg from '@/assets/farm/farm_save_loading_dots.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -247,6 +269,10 @@ const saveDialogVisible = ref(false)
 const farmName = ref('')
 const farmNameError = ref('')
 const saving = ref(false)
+
+/** 保存成功提示弹框（仅 UI，不阻断后续跳转流程） */
+const successDialogVisible = ref(false)
+let successNavigateTimer = null
 
 const locationCoordText = computed(() => {
   const lat = Number(confirmLat.value)
@@ -367,38 +393,160 @@ const destroyMap = () => {
   placeSearch = null
 }
 
-const getLocation = () => {
-  if (!map || typeof window.AMap === 'undefined') return
-  window.AMap.plugin('AMap.Geolocation', () => {
-    const geo = new window.AMap.Geolocation({
-      enableHighAccuracy: true,
-      timeout: 10000,
-      noIpLocate: false,
-      convert: true,
-      showButton: false,
-      showMarker: false,
-      showCircle: false
-    })
-    geo.getCurrentPosition((status, result) => {
-      if (status === 'complete' && result?.position) {
-        const lng = result.position.lng ?? result.position.getLng?.()
-        const lat = result.position.lat ?? result.position.getLat?.()
-        if (lng != null && lat != null) {
-          drawPoint(lng, lat)
-          return
-        }
-      }
-      ElMessage.warning('定位失败，请手动拖动地图选择')
-      isLocationNowOk.value = true
-    })
-  })
+const LOCATION_CONSENT_SKIP_KEY = 'chose_farm_location_consent_skip'
+
+/** 查询浏览器定位权限状态 */
+const queryGeolocationPermission = async () => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return 'unsupported'
+  }
+  if (typeof window !== 'undefined' && window.isSecureContext === false) {
+    return 'insecure'
+  }
+  try {
+    if (navigator.permissions?.query) {
+      const status = await navigator.permissions.query({ name: 'geolocation' })
+      return status.state // granted | denied | prompt
+    }
+  } catch (e) {
+    console.warn('[MapChoseFarm] 查询定位权限失败', e)
+  }
+  return 'prompt'
 }
 
+/**
+ * 浏览器原生权限框只能由定位 API 触发；先弹应用内说明，用户同意后再请求定位。
+ * 对齐地图主页 ensureGeolocationConsent。
+ */
+const ensureGeolocationConsent = async ({
+  interactive = true,
+  forceAsk = false
+} = {}) => {
+  const state = await queryGeolocationPermission()
+  if (state === 'unsupported' || state === 'insecure') return false
+  if (state === 'granted') return true
+  if (state === 'denied') return false
+  if (!interactive) return false
+  if (!forceAsk && sessionStorage.getItem(LOCATION_CONSENT_SKIP_KEY) === '1') {
+    return false
+  }
+  try {
+    await ElMessageBox.confirm(
+      '选择农场位置需要获取您的位置信息，用于定位到当前位置。是否允许使用定位？',
+      '定位权限',
+      {
+        confirmButtonText: '允许',
+        cancelButtonText: '暂不',
+        type: 'info',
+        closeOnClickModal: false
+      }
+    )
+    sessionStorage.removeItem(LOCATION_CONSENT_SKIP_KEY)
+    return true
+  } catch {
+    sessionStorage.setItem(LOCATION_CONSENT_SKIP_KEY, '1')
+    return false
+  }
+}
+
+/**
+ * H5 定位：对齐移动端 map-chose-farm getH5Location
+ * 仅使用 AMap.Geolocation，禁 IP 兜底，不做 WGS84 二次转换
+ */
+const requestH5Location = () =>
+  new Promise((resolve) => {
+    if (typeof window.AMap === 'undefined') {
+      resolve(null)
+      return
+    }
+    window.AMap.plugin('AMap.Geolocation', () => {
+      const geolocation = new window.AMap.Geolocation({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        noIpLocate: true
+      })
+      geolocation.getCurrentPosition((status, result) => {
+        if (status === 'complete' && result?.position) {
+          const lng = Number(result.position.lng)
+          const lat = Number(result.position.lat)
+          if (Number.isFinite(lng) && Number.isFinite(lat)) {
+            console.log('[MapChoseFarm] 定位成功', {
+              lng,
+              lat,
+              accuracy: result.accuracy,
+              locationType: result.location_type
+            })
+            resolve({ lng, lat })
+            return
+          }
+        }
+        console.warn('[MapChoseFarm] 定位失败', status, result)
+        resolve(null)
+      })
+    })
+  })
+
+/**
+ * 定位到当前位置（对齐移动端 getLocation → getH5Location）
+ * PC 额外保留权限引导；定位成功后不自动弹确认栏，需拖动地图选点
+ */
+const getLocation = async ({ forceAsk = false } = {}) => {
+  if (!map || typeof window.AMap === 'undefined') return
+
+  const state = await queryGeolocationPermission()
+  if (state === 'insecure') {
+    ElMessage.warning('精确定位需在 HTTPS 环境下使用，请手动拖动地图选择')
+    isLocationNowOk.value = true
+    return
+  }
+  if (state === 'unsupported') {
+    ElMessage.warning('当前浏览器不支持定位，请手动拖动地图选择')
+    isLocationNowOk.value = true
+    return
+  }
+  if (state === 'denied') {
+    ElMessage.warning(
+      '定位权限已关闭，请在浏览器地址栏允许位置权限后重试，或手动拖动地图'
+    )
+    isLocationNowOk.value = true
+    return
+  }
+  if (state === 'prompt') {
+    const ok = await ensureGeolocationConsent({
+      interactive: true,
+      forceAsk
+    })
+    if (!ok) {
+      ElMessage.warning('未授权定位，请手动拖动地图选择农场位置')
+      isLocationNowOk.value = true
+      return
+    }
+  }
+
+  const pos = await requestH5Location()
+  if (pos) {
+    drawPoint(pos.lng, pos.lat)
+    return
+  }
+
+  ElMessage.warning('定位失败，请手动拖动地图选择')
+  isLocationNowOk.value = true
+}
+
+/**
+ * 绘制当前位置蓝点并平移地图（对齐移动端 drawPoint）
+ * 中心选点钉尖端对准 lat - 0.0008，蓝点标记真实 GPS 坐标
+ */
 const drawPoint = (lng, lat) => {
-  if (!lng || !lat || !map || !geocoder) return
+  const lngNum = Number(lng)
+  const latNum = Number(lat)
+  if (!Number.isFinite(lngNum) || !Number.isFinite(latNum) || !map) {
+    isLocationNowOk.value = true
+    return
+  }
 
   try {
-    map.setCenter([lng, lat - 0.0008])
+    map.setCenter([lngNum, latNum - 0.0008])
     map.setZoom(17)
   } catch (e) {
     /* ignore */
@@ -414,16 +562,18 @@ const drawPoint = (lng, lat) => {
 
   nowMark = new window.AMap.Marker({
     map,
-    position: [lng, lat],
+    position: [lngNum, latNum],
     offset: new window.AMap.Pixel(-18, -36),
     content: `<img src="${LOCATION_NOW_ICON}" style="width:36px;height:36px;display:block;" />`
   })
 
-  geocoder.getAddress([lng, lat], (status, result) => {
+  if (!geocoder) {
     isLocationNowOk.value = true
-    if (status === 'complete' && result.info === 'OK') {
-      void result.regeocode
-    }
+    return
+  }
+
+  geocoder.getAddress([lngNum, latNum], () => {
+    isLocationNowOk.value = true
   })
 }
 
@@ -441,7 +591,7 @@ const closeConfirm = () => {
 /** 取消：关闭确认栏，地图重新定位到当前位置 */
 const onCancelConfirm = () => {
   closeConfirm()
-  getLocation()
+  getLocation({ forceAsk: true })
 }
 
 watch(confirmVisible, async () => {
@@ -497,6 +647,29 @@ const onCloseSaveDialog = () => {
   saveDialogVisible.value = false
 }
 
+/** 保存成功后的跳转流程（与成功弹框展示解耦） */
+const continueAfterSaveSuccess = async () => {
+  try {
+    await farmStore.fetchFarmList()
+  } catch (e) {
+    console.error('[MapChoseFarm] 刷新农场列表失败', e)
+  }
+  router.replace('/map')
+}
+
+/** 展示保存成功 UI，约 3 秒后进入后续跳转 */
+const showSaveSuccessThenNavigate = () => {
+  successDialogVisible.value = true
+  if (successNavigateTimer) {
+    clearTimeout(successNavigateTimer)
+    successNavigateTimer = null
+  }
+  successNavigateTimer = setTimeout(() => {
+    successNavigateTimer = null
+    continueAfterSaveSuccess()
+  }, 3000)
+}
+
 /** 保存新建农场（对齐 AddFarm.vue / POST /api/farm） */
 const onSaveFarm = async () => {
   const name = farmName.value.trim()
@@ -525,15 +698,7 @@ const onSaveFarm = async () => {
     })
     if (res?.code === 200) {
       saveDialogVisible.value = false
-      ElMessage.success('操作成功,即将返回首页')
-      setTimeout(async () => {
-        try {
-          await farmStore.fetchFarmList()
-        } catch (e) {
-          console.error('[MapChoseFarm] 刷新农场列表失败', e)
-        }
-        router.replace('/map')
-      }, 1500)
+      showSaveSuccessThenNavigate()
     }
   } catch (e) {
     console.error('[MapChoseFarm] 新建农场失败', e)
@@ -638,6 +803,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearTimeout(searchTimer.value)
+  if (successNavigateTimer) {
+    clearTimeout(successNavigateTimer)
+    successNavigateTimer = null
+  }
   destroyMap()
 })
 </script>
@@ -1142,5 +1311,80 @@ onUnmounted(() => {
 .chose-farm-save-dialog__ok:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+/* ========== 保存成功提示弹框 ========== */
+
+.chose-farm-success-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(2px);
+}
+
+.chose-farm-success-dialog {
+  width: min(420px, 86%);
+  padding: 48px 36px 48px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.16);
+  text-align: center;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.chose-farm-success-dialog__icon {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto 20px;
+}
+
+.chose-farm-success-dialog__title {
+  margin: 0 0 10px;
+  font-size: 26px;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.3;
+}
+
+.chose-farm-success-dialog__desc {
+  margin: 0 0 28px;
+  font-size: 15px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.chose-farm-success-dialog__dots-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 0;
+  overflow: visible;
+}
+
+.chose-farm-success-dialog__dots {
+  width: 48px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  animation: chose-farm-dots-scroll 1.2s ease-in-out infinite;
+}
+
+@keyframes chose-farm-dots-scroll {
+  0%,
+  100% {
+    transform: translateX(-10px);
+  }
+  50% {
+    transform: translateX(10px);
+  }
 }
 </style>

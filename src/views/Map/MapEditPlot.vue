@@ -1520,6 +1520,16 @@ onUnmounted(() => {
   height: 100%;
 }
 
+/* 隐藏高德地图左下角 Logo / 版权 */
+.edit-plot-map-wrap :deep(.amap-logo),
+.edit-plot-map-wrap :deep(.amap-copyright),
+.edit-plot-map-wrap :deep(.amap-mcode) {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .edit-plot-loading {
   position: absolute;
   inset: 0;
@@ -1538,17 +1548,27 @@ onUnmounted(() => {
   right: 68px;
   z-index: 20;
   display: flex;
-  gap: 8px;
+  align-items: stretch;
+  gap: 0;
+  min-width: 248px;
+  padding: 8px 20px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-sizing: border-box;
 }
 
 .edit-plot-tools__btn {
-  min-width: 64px;
+  flex: 1;
+  min-width: 72px;
   height: 56px;
-  padding: 6px 10px;
+  padding: 6px 14px;
   border: none;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -1556,11 +1576,14 @@ onUnmounted(() => {
   justify-content: center;
   gap: 2px;
   font-size: 12px;
-  color: #909399;
+  font-weight: 600;
+  color: #303133;
 }
 
 .edit-plot-tools__btn .iconfont {
-  font-size: 18px;
+  font-size: 20px;
+  line-height: 1;
+  color: inherit;
 }
 
 .edit-plot-tools__btn.is-active {
@@ -1572,7 +1595,8 @@ onUnmounted(() => {
 }
 
 .edit-plot-tools__btn.is-disabled {
-  color: #c0c4cc;
+  color: #606266;
+  opacity: 0.85;
   cursor: default;
 }
 
