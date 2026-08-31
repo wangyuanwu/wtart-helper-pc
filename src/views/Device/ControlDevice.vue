@@ -6,37 +6,39 @@
       <!-- 顶栏 -->
       <div class="control-device__header">
         <div class="control-device__header-left">
-          <div class="control-device__name-row">
-            <button type="button" class="control-device__back" @click="onBack">
-              ← 返回
-            </button>
-            <h2 class="control-device__title">{{ displayName }}</h2>
+          <div class="control-device__header-info">
+            <div class="control-device__name-row">
+              <button type="button" class="control-device__back" @click="onBack">
+                ← 返回
+              </button>
+              <h2 class="control-device__title">{{ displayName }}</h2>
+              <span class="control-device__device-code">
+                设备编号：{{ deviceCodeText }}
+              </span>
+            </div>
+            <div class="control-device__header-sub">
+              <span
+                class="control-device__online"
+                :class="isOnline ? 'is-on' : 'is-off'"
+              >
+                <i class="control-device__online-dot"></i>
+                {{ isOnline ? '在线' : '离线' }}
+              </span>
+              <button
+                type="button"
+                class="control-device__edit-inline"
+                @click="onEditDevice"
+              >
+                <i class="iconfont icon-a-device_ic_edit1"></i>
+                编辑出水桩
+              </button>
+            </div>
           </div>
-          <span
-            class="control-device__online"
-            :class="isOnline ? 'is-on' : 'is-off'"
-          >
-            <i class="control-device__online-dot"></i>
-            {{ isOnline ? '在线' : '离线' }}
-          </span>
-          <button
-            type="button"
-            class="control-device__location"
-            @click="onOpenMap"
-          >
-            <el-icon><Location /></el-icon>
-            <span>{{ locationText }}</span>
-          </button>
         </div>
         <div class="control-device__header-right">
-          <el-button type="primary" class="control-device__sync" @click="onSync">
-            <el-icon><Refresh /></el-icon>
-            立即同步
-          </el-button>
-          <el-button class="control-device__edit" @click="onEditDevice">
-            <i class="iconfont icon-a-device_ic_edit1"></i>
-            编辑出水桩
-          </el-button>
+          <button type="button" class="control-device__map-btn" @click="onOpenMap">
+            打开地图
+          </button>
         </div>
       </div>
 
@@ -44,28 +46,42 @@
         <!-- 左侧 -->
         <div class="control-device__left">
           <div class="control-device__viz card">
-            <div class="control-device__metrics">
-              <i
-                v-if="isManualMode"
-                class="iconfont icon-a-lujing1 control-device__manual-icon"
-                title="手动模式"
-              ></i>
-              <span class="control-device__metric">
-                <i class="iconfont icon-map_ic_temperature"></i>
-                {{ temperatureText }}
-              </span>
-              <span class="control-device__metric">
-                <i class="iconfont icon-map_ic_signal"></i>
-                {{ signalText }}
-                <span v-if="snrText" class="control-device__snr">{{ snrText }}</span>
-              </span>
-              <span
-                class="control-device__metric"
-                :class="{ 'is-low': batteryPercent <= 20 }"
-              >
-                <i class="iconfont icon-map_ic_battery"></i>
-                {{ batteryText }}
-              </span>
+            <div class="control-device__viz-top">
+              <div class="control-device__metrics-capsule">
+                <i
+                  v-if="isManualMode"
+                  class="iconfont icon-a-lujing1 control-device__manual-icon"
+                  title="手动模式"
+                ></i>
+                <span class="control-device__metric">
+                  <i class="iconfont icon-map_ic_temperature"></i>
+                  {{ temperatureText }}
+                </span>
+                <span class="control-device__metric">
+                  <i class="iconfont icon-map_ic_signal"></i>
+                  {{ signalPowerText }}
+                </span>
+                <span
+                  class="control-device__metric control-device__metric--battery"
+                  :class="{ 'is-low': batteryPercent <= 20 }"
+                >
+                  <i class="iconfont icon-map_ic_battery"></i>
+                  {{ batteryDisplayText }}
+                </span>
+              </div>
+              <div class="control-device__sync-bar">
+                <span class="control-device__sync-time">
+                  同步时间：
+                  <span class="control-device__sync-time-value">{{ syncTimeText }}</span>
+                </span>
+                <button
+                  type="button"
+                  class="control-device__sync-link"
+                  @click="onSync"
+                >
+                  立即同步
+                </button>
+              </div>
             </div>
 
             <div class="control-device__device-wrap">
@@ -74,15 +90,11 @@
                 :src="isOnline ? outletOnlineImg : outletOfflineImg"
                 alt=""
               />
-              <div class="control-device__device-meta">
-                <div>同步时间：{{ syncTimeText }}</div>
-                <div>设备编号：{{ deviceCodeText }}</div>
-              </div>
-              <div class="control-device__port-overlay is-a">
-                <span
-                  class="control-device__port-marker"
-                  :class="{ 'is-on': isPortOpen(portA) }"
-                >
+              <div
+                class="control-device__port-overlay is-a"
+                :class="isPortOpen(portA) ? 'is-on' : 'is-off'"
+              >
+                <span class="control-device__port-marker">
                   {{ portLabel(portA, 'A') }}
                 </span>
                 <div class="control-device__pressure">
@@ -90,16 +102,16 @@
                     {{ formatPressure(portA) }}
                   </span>
                   <span class="control-device__pressure-units">
-                    <em>bar</em>
                     <em>公斤</em>
+                    <em>bar</em>
                   </span>
                 </div>
               </div>
-              <div class="control-device__port-overlay is-b">
-                <span
-                  class="control-device__port-marker"
-                  :class="{ 'is-on': isPortOpen(portB) }"
-                >
+              <div
+                class="control-device__port-overlay is-b"
+                :class="isPortOpen(portB) ? 'is-on' : 'is-off'"
+              >
+                <span class="control-device__port-marker">
                   {{ portLabel(portB, 'B') }}
                 </span>
                 <div class="control-device__pressure">
@@ -107,8 +119,8 @@
                     {{ formatPressure(portB) }}
                   </span>
                   <span class="control-device__pressure-units">
-                    <em>bar</em>
                     <em>公斤</em>
+                    <em>bar</em>
                   </span>
                 </div>
               </div>
@@ -134,25 +146,77 @@
                 退出
               </button>
             </div>
-          </div>
 
-          <div class="control-device__nav-row">
-            <button
-              type="button"
-              class="control-device__nav-card card"
-              @click="onRecord"
+            <div
+              v-if="hasWaterOutletPile"
+              class="control-device__bottom-row"
+              :class="{ 'is-valve-busy': valveBusy }"
             >
-              <i class="iconfont icon-device_ic_record"></i>
-              <span>灌溉记录</span>
-            </button>
-            <button
-              type="button"
-              class="control-device__nav-card card"
-              @click="onTimerControl"
-            >
-              <i class="iconfont icon-device_ic_timing"></i>
-              <span>定时控制</span>
-            </button>
+              <div
+                v-if="portA"
+                class="control-device__bottom-item control-device__switch-compact"
+                :class="portSwitchClass(portA)"
+              >
+                <span class="control-device__switch-compact-label">
+                  {{ portLabel(portA, 'A') }} 出水口
+                </span>
+                <div
+                  class="control-device__switch-wrap"
+                  :class="{ 'is-blink': valveBusy }"
+                >
+                  <el-switch
+                    :model-value="isPortOpen(portA)"
+                    :disabled="isPortSwitchDisabled"
+                    inline-prompt
+                    :active-text="`${portOpenPct(portA)}%`"
+                    inactive-text="关"
+                    @change="(val) => onPortSwitch(portA, val)"
+                  />
+                  <span class="control-device__switch-badge">
+                    {{ portLabel(portA, 'A') }}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                class="control-device__bottom-item control-device__switch-compact control-device__opening-compact"
+                :class="{ 'is-offline-disabled': !isOnline }"
+                @click="onEditOpening"
+              >
+                <span class="control-device__switch-compact-label">默认开度</span>
+                <div class="control-device__opening-compact-right">
+                  <span>{{ defaultOpenPct(portA) }}%</span>
+                  <i class="iconfont icon-map_ic_opening"></i>
+                  <span>{{ defaultOpenPct(portB) }}%</span>
+                </div>
+              </div>
+
+              <div
+                v-if="portB"
+                class="control-device__bottom-item control-device__switch-compact"
+                :class="portSwitchClass(portB)"
+              >
+                <span class="control-device__switch-compact-label">
+                  {{ portLabel(portB, 'B') }} 出水口
+                </span>
+                <div
+                  class="control-device__switch-wrap"
+                  :class="{ 'is-blink': valveBusy }"
+                >
+                  <el-switch
+                    :model-value="isPortOpen(portB)"
+                    :disabled="isPortSwitchDisabled"
+                    inline-prompt
+                    :active-text="`${portOpenPct(portB)}%`"
+                    inactive-text="关"
+                    @change="(val) => onPortSwitch(portB, val)"
+                  />
+                  <span class="control-device__switch-badge">
+                    {{ portLabel(portB, 'B') }}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -167,11 +231,13 @@
                 :class="{ 'is-running': isRunning }"
               >
                 <img
+                  v-if="isRunning"
                   class="control-device__run-disc"
                   :class="{ 'is-rotate': isRunning }"
                   :src="runningDiscImg"
                   alt=""
                 />
+                <div v-else class="control-device__run-ring-static"></div>
                 <div class="control-device__run-ring-inner">
                   <i class="iconfont" :class="runIconClass"></i>
                   <span>{{ runLabel }}</span>
@@ -199,107 +265,45 @@
                     </span>
                   </div>
                 </template>
+                <template v-else-if="isManualMode">
+                  <div class="control-device__stat">
+                    <span class="control-device__stat-label">运行时长</span>
+                    <span class="control-device__stat-value is-empty">—</span>
+                  </div>
+                </template>
               </div>
             </div>
           </div>
 
-          <!-- A/B 开关 -->
-          <div
-            v-if="hasWaterOutletPile"
-            class="control-device__switches"
-            :class="{ 'is-valve-busy': valveBusy }"
-          >
-            <div
-              v-if="portA"
-              class="control-device__switch-card card"
-              :class="portSwitchClass(portA)"
+          <div class="control-device__nav-row">
+            <button
+              type="button"
+              class="control-device__nav-card card"
+              @click="onRecord"
             >
-              <span class="control-device__switch-label">
-                {{ portLabel(portA, 'A') }} 出水口
-              </span>
-              <div
-                class="control-device__switch-wrap"
-                :class="{ 'is-blink': valveBusy }"
-              >
-                <el-switch
-                  :model-value="isPortOpen(portA)"
-                  :disabled="isPortSwitchDisabled"
-                  inline-prompt
-                  :active-text="`${portOpenPct(portA)}%`"
-                  inactive-text="关"
-                  @change="(val) => onPortSwitch(portA, val)"
+              <span class="control-device__nav-icon-wrap">
+                <img
+                  class="control-device__nav-icon"
+                  :src="navRecordIcon"
+                  alt=""
                 />
-                <span class="control-device__switch-badge">
-                  {{ portLabel(portA, 'A') }}
-                </span>
-              </div>
-            </div>
-            <div
-              v-if="portB"
-              class="control-device__switch-card card"
-              :class="portSwitchClass(portB)"
+              </span>
+              <span>记录</span>
+            </button>
+            <button
+              type="button"
+              class="control-device__nav-card card"
+              @click="onTimerControl"
             >
-              <span class="control-device__switch-label">
-                {{ portLabel(portB, 'B') }} 出水口
-              </span>
-              <div
-                class="control-device__switch-wrap"
-                :class="{ 'is-blink': valveBusy }"
-              >
-                <el-switch
-                  :model-value="isPortOpen(portB)"
-                  :disabled="isPortSwitchDisabled"
-                  inline-prompt
-                  :active-text="`${portOpenPct(portB)}%`"
-                  inactive-text="关"
-                  @change="(val) => onPortSwitch(portB, val)"
+              <span class="control-device__nav-icon-wrap">
+                <img
+                  class="control-device__nav-icon"
+                  :src="navTimerIcon"
+                  alt=""
                 />
-                <span class="control-device__switch-badge">
-                  {{ portLabel(portB, 'B') }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 开度设置 -->
-          <div
-            v-if="hasWaterOutletPile"
-            class="control-device__opening card"
-            :class="{ 'is-offline-disabled': !isOnline }"
-            @click="onEditOpening"
-          >
-            <div class="control-device__opening-title">
-              <i class="iconfont icon-map_ic_opening"></i>
-              <span>开度设置</span>
-            </div>
-            <div class="control-device__opening-row">
-              <span class="control-device__opening-name">
-                {{ portLabel(portA, 'A') }} 默认开度
               </span>
-              <div class="control-device__opening-bar">
-                <div
-                  class="control-device__opening-fill"
-                  :style="{ width: `${defaultOpenPct(portA)}%` }"
-                ></div>
-              </div>
-              <span class="control-device__opening-pct">
-                {{ defaultOpenPct(portA) }}%
-              </span>
-            </div>
-            <div class="control-device__opening-row">
-              <span class="control-device__opening-name">
-                {{ portLabel(portB, 'B') }} 默认开度
-              </span>
-              <div class="control-device__opening-bar">
-                <div
-                  class="control-device__opening-fill"
-                  :style="{ width: `${defaultOpenPct(portB)}%` }"
-                ></div>
-              </div>
-              <span class="control-device__opening-pct">
-                {{ defaultOpenPct(portB) }}%
-              </span>
-            </div>
+              <span>定时控制</span>
+            </button>
           </div>
         </div>
       </div>
@@ -331,7 +335,6 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Location, Refresh } from '@element-plus/icons-vue'
 import { useFarmStore } from '@/store/farm'
 import { useAlarmStore } from '@/store/alarm'
 import {
@@ -352,6 +355,8 @@ import TimerProListDialog from '@/views/IrrigationGroup/TimerProListDialog.vue'
 import outletOnlineImg from '@/assets/map/outlet-device-online.svg'
 import outletOfflineImg from '@/assets/map/outlet-device-offline.svg'
 import runningDiscImg from '@/assets/device/device_img_running.png'
+import navRecordIcon from '@/assets/device/nav-record-icon.svg'
+import navTimerIcon from '@/assets/device/nav-timer-icon.svg'
 
 const POLL_MS = 3000
 
@@ -408,24 +413,9 @@ const valveAction = computed(
 )
 const valveBusy = computed(() => Number(valveAction.value) !== 0)
 const isManualMode = computed(() => Number(statusInfo.value?.ds) === 9)
-const isCharging = computed(
-  () => Number(statusInfo.value?.chargingStatus) === 1
-)
 
 const portA = computed(() => findPort(1))
 const portB = computed(() => findPort(2))
-
-const locationText = computed(() => {
-  const s = statusInfo.value
-  const d = deviceInfo.value
-  return (
-    s?.address ||
-    d?.address ||
-    s?.landName ||
-    d?.landName ||
-    '查看地图位置'
-  )
-})
 
 const temperatureText = computed(() => {
   const t = statusInfo.value?.temperature
@@ -439,26 +429,21 @@ const batteryPercent = computed(() => {
   return v == null ? 0 : Number(v)
 })
 
-const chargingCurrentText = computed(() => {
-  const v =
-    statusInfo.value?.chargingCurrent ??
-    statusInfo.value?.waterOutletPile?.chargingCurrent
-  if (v == null || v === '') return ''
-  return `${v}mA`
-})
-
-const batteryText = computed(() => {
-  const percent = `${batteryPercent.value}%`
-  if (!isCharging.value) return percent
-  return chargingCurrentText.value
-    ? `${percent} | ${chargingCurrentText.value}`
-    : percent
-})
+/** 胶囊区电量展示：仅百分比 */
+const batteryDisplayText = computed(() => `${batteryPercent.value}%`)
 
 const snrText = computed(() => {
   const snr = statusInfo.value?.snr
   if (snr == null || snr === '') return ''
   return `(${snr})`
+})
+
+/** 信号功率值展示（不含「信号良好」等文案） */
+const signalPowerText = computed(() => {
+  const signal = statusInfo.value?.signal
+  if (signal == null) return '--'
+  const suffix = snrText.value ? snrText.value : ''
+  return `${signal}dBm${suffix}`
 })
 
 const syncTimeText = computed(() =>
@@ -468,16 +453,6 @@ const syncTimeText = computed(() =>
 const deviceCodeText = computed(
   () => statusInfo.value?.deviceCode || deviceInfo.value?.deviceCode || '--'
 )
-
-const signalText = computed(() => {
-  const signal = statusInfo.value?.signal
-  if (signal == null) return '--'
-  const level = getSignalLevel(Number(signal))
-  if (level >= 4) return '信号良好'
-  if (level >= 2) return '信号一般'
-  if (level >= 1) return '信号较弱'
-  return `${signal}dBm`
-})
 
 const flowText = computed(() => {
   const flow = statusInfo.value?.waterOutletPile?.flow
@@ -496,7 +471,7 @@ const isRunning = computed(() => !!runtime.value?.isRunning)
 
 const showStatusPanel = computed(() => {
   if (!isOnline.value || !hasWaterOutletPile.value) return false
-  return isRunning.value || !!nextRun.value
+  return true
 })
 
 const runMeta = computed(() => {
@@ -512,6 +487,8 @@ const runMeta = computed(() => {
   } else if (pile.deviceNexRunTime) {
     tiggerObject = pile.deviceNexRunTime.tiggerObject
     mode = pile.deviceNexRunTime.mode
+  } else if (isManualMode.value) {
+    return { icon: 'icon-device_ic_manual', label: '手动' }
   } else {
     return empty
   }
@@ -600,16 +577,6 @@ function formatPressure(port) {
 function portSwitchClass(port) {
   if (!isOnline.value) return 'is-muted'
   return isPortOpen(port) ? 'is-open' : 'is-closed'
-}
-
-function getSignalLevel(val) {
-  const sig0 = Number.isFinite(val) ? val : -105
-  if (sig0 > -85) return 5
-  if (sig0 > -90) return 4
-  if (sig0 > -95) return 3
-  if (sig0 > -100) return 2
-  if (sig0 > -105) return 1
-  return 0
 }
 
 function formatUtc(utcStr) {
@@ -932,10 +899,22 @@ watch(
 
 .control-device__header-left {
   display: flex;
-  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.control-device__header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.control-device__header-sub {
+  display: flex;
   align-items: center;
   gap: 12px;
-  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .control-device__name-row {
@@ -946,13 +925,15 @@ watch(
 }
 
 .control-device__back {
-  border: none;
-  background: transparent;
-  color: #3653a0;
-  font-size: 14px;
-  cursor: pointer;
+  /* 暂时隐藏返回，保留点击逻辑 */
+  visibility: hidden;
+  width: 0;
+  height: 0;
+  overflow: hidden;
   padding: 0;
-  flex-shrink: 0;
+  margin: 0;
+  border: none;
+  pointer-events: none;
 }
 
 .control-device__title {
@@ -964,6 +945,14 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.control-device__device-code {
+  font-size: 14px;
+  font-weight: 500;
+  color: #909399;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .control-device__online {
@@ -994,27 +983,27 @@ watch(
   background: currentColor;
 }
 
-.control-device__location {
+.control-device__edit-inline {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: none;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-  color: #606266;
-  font-size: 14px;
-  max-width: 320px;
-}
-
-.control-device__location span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.control-device__location:hover {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #d0d7e8;
+  border-radius: 16px;
+  background: #fff;
   color: #3653a0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.control-device__edit-inline .iconfont {
+  font-size: 14px;
+}
+
+.control-device__edit-inline:hover {
+  background: #f5f7fb;
 }
 
 .control-device__header-right {
@@ -1024,27 +1013,20 @@ watch(
   flex-shrink: 0;
 }
 
-.control-device__sync {
-  --el-button-bg-color: #3653a0;
-  --el-button-border-color: #3653a0;
-  --el-button-hover-bg-color: #2f4a90;
-  --el-button-hover-border-color: #2f4a90;
+.control-device__map-btn {
   height: 40px;
+  padding: 0 20px;
+  border: none;
   border-radius: 10px;
-  font-weight: 600;
-}
-
-.control-device__edit {
-  height: 40px;
-  border-radius: 10px;
-  font-weight: 600;
-  color: #3653a0;
-  border-color: #d0d7e8;
-}
-
-.control-device__edit .iconfont {
-  margin-right: 4px;
+  background: #3653a0;
+  color: #fff;
   font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.control-device__map-btn:hover {
+  background: #2f4a90;
 }
 
 .control-device__main {
@@ -1066,7 +1048,6 @@ watch(
 .control-device__left {
   display: flex;
   flex-direction: column;
-  gap: 16px;
   min-width: 0;
   min-height: 0;
 }
@@ -1074,8 +1055,64 @@ watch(
 .control-device__viz {
   position: relative;
   padding: 20px;
-  min-height: 420px;
+  min-height: 520px;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.control-device__viz-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.control-device__sync-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: #909399;
+}
+
+.control-device__sync-time-value {
+  font-style: italic;
+  font-weight: 500;
+  font-synthesis: style;
+}
+
+.control-device__sync-link {
+  box-sizing: border-box;
+  background: rgba(54, 83, 160, 0.05);
+  border: 1px solid rgba(54, 83, 160, 0.2);
+  border-radius: 20px;
+  padding: 6px 16px;
+  color: #3653a0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.control-device__sync-link:hover {
+  background: rgba(54, 83, 160, 0.1);
+  border-color: rgba(54, 83, 160, 0.35);
+}
+
+.control-device__metrics-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  box-sizing: border-box;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 1.33px 2.66px 0 rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
 }
 
 .control-device__metrics {
@@ -1111,90 +1148,138 @@ watch(
   color: #3653a0;
 }
 
-.control-device__metric.is-low {
+.control-device__metric--battery {
+  gap: 6px;
+  color: #00c970;
+}
+
+.control-device__metric--battery .iconfont {
+  font-size: 18px;
+  color: inherit;
+  transform: rotate(90deg);
+  line-height: 1;
+}
+
+.control-device__metric--battery.is-low {
   color: #f56c6c;
 }
 
 .control-device__device-wrap {
   position: relative;
   margin-top: 12px;
-  height: 340px;
+  flex: 1;
+  min-height: 380px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.control-device__device-meta {
-  position: absolute;
-  top: 8px;
-  left: 12px;
-  z-index: 2;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #909399;
+  overflow: visible;
+  /* 为设备图上移预留空间，避免顶部被裁切出现横线 */
+  padding-top: 25px;
+  box-sizing: border-box;
 }
 
 .control-device__device-img {
-  width: 220px;
-  height: 260px;
+  width: 320px;
+  height: 360px;
   object-fit: contain;
+  position: relative;
+  top: -25px;
 }
 
 .control-device__port-overlay {
   position: absolute;
-  top: 28%;
+  top: calc(18% + 40px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  z-index: 2;
+  box-sizing: border-box;
 }
 
 .control-device__port-overlay.is-a {
-  left: 18%;
+  left: 6%;
 }
 
 .control-device__port-overlay.is-b {
-  right: 18%;
+  right: 6%;
 }
 
+/* 出水口名称圆标：48×48 */
 .control-device__port-marker {
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
   border-radius: 50%;
-  background: #c0c4cc;
-  color: #fff;
-  font-size: 16px;
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.002);
+  border: 3px solid #ffffff;
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  font-size: 20px;
   font-weight: 700;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
 }
 
-.control-device__port-marker.is-on {
+.control-device__port-overlay.is-on .control-device__port-marker {
   background: #3653a0;
+  color: #fff;
 }
 
+.control-device__port-overlay.is-off .control-device__port-marker {
+  background: rgba(241, 245, 249, 0.95);
+  color: rgba(68, 70, 81, 0.4);
+}
+
+/* 压力数值区域：180×80（图2 红框 1、2） */
 .control-device__pressure {
+  width: 180px;
+  height: 80px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
-  color: #303133;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 40px;
+  background: rgba(241, 245, 249, 0.95);
+  box-sizing: border-box;
+  padding: 0 20px;
+}
+
+.control-device__port-overlay.is-on .control-device__pressure {
+  color: #3653a0;
+}
+
+.control-device__port-overlay.is-off .control-device__pressure {
+  color: rgba(68, 70, 81, 0.3);
 }
 
 .control-device__pressure-val {
-  font-size: 22px;
+  font-size: 36px;
   font-weight: 700;
   line-height: 1;
+  color: inherit;
 }
 
 .control-device__pressure-units {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  line-height: 1.15;
+  line-height: 1.2;
 }
 
-.control-device__pressure-units em,
+.control-device__pressure-units em {
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 600;
+  color: inherit;
+}
+
 .control-device__flow em {
   font-style: normal;
   font-size: 12px;
@@ -1204,7 +1289,7 @@ watch(
 
 .control-device__flow {
   position: absolute;
-  bottom: 4px;
+  bottom: 34px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 36px;
@@ -1254,10 +1339,82 @@ watch(
   cursor: pointer;
 }
 
+.control-device__bottom-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 0;
+  flex-shrink: 0;
+}
+
+.control-device__bottom-item {
+  min-width: 0;
+  height: 87px;
+  min-height: 87px;
+  padding: 12px 16px;
+  border-radius: 20px;
+  opacity: 1;
+  background: #ffffff;
+  box-sizing: border-box;
+  border: 1px solid rgba(224, 227, 230, 0.3);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.control-device__switch-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.control-device__opening-compact:hover {
+  background: #ffffff;
+  box-shadow: 0 2px 6px 0 rgba(0, 0, 0, 0.08);
+}
+
+.control-device__switch-compact-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #303133;
+  white-space: nowrap;
+}
+
+.control-device__opening-compact {
+  cursor: pointer;
+}
+
+.control-device__opening-compact.is-offline-disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.control-device__opening-compact-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #3653a0;
+}
+
+.control-device__opening-compact-right .iconfont {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(54, 83, 160, 0.12);
+  color: #3653a0;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .control-device__nav-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -1266,17 +1423,33 @@ watch(
   border: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
+  justify-content: flex-start;
+  gap: 22px;
+  padding: 0 20px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #303133;
+  box-sizing: border-box;
 }
 
-.control-device__nav-card .iconfont {
-  font-size: 22px;
-  color: #3653a0;
+.control-device__nav-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: #f1f4f7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.control-device__nav-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
+  object-fit: contain;
 }
 
 .control-device__nav-card:hover {
@@ -1293,29 +1466,42 @@ watch(
 }
 
 .control-device__status {
-  padding: 16px 18px 20px;
-  flex-shrink: 0;
+  padding: 20px 20px 24px;
+  flex: 1;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
 }
 
 .control-device__status-title {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
-  color: #909399;
-  margin-bottom: 12px;
+  color: #0f172a;
+  margin-bottom: 16px;
 }
 
 .control-device__status-body {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 24px;
 }
 
 .control-device__run-ring {
   position: relative;
-  width: 120px;
-  height: 120px;
+  width: 132px;
+  height: 132px;
   flex-shrink: 0;
   box-sizing: border-box;
+}
+
+.control-device__run-ring-static {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 6px solid #00c970;
+  box-sizing: border-box;
+  opacity: 0.85;
 }
 
 .control-device__run-disc {
@@ -1406,31 +1592,17 @@ watch(
   font-size: 32px;
 }
 
-.control-device__switches {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.control-device__switch-card {
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.control-device__switch-label {
-  font-size: 14px;
-  font-weight: 700;
-  color: #303133;
+.control-device__stat-value.is-empty {
+  color: #3653a0;
+  font-size: 32px;
+  line-height: 1;
 }
 
 .control-device__switch-wrap {
   position: relative;
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .control-device__switch-wrap :deep(.el-switch) {
@@ -1468,24 +1640,29 @@ watch(
 }
 
 .control-device__switch-card.is-open .control-device__switch-badge,
-.control-device__switch-card.is-closed .control-device__switch-badge {
+.control-device__switch-card.is-closed .control-device__switch-badge,
+.control-device__switch-compact.is-open .control-device__switch-badge,
+.control-device__switch-compact.is-closed .control-device__switch-badge {
   left: 3px;
 }
 
-.control-device__switch-card.is-open .control-device__switch-wrap :deep(.el-switch__core) {
+.control-device__switch-card.is-open .control-device__switch-wrap :deep(.el-switch__core),
+.control-device__switch-compact.is-open .control-device__switch-wrap :deep(.el-switch__core) {
   padding-left: 36px;
 }
 
-.control-device__switch-card.is-closed .control-device__switch-wrap :deep(.el-switch__core) {
+.control-device__switch-card.is-closed .control-device__switch-wrap :deep(.el-switch__core),
+.control-device__switch-compact.is-closed .control-device__switch-wrap :deep(.el-switch__core) {
   padding-left: 36px;
 }
 
-.control-device__switch-card.is-muted .control-device__switch-badge {
+.control-device__switch-card.is-muted .control-device__switch-badge,
+.control-device__switch-compact.is-muted .control-device__switch-badge {
   background: #f5f6f8;
   color: #a8abb2;
 }
 
-.control-device__switches.is-valve-busy .is-blink :deep(.el-switch__core) {
+.control-device__bottom-row.is-valve-busy .is-blink :deep(.el-switch__core) {
   animation: control-valve-blink 1s ease-in-out infinite;
 }
 
@@ -1499,96 +1676,9 @@ watch(
   }
 }
 
-.control-device__opening {
-  flex: 1;
-  min-height: 72px;
-  padding: 16px 18px 18px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.control-device__opening:hover {
-  background: #fafbfc;
-}
-
-.control-device__opening.is-offline-disabled {
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-.control-device__opening.is-offline-disabled:hover {
-  background: #fff;
-}
-
-.control-device__opening-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: #303133;
-}
-
-.control-device__opening-title .iconfont {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(54, 83, 160, 0.12);
-  color: #3653a0;
-  font-size: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.control-device__opening-row {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 56px;
-  padding: 0 16px;
-  border-radius: 12px;
-  background: #f0f4f7;
-  box-sizing: border-box;
-}
-
-.control-device__opening-name {
-  width: 88px;
-  flex-shrink: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #606266;
-}
-
-.control-device__opening-bar {
-  flex: 1;
-  height: 10px;
-  border-radius: 5px;
-  background: #dde3ea;
-  overflow: hidden;
-}
-
-.control-device__opening-fill {
-  height: 100%;
-  border-radius: 5px;
-  background: linear-gradient(90deg, #7aa0ff, #3653a0);
-}
-
-.control-device__opening-pct {
-  width: 44px;
-  text-align: right;
-  font-size: 15px;
-  font-weight: 700;
-  color: #3653a0;
-}
-
 .control-device.is-offline .control-device__viz,
-.control-device.is-offline .control-device__switches,
-.control-device.is-offline .control-device__opening {
+.control-device.is-offline .control-device__bottom-row,
+.control-device.is-offline .control-device__opening-compact {
   opacity: 0.72;
 }
 

@@ -16,6 +16,7 @@
       <el-input
         v-model="searchText"
         clearable
+        class="farm-land-device-dialog__search-input"
         placeholder="输入设备名称/设备编号"
         @keyup.enter="fetchList"
         @clear="fetchList"
@@ -24,7 +25,12 @@
           <i class="iconfont icon-farm_ic_search"></i>
         </template>
       </el-input>
-      <el-button type="primary" :loading="loading" @click="fetchList">
+      <el-button
+        type="primary"
+        class="farm-land-device-dialog__search-btn"
+        :loading="loading"
+        @click="fetchList"
+      >
         搜索
       </el-button>
     </div>
@@ -57,6 +63,7 @@
           label="编号"
           min-width="160"
           show-overflow-tooltip
+          class-name="farm-land-device-dialog__code-col"
         />
         <el-table-column label="操作" width="80" align="center">
           <template #default="{ row }">
@@ -77,7 +84,12 @@
     </div>
 
     <template #footer>
-      <el-button type="primary" :loading="deleting" @click="onFooterPrimary">
+      <el-button
+        type="primary"
+        class="farm-land-device-dialog__save-btn"
+        :loading="deleting"
+        @click="onFooterPrimary"
+      >
         保存
       </el-button>
     </template>
@@ -88,7 +100,9 @@
       title="提示"
       width="420px"
       append-to-body
+      align-center
       :close-on-click-modal="false"
+      class="farm-land-device-confirm-dialog"
       @closed="onConfirmClosed"
     >
       <p class="farm-land-device-dialog__confirm-desc">
@@ -256,12 +270,36 @@ watch(
   margin-bottom: 16px;
 }
 
-.farm-land-device-dialog__search :deep(.el-input) {
-  flex: 1;
+.farm-land-device-dialog__search-input {
+  width: 280px;
+  flex: 0 0 280px;
+}
+
+.farm-land-device-dialog__search-btn {
+  --el-button-bg-color: #3653a0;
+  --el-button-border-color: #3653a0;
+  --el-button-hover-bg-color: #2d4590;
+  --el-button-hover-border-color: #2d4590;
+  --el-button-active-bg-color: #2d4590;
+  --el-button-active-border-color: #2d4590;
 }
 
 .farm-land-device-dialog__table-wrap {
   min-height: 200px;
+}
+
+.farm-land-device-dialog__table-wrap :deep(.farm-land-device-dialog__code-col) {
+  color: #3653a0;
+  font-weight: 600;
+}
+
+.farm-land-device-dialog__save-btn {
+  --el-button-bg-color: #3653a0;
+  --el-button-border-color: #3653a0;
+  --el-button-hover-bg-color: #2d4590;
+  --el-button-hover-border-color: #2d4590;
+  --el-button-active-bg-color: #2d4590;
+  --el-button-active-border-color: #2d4590;
 }
 
 .farm-land-device-dialog__device {
@@ -317,5 +355,30 @@ watch(
 .farm-land-device-dialog.el-dialog {
   border-radius: 16px;
   overflow: hidden;
+}
+
+.farm-land-device-confirm-dialog.el-dialog {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.farm-land-device-confirm-dialog .el-dialog__header {
+  margin-right: 0;
+  padding: 20px 24px 10px;
+}
+
+.farm-land-device-confirm-dialog .el-dialog__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  line-height: 1.4;
+}
+
+.farm-land-device-confirm-dialog .el-dialog__body {
+  padding: 4px 24px 8px;
+}
+
+.farm-land-device-confirm-dialog .el-dialog__footer {
+  padding: 8px 24px 20px;
 }
 </style>

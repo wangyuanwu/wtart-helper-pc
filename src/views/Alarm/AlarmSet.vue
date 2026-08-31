@@ -77,7 +77,7 @@
               type="number"
               placeholder="请输入水压"
             />
-            <span class="alarm-set-card__unit">MPa</span>
+            <span class="alarm-set-card__unit">bar(公斤)</span>
           </div>
         </div>
         <div class="alarm-set-card__row">
@@ -152,13 +152,96 @@
         </div>
       </section>
 
-      <!-- 电话通知人 -->
-      <section class="alarm-set-card alarm-set-card--clickable" @click="openMemberDialog">
-        <div class="alarm-set-card__member">
+      <!-- 电话通知人 + 通知禁止时间 -->
+      <section class="alarm-set-card">
+        <div
+          class="alarm-set-card__member alarm-set-card__member--clickable"
+          @click="openMemberDialog"
+        >
           <span class="alarm-set-card__title">电话通知人</span>
           <div class="alarm-set-card__member-right">
             <span class="alarm-set-card__member-name">{{ showMemberName }}</span>
             <i class="iconfont icon-farm_ic_back_01"></i>
+          </div>
+        </div>
+
+        <div class="alarm-set-card__quiet-head">
+          <span class="alarm-set-card__title">
+            通知禁止时间
+            <el-tooltip
+              content="此时间段内发生报警，将不会电话通知。"
+              placement="top"
+            >
+              <i class="iconfont icon-device_ic_add_gantanhao alarm-set-card__help"></i>
+            </el-tooltip>
+          </span>
+          <button type="button" class="alarm-set-card__quiet-add" @click="addQuietSlot">
+            <span>添加</span>
+            <i class="iconfont icon-device_ic_add"></i>
+          </button>
+        </div>
+
+        <div
+          v-for="(item, index) in alarmSet.quietSlots"
+          :key="index"
+          class="alarm-set-card__quiet-row"
+        >
+          <div class="alarm-set-card__quiet-col">
+            <span class="alarm-set-card__quiet-sub">开始时间</span>
+            <el-time-picker
+              v-model="item.start"
+              format="HH:mm"
+              value-format="HH:mm:ss"
+              placeholder="开始时间"
+              class="alarm-set-card__time-picker"
+            />
+          </div>
+          <div class="alarm-set-card__quiet-col">
+            <div class="alarm-set-card__quiet-sub-row">
+              <span class="alarm-set-card__quiet-sub">结束时间</span>
+              <button
+                type="button"
+                class="alarm-set-card__quiet-del"
+                @click="removeQuietSlot(index)"
+              >
+                <i class="iconfont icon-shanchu"></i>
+              </button>
+            </div>
+            <div class="alarm-set-card__quiet-end">
+              <el-time-picker
+                v-model="item.end"
+                format="HH:mm"
+                value-format="HH:mm:ss"
+                placeholder="结束时间"
+                class="alarm-set-card__time-picker"
+              />
+              <span
+                v-if="isQuietSlotCrossDay(item)"
+                class="alarm-set-card__quiet-plus"
+              >+1</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 免费短信 / 电话余额 -->
+      <section class="alarm-set-card">
+        <div class="alarm-set-card__balance">
+          <span class="alarm-set-card__title">免费短信通知剩余</span>
+          <div class="alarm-set-card__balance-right">
+            <span class="alarm-set-card__balance-num">{{ alarmSet.smsBalance ?? 0 }}条</span>
+            <button type="button" class="alarm-set-card__recharge" @click="onRecharge">
+              立即充值
+            </button>
+          </div>
+        </div>
+        <div class="alarm-set-card__balance is-last">
+          <span class="alarm-set-card__title">免费电话通知剩余</span>
+          <div class="alarm-set-card__balance-right">
+            <span class="alarm-set-card__balance-num">{{ alarmSet.voiceBalance ?? 0 }}条</span>
+            <button type="button" class="alarm-set-card__recharge" @click="onRecharge">
+              立即充值
+            </button>
           </div>
         </div>
       </section>
@@ -225,10 +308,11 @@
  */
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { alarmSetting, getAlarmSetList } from '@/api/alarm'
 import { getMemberList } from '@/api/farm'
 import { useFarmStore } from '@/store/farm'
+import { time2Second } from '@/utils/programTime'
 import defaultAvatar from '@/assets/my_img_01.svg'
 
 const router = useRouter()
@@ -248,7 +332,7 @@ function createDefaultSettings() {
       alarmType: 1,
       enabled: true,
       phoneNotify: true,
-      minValue: 0.1,
+      minValue: 0.3,
       maxValue: 0,
       delaySeconds: 0,
       remark: 'string'
@@ -333,6 +417,9 @@ let offFarmChange = null
 const alarmSet = reactive({
   farmId: 0,
   notifyFarmUserIds: [],
+  quietSlots: [],
+  smsBalance: 0,
+  voiceBalance: 0,
   settings: createDefaultSettings()
 })
 
@@ -378,6 +465,43 @@ function onEnableChange(index, enabled) {
   }
 }
 
+function normalizeTimeValue(val) {
+  if (!val) return '00:00:00'
+  const parts = String(val).split(':')
+  if (parts.length >= 3) return val
+  if (parts.length === 2) return `${val}:00`
+  return '00:00:00'
+}
+
+/** 对齐移动端 isForbidTimeError：开始 > 结束则跨天显示 +1 */
+function isQuietSlotCrossDay(item) {
+  if (!item) return false
+  return time2Second(item.start) > time2Second(item.end)
+}
+
+function addQuietSlot() {
+  if (!Array.isArray(alarmSet.quietSlots)) {
+    alarmSet.quietSlots = []
+  }
+  alarmSet.quietSlots.push({
+    start: '00:00:00',
+    end: '05:00:00'
+  })
+}
+
+function removeQuietSlot(index) {
+  if (!Array.isArray(alarmSet.quietSlots)) return
+  if (index < 0 || index >= alarmSet.quietSlots.length) return
+  alarmSet.quietSlots.splice(index, 1)
+}
+
+function onRecharge() {
+  ElMessageBox.alert('请前往移动端进行充值', '提示', {
+    confirmButtonText: '知道了',
+    type: 'info'
+  }).catch(() => {})
+}
+
 function ensureSettingsLength() {
   const defaults = createDefaultSettings()
   if (!Array.isArray(alarmSet.settings) || alarmSet.settings.length < 8) {
@@ -398,6 +522,9 @@ async function fetchAlarmSet() {
   const farmId = getFarmId()
   if (farmId == null) {
     showPageTip('请先选择农场', 'info')
+    alarmSet.quietSlots = []
+    alarmSet.smsBalance = 0
+    alarmSet.voiceBalance = 0
     return
   }
   alarmSet.farmId = farmId
@@ -414,6 +541,14 @@ async function fetchAlarmSet() {
       } else {
         memberIdList.value = []
       }
+      alarmSet.quietSlots = Array.isArray(res.data.quietSlots)
+        ? res.data.quietSlots.map((slot) => ({
+            start: normalizeTimeValue(slot?.start),
+            end: normalizeTimeValue(slot?.end)
+          }))
+        : []
+      alarmSet.smsBalance = Number(res.data.smsBalance) || 0
+      alarmSet.voiceBalance = Number(res.data.voiceBalance) || 0
     }
   } catch (e) {
     console.error('[AlarmSet] 获取设置失败', e)
@@ -468,12 +603,20 @@ async function onSave() {
     if (s.delaySeconds != null) s.delaySeconds = Number(s.delaySeconds) || 0
   })
 
+  const quietSlots = (Array.isArray(alarmSet.quietSlots) ? alarmSet.quietSlots : []).map(
+    (slot) => ({
+      start: normalizeTimeValue(slot?.start),
+      end: normalizeTimeValue(slot?.end)
+    })
+  )
+
   saving.value = true
   try {
     await alarmSetting(
       {
         farmId: alarmSet.farmId,
         notifyFarmUserIds: alarmSet.notifyFarmUserIds,
+        quietSlots,
         settings: alarmSet.settings
       },
       { silent: true }
@@ -621,12 +764,174 @@ watch(
   box-sizing: border-box;
 }
 
-.alarm-set-card--clickable {
+.alarm-set-card__member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #edf1f7;
+}
+
+.alarm-set-card__member--clickable {
   cursor: pointer;
 }
 
-.alarm-set-card--clickable:hover {
-  background: #fafbfc;
+.alarm-set-card__member--clickable:hover {
+  opacity: 0.9;
+}
+
+.alarm-set-card__member-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.alarm-set-card__member-name {
+  font-size: 14px;
+  color: #909399;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360px;
+}
+
+.alarm-set-card__member-right .iconfont {
+  font-size: 14px;
+  color: #c0c4cc;
+}
+
+.alarm-set-card__quiet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.alarm-set-card__quiet-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: #3653a0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.alarm-set-card__quiet-add .iconfont {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.alarm-set-card__quiet-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.alarm-set-card__quiet-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.alarm-set-card__quiet-sub {
+  font-size: 12px;
+  color: #909399;
+}
+
+.alarm-set-card__quiet-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.alarm-set-card__quiet-del {
+  border: none;
+  background: transparent;
+  color: #c0c4cc;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.alarm-set-card__quiet-del:hover {
+  color: #909399;
+}
+
+.alarm-set-card__quiet-del .iconfont {
+  font-size: 16px;
+}
+
+.alarm-set-card__quiet-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.alarm-set-card__time-picker {
+  width: 100%;
+}
+
+.alarm-set-card__quiet-plus {
+  flex-shrink: 0;
+  color: #3653a0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.alarm-set-card__balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #edf1f7;
+}
+
+.alarm-set-card__balance:first-child {
+  padding-top: 0;
+}
+
+.alarm-set-card__balance.is-last {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.alarm-set-card__balance-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.alarm-set-card__balance-num {
+  font-size: 14px;
+  color: #303133;
+}
+
+.alarm-set-card__recharge {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid #3653a0;
+  border-radius: 6px;
+  background: #fff;
+  color: #3653a0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alarm-set-card__recharge:hover {
+  background: rgba(54, 83, 160, 0.06);
 }
 
 .alarm-set-card__head {
@@ -642,6 +947,9 @@ watch(
   font-size: 15px;
   font-weight: 700;
   color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .alarm-set-card__row {
@@ -736,34 +1044,6 @@ watch(
 
 .alarm-set-card__phone-only:first-child {
   padding-top: 0;
-}
-
-.alarm-set-card__member {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.alarm-set-card__member-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.alarm-set-card__member-name {
-  font-size: 14px;
-  color: #909399;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 360px;
-}
-
-.alarm-set-card__member-right .iconfont {
-  font-size: 14px;
-  color: #c0c4cc;
 }
 
 .alarm-set-page__footer {

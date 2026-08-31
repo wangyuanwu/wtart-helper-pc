@@ -324,7 +324,9 @@
       title="提示"
       width="420px"
       append-to-body
+      align-center
       :close-on-click-modal="false"
+      class="land-delete-confirm-dialog"
       @closed="onLandDeleteConfirmClosed"
     >
       <p class="device-land-delete-desc">
@@ -334,14 +336,17 @@
         已知晓风险，确认删除。
       </el-checkbox>
       <template #footer>
-        <el-button @click="landDeleteConfirmVisible = false">取消</el-button>
+        <el-button class="land-delete-confirm-dialog__btn" @click="landDeleteConfirmVisible = false">
+          取消
+        </el-button>
         <el-button
-          type="danger"
+          type="primary"
+          class="land-delete-confirm-dialog__btn is-confirm"
           :disabled="!landDeleteRiskChecked"
           :loading="landDeleting"
           @click="confirmDeleteLand"
         >
-          删除
+          确定
         </el-button>
       </template>
     </el-dialog>
@@ -1809,6 +1814,72 @@ onUnmounted(() => {
   line-height: 1 !important;
   transform: scale(0.72);
   transform-origin: left center;
+}
+
+.land-delete-confirm-dialog.el-dialog {
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.land-delete-confirm-dialog .el-dialog__header {
+  margin-right: 0;
+  padding: 24px 28px 12px;
+  text-align: center;
+}
+
+.land-delete-confirm-dialog .el-dialog__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  line-height: 1.4;
+}
+
+.land-delete-confirm-dialog .el-dialog__headerbtn {
+  top: 20px;
+}
+
+.land-delete-confirm-dialog .el-dialog__body {
+  padding: 0 28px 8px;
+}
+
+.land-delete-confirm-dialog .el-dialog__footer {
+  padding: 8px 28px 24px;
+}
+
+.land-delete-confirm-dialog .device-land-delete-desc {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.land-delete-confirm-dialog .el-checkbox {
+  --el-checkbox-checked-bg-color: #3653a0;
+  --el-checkbox-checked-input-border-color: #3653a0;
+  height: auto;
+}
+
+.land-delete-confirm-dialog .el-checkbox__label {
+  font-size: 14px;
+  color: #909399;
+  line-height: 1.4;
+}
+
+.land-delete-confirm-dialog .land-delete-confirm-dialog__btn {
+  min-width: 88px;
+  height: 40px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.land-delete-confirm-dialog .land-delete-confirm-dialog__btn.is-confirm {
+  --el-button-bg-color: #3653a0;
+  --el-button-border-color: #3653a0;
+  --el-button-hover-bg-color: #2f4a90;
+  --el-button-hover-border-color: #2f4a90;
+  --el-button-active-bg-color: #2f4a90;
+  --el-button-active-border-color: #2f4a90;
 }
 
 .device-delete-confirm-dialog.el-dialog {

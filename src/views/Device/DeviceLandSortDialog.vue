@@ -266,3 +266,10 @@ watch(
   cursor: grab;
 }
 </style>
+
+<style>
+.device-land-sort-dialog.el-dialog {
+  border-radius: 16px;
+  overflow: hidden;
+}
+</style>

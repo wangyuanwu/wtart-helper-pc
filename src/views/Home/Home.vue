@@ -225,6 +225,11 @@
         :nickname="currentNickname"
         @confirm="onEditNicknameConfirm"
       />
+      <AlarmTipDialog
+        v-model="alarmTipVisible"
+        :alarm="currentTipAlarm"
+        @confirm="onAlarmTipConfirm"
+      />
       <div v-if="showPageTags" class="page-tags-container">
         <PageTags />
       </div>
@@ -240,7 +245,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, h } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -254,6 +259,7 @@ import FarmEmpty from '@/views/Map/FarmEmpty.vue'
 import ServicePhoneDialog from '@/views/Home/ServicePhoneDialog.vue'
 import AboutSoftwareDialog from '@/views/Home/AboutSoftwareDialog.vue'
 import EditNicknameDialog from '@/views/Home/EditNicknameDialog.vue'
+import AlarmTipDialog from '@/views/Home/AlarmTipDialog.vue'
 import { menuList as staticMenuList } from '@/menuData.js'
 import { useUserStore } from '@/store/user'
 import { useFarmStore } from '@/store/farm'
@@ -296,6 +302,10 @@ const menuList = ref(staticMenuList)
 const messageCount = ref(0)
 const alarmList = ref([])
 const tipShowing = ref(false)
+const alarmTipVisible = ref(false)
+const currentTipAlarm = ref(null)
+/** 当前弹窗队列用的告警列表（对齐移动端 alarmTips 入参） */
+const tipAlarmQueue = ref([])
 const userMenuVisible = ref(false)
 const farmPopoverVisible = ref(false)
 const farmSearchText = ref('')
@@ -398,6 +408,14 @@ function clearAlarmTimers() {
   }
 }
 
+function resetAlarmTipState() {
+  clearAlarmTimers()
+  tipShowing.value = false
+  alarmTipVisible.value = false
+  currentTipAlarm.value = null
+  tipAlarmQueue.value = []
+}
+
 /** 对齐移动端 getAlarmListHttp：延迟拉取未处理告警 */
 function scheduleFetchAlarms() {
   if (alarmFetchTimer) clearTimeout(alarmFetchTimer)
@@ -430,39 +448,47 @@ async function fetchHomeAlarms() {
   }
 }
 
-/** 对齐移动端 alarmTips：依次弹出未知道的告警 */
-async function showAlarmTips(list) {
+/** 对齐移动端 alarmTips：依次弹出未知道的告警（取最后一个 !isKnow） */
+function showAlarmTips(list) {
   if (tipShowing.value) return
-  const alarm = (list || []).find((item) => !item.isKnow)
+  const queue = list || []
+  tipAlarmQueue.value = queue
+
+  // 对齐移动端 forEach 覆盖：取最后一个未知道的告警
+  let alarm
+  queue.forEach((item) => {
+    if (!item.isKnow) alarm = item
+  })
   if (!alarm) return
 
   tipShowing.value = true
-  try {
-    await ElMessageBox({
-      title: '报警提示',
-      message: h('div', { class: 'home-alarm-tip' }, [
-        h('div', { class: 'home-alarm-tip__name' }, alarm.deviceName || '--'),
-        h(
-          'div',
-          { class: 'home-alarm-tip__line' },
-          `设备ID:${alarm.deviceCode || '--'}`
-        ),
-        h(
-          'div',
-          { class: 'home-alarm-tip__line' },
-          `事件:${alarm.eventDescription || '--'}`
-        )
-      ]),
-      showCancelButton: false,
-      confirmButtonText: '知道了',
-      closeOnClickModal: false,
-      appendTo: 'body'
-    })
-    alarm.isKnow = true
-    alarmStore.setAlarmKnow(alarm.id, true)
-    await handleHomeAlarm(alarm, list)
-  } catch {
+  currentTipAlarm.value = alarm
+  alarmTipVisible.value = true
+}
+
+/**
+ * 对齐移动端 a-tips-confirm success：
+ * - handled=true → POST /handle 后继续队列
+ * - handled=false → 仅 isKnow，立即继续队列
+ */
+async function onAlarmTipConfirm({ handled }) {
+  const alarm = currentTipAlarm.value
+  const queue = tipAlarmQueue.value || []
+  if (!alarm) {
     tipShowing.value = false
+    return
+  }
+
+  alarm.isKnow = true
+  alarmStore.setAlarmKnow(alarm.id, true)
+  alarmTipVisible.value = false
+  currentTipAlarm.value = null
+
+  if (handled) {
+    await handleHomeAlarm(alarm, queue)
+  } else {
+    tipShowing.value = false
+    showAlarmTips(queue)
   }
 }
 
@@ -476,7 +502,7 @@ async function handleHomeAlarm(alarm, list) {
     tipShowing.value = false
     tipChainTimer = setTimeout(() => {
       showAlarmTips(list)
-      // 处理后刷新角标
+      // 处理后刷新角标（不连环弹窗）
       fetchHomeAlarmsSilent()
     }, 1000)
   }
@@ -666,6 +692,7 @@ onMounted(async () => {
   // 对齐移动端 index onShow：浏览器标签回前台时再拉
   document.addEventListener('visibilitychange', onDocumentVisible)
   offFarmChange = farmStore.onFarmChange(() => {
+    resetAlarmTipState()
     alarmStore.clearAlarmingArray()
     scheduleFetchAlarms()
   })
@@ -674,7 +701,7 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', onDocumentVisible)
   offFarmChange?.()
-  clearAlarmTimers()
+  resetAlarmTipState()
 })
 
 watch(
@@ -1274,18 +1301,5 @@ watch(
   border-radius: 14px;
   border: 1px solid #f0f0f0;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
-}
-
-.home-alarm-tip__name {
-  font-size: 16px;
-  font-weight: 700;
-  color: #0f172a;
-  margin-bottom: 10px;
-}
-
-.home-alarm-tip__line {
-  font-size: 14px;
-  color: #606266;
-  line-height: 1.6;
 }
 </style>
