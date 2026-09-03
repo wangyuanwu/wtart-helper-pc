@@ -20,6 +20,15 @@ export function getProDetail(id) {
   })
 }
 
+/** 地块下可选步骤：阀门组 + 阀门，对齐移动端 getStepItems */
+export function getStepItems(params) {
+  return request({
+    url: '/api/irrigation-program/step-items',
+    method: 'GET',
+    params
+  })
+}
+
 export function addGroupPro(data) {
   return request({
     url: '/api/irrigation-program',
@@ -82,5 +91,21 @@ export function getProgramRecord(params, config = {}) {
       ...(config.headers || {})
     },
     silent: config.silent === true
+  })
+}
+
+/** 运行记录步骤详情 GET /api/irrigation-program/record/detail/{id} */
+export function getProgramRecordDetail(id) {
+  return request({
+    url: `/api/irrigation-program/record/detail/${id}`,
+    method: 'GET'
+  })
+}
+
+/** 阀门执行明细 GET /api/irrigation-program/record/valve-execution/{id} */
+export function getProgramRecordValveExecution(id) {
+  return request({
+    url: `/api/irrigation-program/record/valve-execution/${id}`,
+    method: 'GET'
   })
 }

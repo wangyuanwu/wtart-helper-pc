@@ -1,18 +1,24 @@
 <template>
-  <el-drawer
+  <el-dialog
     :model-value="modelValue"
-    title="灌溉统计"
-    direction="rtl"
-    size="720px"
+    width="720px"
     append-to-body
     destroy-on-close
-    class="farm-irr-stats-drawer"
+    align-center
+    draggable
+    overflow
+    :close-on-click-modal="false"
+    class="farm-irr-stats-dialog"
     @update:model-value="onVisibleChange"
     @opened="onOpened"
     @closed="onClosed"
   >
+    <template #header>
+      <div class="farm-irr-stats-dialog__title">灌溉统计</div>
+    </template>
+
     <div class="farm-irr-stats">
-      <!-- 时间范围（对齐移动端 a-record-time） -->
+      <!-- 时间范围：样式对齐开关记录弹窗头部日历/天数筛选 -->
       <div class="farm-irr-stats__time-bar">
         <div class="farm-irr-stats__tabs">
           <button
@@ -34,19 +40,24 @@
           >
             ‹
           </button>
-          <el-date-picker
-            v-if="timeIndex === 5"
-            v-model="customDateRange"
-            type="daterange"
-            value-format="YYYY-MM-DD"
-            unlink-panels
-            :disabled-date="disableFutureDate"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            class="farm-irr-stats__daterange"
-            @change="onCustomRangeChange"
-          />
-          <span v-else class="farm-irr-stats__range-text">{{ displayRange }}</span>
+          <div class="farm-irr-stats__range-main">
+            <el-date-picker
+              v-if="timeIndex === 5"
+              v-model="customDateRange"
+              type="daterange"
+              value-format="YYYY-MM-DD"
+              unlink-panels
+              :disabled-date="disableFutureDate"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              class="farm-irr-stats__daterange"
+              @change="onCustomRangeChange"
+            />
+            <template v-else>
+              <span class="farm-irr-stats__range-text">{{ displayRange }}</span>
+              <i class="iconfont icon-device_ic_timing farm-irr-stats__range-icon"></i>
+            </template>
+          </div>
           <button
             type="button"
             class="farm-irr-stats__arrow"
@@ -194,7 +205,7 @@
         </div>
       </div>
     </div>
-  </el-drawer>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -668,59 +679,85 @@ watch(
 .farm-irr-stats {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  align-items: stretch;
+  gap: 12px;
+  flex: 1;
   min-height: 0;
-  gap: 14px;
+  height: 100%;
+  width: 100%;
 }
 
 .farm-irr-stats__time-bar {
-  padding: 14px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #3653a0 0%, #4a6bc7 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 10px;
   flex-shrink: 0;
 }
 
 .farm-irr-stats__tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 44px;
+  padding: 2px;
+  border-radius: 4px;
+  background: #eef1f6;
+  box-sizing: border-box;
 }
 
 .farm-irr-stats__tab {
-  padding: 6px 12px;
+  flex: 1;
+  height: 40px;
+  padding: 0;
   border: none;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.92);
+  border-radius: 4.36px;
+  background: transparent;
+  color: #606266;
   font-size: 13px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .farm-irr-stats__tab.is-active {
-  background: #fff;
-  color: #3653a0;
+  background: #3653a0;
+  color: #fff;
   font-weight: 600;
 }
 
 .farm-irr-stats__range-row {
-  margin-top: 12px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: #fff;
+  justify-content: space-between;
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .farm-irr-stats__arrow {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-  font-size: 20px;
-  line-height: 1;
+  border-radius: 0;
+  background: transparent;
+  color: #303133;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 30px;
   cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.farm-irr-stats__arrow:hover:not(:disabled) {
+  color: #3653a0;
 }
 
 .farm-irr-stats__arrow:disabled {
@@ -728,14 +765,30 @@ watch(
   cursor: not-allowed;
 }
 
+.farm-irr-stats__range-main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+}
+
 .farm-irr-stats__range-text {
-  min-width: 220px;
-  text-align: center;
-  font-size: 13px;
+  color: #303133;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.farm-irr-stats__range-icon {
+  font-size: 16px;
+  color: #909399;
 }
 
 .farm-irr-stats__daterange {
-  width: 260px;
+  width: 280px;
 }
 
 .farm-irr-stats__search {
@@ -946,24 +999,44 @@ watch(
 </style>
 
 <style>
-.farm-irr-stats-drawer.el-drawer {
-  border-radius: 16px 0 0 16px;
+.farm-irr-stats-dialog.el-dialog {
+  width: 720px !important;
+  height: 900px !important;
+  max-height: 900px !important;
+  margin-top: 0 !important;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
   overflow: hidden;
 }
 
-.farm-irr-stats-drawer .el-drawer__header {
-  margin-bottom: 12px;
-  padding: 16px 20px 0;
+.farm-irr-stats-dialog .el-dialog__header {
+  margin-right: 0;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid #edf1f7;
+  flex-shrink: 0;
+  cursor: move;
+  user-select: none;
 }
 
-.farm-irr-stats-drawer .el-drawer__title {
-  font-size: 16px;
+.farm-irr-stats-dialog__title {
+  font-size: 18px;
   font-weight: 700;
   color: #0f172a;
+  line-height: 1.3;
 }
 
-.farm-irr-stats-drawer .el-drawer__body {
-  padding: 8px 20px 20px;
+.farm-irr-stats-dialog .el-dialog__body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
   overflow: hidden;
+}
+
+.farm-irr-stats-dialog .el-dialog__headerbtn {
+  right: 20px;
 }
 </style>

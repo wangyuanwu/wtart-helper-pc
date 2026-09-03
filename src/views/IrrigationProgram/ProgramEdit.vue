@@ -36,7 +36,7 @@
     <div v-else-if="proInfo" class="program-edit-page__body">
       <div class="program-edit-page__main">
         <!-- 基础信息 -->
-        <section class="program-card">
+        <section class="program-card program-card--basic">
           <div class="program-card__head">
             <span class="program-card__icon-wrap">
               <img class="program-card__icon" :src="iconBasic" alt="" />
@@ -44,49 +44,52 @@
             <h2 class="program-card__title">基础信息</h2>
           </div>
           <div class="program-card__body">
-            <div class="program-field">
-              <label class="program-field__label">程序名称</label>
-              <input
-                ref="nameInputRef"
-                v-model="proInfo.name"
-                class="program-field__input"
-                type="text"
-                placeholder="请输入程序名称"
-                maxlength="50"
-              />
-            </div>
-            <div class="program-field">
-              <label class="program-field__label">选择地块</label>
-              <el-select
-                v-model="proInfo.landId"
-                class="program-field__select"
-                placeholder="请选择地块"
-                @change="onLandChange"
-              >
-                <el-option
-                  v-for="land in landList"
-                  :key="land.id"
-                  :label="land.name"
-                  :value="land.id"
+            <div class="program-basic-row">
+              <div class="program-basic-field">
+                <label class="program-basic-field__label">程序名称</label>
+                <input
+                  ref="nameInputRef"
+                  v-model="proInfo.name"
+                  class="program-basic-field__control"
+                  type="text"
+                  placeholder="请输入程序名称"
+                  maxlength="50"
                 />
-              </el-select>
-            </div>
-            <div class="program-field program-field--clickable" @click="openGroupChose">
-              <label class="program-field__label">选择轮灌组</label>
-              <div class="program-field__value">
-                <span :class="{ 'is-placeholder': !groupNameText }">
-                  {{ groupNameText || '请选择轮灌组' }}
-                </span>
-                <span class="program-field__chevron">›</span>
               </div>
-            </div>
-            <div class="program-switch-row">
-              <div class="program-switch-row__text">
-                <div class="program-switch-row__title">轮灌组参数相同</div>
-                <div class="program-switch-row__desc">
-                  所有组将共用相同的灌溉时长和开启角度设置
+              <div class="program-basic-field">
+                <label class="program-basic-field__label">选择地块</label>
+                <el-select
+                  v-model="proInfo.landId"
+                  class="program-basic-field__select"
+                  placeholder="请选择地块"
+                  @change="onLandChange"
+                >
+                  <el-option
+                    v-for="land in landList"
+                    :key="land.id"
+                    :label="land.name"
+                    :value="land.id"
+                  />
+                </el-select>
+              </div>
+              <div
+                class="program-basic-field is-clickable"
+                @click="openGroupChose"
+              >
+                <label class="program-basic-field__label">选择轮灌组</label>
+                <div class="program-basic-field__control is-picker">
+                  <span
+                    class="program-basic-field__text"
+                    :class="{ 'is-placeholder': !groupNameText }"
+                  >
+                    {{ groupNameText || '请选择轮灌组' }}
+                  </span>
+                  <span class="program-basic-field__chevron">›</span>
                 </div>
               </div>
+            </div>
+            <div class="program-basic-switch">
+              <span class="program-basic-switch__title">轮灌组参数相同</span>
               <el-switch v-model="proInfo.isGroupParametersSame" />
             </div>
           </div>
@@ -106,11 +109,11 @@
               v-if="!proInfo.groups.length"
               class="program-groups-empty"
             >
-              请先选择轮灌组
+              请先选择阀门组或阀门
             </div>
             <div
               v-for="(item, index) in proInfo.groups"
-              :key="item.irrigationGroupId"
+              :key="stepRowKey(item, index)"
               class="program-group-row"
               draggable="true"
               @dragstart="onDragStart(index)"
@@ -120,26 +123,29 @@
               <span class="program-group-row__drag iconfont icon-device_ic_drag">⋮⋮</span>
               <span class="program-group-row__index">{{ padIndex(index + 1) }}</span>
               <span class="program-group-row__name">
-                {{ getGroupDisplayName(item.irrigationGroupId) }}
+                {{ getStepDisplayName(item) }}
               </span>
-              <button
-                type="button"
-                class="program-group-row__duration"
-                @click="setGroupTime(item)"
-              >
-                {{ formatDurationFriendly(item.durationSeconds) }}
-              </button>
+              <div class="program-group-row__duration-wrap">
+                <span class="program-group-row__duration-label">灌溉时长</span>
+                <button
+                  type="button"
+                  class="program-group-row__duration"
+                  @click="setGroupTime(item)"
+                >
+                  {{ formatDurationFriendly(item.durationSeconds) }}
+                </button>
+              </div>
               <button
                 type="button"
                 class="program-group-row__delete"
                 title="移除"
-                @click="removeGroup(item.irrigationGroupId)"
+                @click="removeGroup(item)"
               >
                 <i class="iconfont icon-land_ic_dele"></i>
               </button>
             </div>
             <button type="button" class="program-add-group-btn" @click="openGroupChose">
-              + 添加轮灌组
+              + 添加步骤
             </button>
           </div>
         </section>
@@ -147,7 +153,7 @@
 
       <aside class="program-edit-page__side">
         <!-- 运行规则 -->
-        <section class="program-card">
+        <section class="program-card program-card--rules">
           <div class="program-card__head">
             <span class="program-card__icon-wrap">
               <img class="program-card__icon" :src="iconRules" alt="" />
@@ -155,33 +161,24 @@
             <h2 class="program-card__title">运行规则</h2>
           </div>
           <div class="program-card__body">
-            <div class="program-field program-field--inline">
-              <label class="program-field__label">轮灌次数</label>
-              <div class="program-field__number">
+            <div class="program-rules-count">
+              <label class="program-rules-count__label">轮灌次数</label>
+              <div class="program-rules-count__box">
                 <el-input-number
                   v-model="proInfo.rotationCount"
+                  class="program-rules-count__input"
                   :min="0"
                   :max="999999"
-                  controls-position="right"
+                  :controls="false"
                 />
-                <span class="program-field__unit">次</span>
+                <span class="program-rules-count__unit">次</span>
               </div>
             </div>
-            <div class="program-field program-field--inline">
-              <label class="program-field__label">组间间隔时长</label>
-              <button
-                type="button"
-                class="program-field__duration-btn"
-                @click="setIntervalTime"
-              >
-                <i class="iconfont icon-device_ic_timing"></i>
-                {{ intervalText }}
-              </button>
-            </div>
-            <div class="program-switch-row">
-              <div class="program-switch-row__text">
-                <div class="program-switch-row__title">保持最后一个轮灌组开启</div>
-                <div class="program-switch-row__desc">轮灌完毕后，防止爆管</div>
+            <!-- 组间间隔时长：按最新设计稿暂时隐藏 -->
+            <div class="program-rules-switch">
+              <div class="program-rules-switch__text">
+                <div class="program-rules-switch__title">保持最后一个轮灌组开启</div>
+                <div class="program-rules-switch__desc">轮灌完毕后，防止爆管</div>
               </div>
               <el-switch v-model="proInfo.keepOneRunning" />
             </div>
@@ -197,9 +194,12 @@
             <h2 class="program-card__title">启动条件</h2>
           </div>
           <div class="program-card__body">
-            <div class="program-field">
-              <label class="program-field__label">启动条件</label>
-              <el-select v-model="proInfo.startCondition" class="program-field__select">
+            <div class="program-start-select">
+              <el-select
+                v-model="proInfo.startCondition"
+                class="program-start-select__control"
+                placeholder="请选择启动条件"
+              >
                 <el-option
                   v-for="(label, idx) in startModeList"
                   :key="idx"
@@ -211,8 +211,8 @@
 
             <template v-if="proInfo.startCondition === 1">
               <!-- 开始时间 -->
-              <div id="targetTimeItem" class="program-field">
-                <label class="program-field__label">开始时间</label>
+              <div id="targetTimeItem" class="program-start-field">
+                <label class="program-start-field__label">开始时间</label>
                 <el-date-picker
                   v-if="proInfo.timerTaskConfig.timerConfig.repeatType === 0"
                   v-model="openDateTime"
@@ -220,7 +220,7 @@
                   placeholder="选择日期时间"
                   format="YYYY-MM-DD HH:mm"
                   value-format="YYYY-MM-DD HH:mm:ss"
-                  class="program-field__picker"
+                  class="program-start-field__picker"
                   @change="onOpenDateTimeChange"
                 />
                 <el-time-picker
@@ -229,7 +229,7 @@
                   placeholder="选择时间"
                   format="HH:mm:ss"
                   value-format="HH:mm:ss"
-                  class="program-field__picker"
+                  class="program-start-field__picker"
                   @change="onOpenTimeOnlyChange"
                 />
               </div>
@@ -237,7 +237,7 @@
               <!-- 禁止时间段 -->
               <div class="program-forbid">
                 <div class="program-forbid__head">
-                  <span>禁止时间段</span>
+                  <span class="program-forbid__title">禁止时间段</span>
                   <button type="button" class="program-forbid__add" @click="addForbidTime">
                     +
                   </button>
@@ -255,66 +255,74 @@
                     :key="fi"
                     class="program-forbid__row"
                   >
-                    <div class="program-forbid__col">
-                      <span class="program-forbid__sub">开始时间</span>
-                      <el-time-picker
-                        v-model="ft.startTime"
-                        format="HH:mm:ss"
-                        value-format="HH:mm:ss"
-                        placeholder="开始"
-                        class="program-field__picker"
-                      />
-                    </div>
-                    <div class="program-forbid__col">
-                      <div class="program-forbid__sub-row">
-                        <span class="program-forbid__sub">结束时间</span>
-                        <button
-                          type="button"
-                          class="program-forbid__del"
-                          @click="removeForbidTime(ft)"
-                        >
-                          <i class="iconfont icon-land_ic_dele"></i>
-                        </button>
-                      </div>
-                      <el-time-picker
-                        v-model="ft.endTime"
-                        format="HH:mm:ss"
-                        value-format="HH:mm:ss"
-                        placeholder="结束"
-                        class="program-field__picker"
-                      />
-                      <span
-                        v-if="isForbidTimeCrossDay(ft)"
-                        class="program-forbid__plus-one"
-                      >+1</span>
-                    </div>
+                    <i class="iconfont icon-device_ic_timing program-forbid__clock"></i>
+                    <el-time-picker
+                      v-model="ft.startTime"
+                      format="HH:mm:ss"
+                      value-format="HH:mm:ss"
+                      placeholder="开始时间"
+                      class="program-forbid__picker"
+                    />
+                    <span class="program-forbid__sep">至</span>
+                    <el-time-picker
+                      v-model="ft.endTime"
+                      format="HH:mm:ss"
+                      value-format="HH:mm:ss"
+                      placeholder="结束时间"
+                      class="program-forbid__picker"
+                    />
+                    <span
+                      v-if="isForbidTimeCrossDay(ft)"
+                      class="program-forbid__plus-one"
+                    >+1</span>
+                    <button
+                      type="button"
+                      class="program-forbid__del"
+                      @click="removeForbidTime(ft)"
+                    >
+                      <i class="iconfont icon-land_ic_dele"></i>
+                    </button>
                   </div>
                 </div>
               </div>
 
               <!-- 是否重复 -->
-              <div class="program-field">
-                <label class="program-field__label">是否重复</label>
-                <el-radio-group v-model="proInfo.timerTaskConfig.timerConfig.repeatType">
-                  <el-radio
+              <div class="program-repeat">
+                <div class="program-repeat__title">是否重复</div>
+                <div class="program-repeat__grid">
+                  <button
                     v-for="opt in repeatTypeOptions"
                     :key="opt.value"
-                    :label="opt.value"
+                    type="button"
+                    class="program-repeat__item"
+                    :class="{
+                      'is-active':
+                        proInfo.timerTaskConfig.timerConfig.repeatType === opt.value
+                    }"
+                    @click="proInfo.timerTaskConfig.timerConfig.repeatType = opt.value"
                   >
-                    {{ opt.label }}
-                  </el-radio>
-                </el-radio-group>
+                    <i
+                      class="iconfont"
+                      :class="
+                        proInfo.timerTaskConfig.timerConfig.repeatType === opt.value
+                          ? 'icon-radio'
+                          : 'icon-radio1'
+                      "
+                    ></i>
+                    <span>{{ opt.label }}</span>
+                  </button>
+                </div>
               </div>
 
               <!-- 间隔重复 -->
               <div
                 v-if="proInfo.timerTaskConfig.timerConfig.repeatType === 1"
-                class="program-field program-field--inline"
+                class="program-start-field program-start-field--inline"
               >
-                <label class="program-field__label">重复周期</label>
+                <label class="program-start-field__label">重复周期</label>
                 <button
                   type="button"
-                  class="program-field__duration-btn"
+                  class="program-start-field__duration"
                   @click="setRepeatInterval"
                 >
                   <i class="iconfont icon-device_ic_timing"></i>
@@ -325,14 +333,14 @@
               <!-- 日期范围 -->
               <div
                 v-if="[1, 2].includes(proInfo.timerTaskConfig.timerConfig.repeatType)"
-                class="program-field program-date-range"
+                class="program-date-range"
               >
                 <el-date-picker
                   v-model="proInfo.timerTaskConfig.timerConfig.startDate"
                   type="date"
                   placeholder="开始日期"
                   value-format="YYYY-MM-DD"
-                  class="program-field__picker"
+                  class="program-start-field__picker"
                 />
                 <span class="program-date-range__sep">至</span>
                 <el-date-picker
@@ -340,7 +348,7 @@
                   type="date"
                   placeholder="结束日期"
                   value-format="YYYY-MM-DD"
-                  class="program-field__picker"
+                  class="program-start-field__picker"
                 />
               </div>
 
@@ -363,15 +371,15 @@
               <!-- 自定义日期 -->
               <div
                 v-if="proInfo.timerTaskConfig.timerConfig.repeatType === 3"
-                class="program-field"
+                class="program-start-field"
               >
-                <label class="program-field__label">自定义日期</label>
+                <label class="program-start-field__label">自定义日期</label>
                 <el-date-picker
                   v-model="proInfo.timerTaskConfig.timerConfig.dates"
                   type="dates"
                   placeholder="选择多个日期"
                   value-format="YYYY-MM-DD"
-                  class="program-field__picker program-field__picker--full"
+                  class="program-start-field__picker program-start-field__picker--full"
                 />
               </div>
             </template>
@@ -390,15 +398,15 @@
  * 对齐移动端 pages/home/activity/pro/edit_group_pro
  * add / edit 共用布局，edit 走 getProDetail + updateGroupPro + deleteGroupPro
  */
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getLandList } from '@/api/map'
-import { getGroupListByLandId } from '@/api/irrigationGroup'
 import {
   addGroupPro,
   deleteGroupPro,
   getProDetail,
+  getStepItems,
   updateGroupPro
 } from '@/api/irrigationProgram'
 import { useFarmStore } from '@/store/farm'
@@ -432,6 +440,7 @@ const nameInputRef = ref(null)
 const groupChoseRef = ref(null)
 const durationPickerRef = ref(null)
 const dragFromIndex = ref(-1)
+let offFarmChange = null
 
 const openDateTime = ref('')
 const openTimeOnly = ref('')
@@ -441,12 +450,12 @@ const pageTitle = computed(() =>
   pageType.value === 'add' ? '新建轮灌程序' : '编辑轮灌程序'
 )
 
-const startModeList = ['手动启动', '定时']
+const startModeList = ['手动启动', '定时启动']
 const repeatTypeOptions = [
   { value: 0, label: '不重复' },
   { value: 1, label: '间隔重复' },
   { value: 2, label: '周重复' },
-  { value: 3, label: '定义日期' }
+  { value: 3, label: '自定义日期' }
 ]
 const weekOptions = [
   { value: 1, label: '周一' },
@@ -458,15 +467,27 @@ const weekOptions = [
   { value: 0, label: '周天' }
 ]
 
+function resolveStepId(item) {
+  if (item?.id != null) return item.id
+  if (Number(item?.stepType) === 1) return item.outletId
+  return item?.irrigationGroupId
+}
+
+function isSameStep(a, b) {
+  return (
+    String(resolveStepId(a)) === String(resolveStepId(b)) &&
+    Number(a?.stepType ?? 0) === Number(b?.stepType ?? 0)
+  )
+}
+
+function stepRowKey(item, index) {
+  return `${item?.stepType ?? 0}-${resolveStepId(item) ?? index}`
+}
+
 const groupNameText = computed(() => {
   if (!proInfo.value?.groups?.length) return ''
   return proInfo.value.groups
-    .map((item) => {
-      const g = groupChoseList.value.find(
-        (x) => String(x.id) === String(item.irrigationGroupId)
-      )
-      return (g?.name || item.name || '').trim()
-    })
+    .map((item) => getStepDisplayName(item))
     .filter(Boolean)
     .join('、')
 })
@@ -486,13 +507,12 @@ function padIndex(n) {
   return String(n).padStart(2, '0')
 }
 
-function getGroupDisplayName(groupId) {
-  const g = groupChoseList.value.find((x) => String(x.id) === String(groupId))
-  if (g?.name) return g.name
-  const fromPro = proInfo.value?.groups?.find(
-    (x) => String(x.irrigationGroupId) === String(groupId)
-  )
-  return fromPro?.name || '未知轮灌组'
+function getStepDisplayName(item) {
+  if (!item) return '未知步骤'
+  const matched = groupChoseList.value.find((g) => isSameStep(g, item))
+  if (matched?.name) return matched.name
+  if (item.name) return item.name
+  return Number(item.stepType) === 1 ? '未知阀门' : '未知轮灌组'
 }
 
 function ensureTimerTaskConfig() {
@@ -576,53 +596,98 @@ async function fetchLandList() {
       proInfo.value.landId = list[0].id
     }
     if (proInfo.value.landId) {
-      await fetchGroupList(proInfo.value.landId)
+      await fetchStepItems(proInfo.value.landId)
     }
   } catch (e) {
     console.error('[ProgramEdit] 获取地块失败', e)
   }
 }
 
-async function fetchGroupList(landId) {
+async function fetchStepItems(landId) {
   const farmId = getFarmId()
-  if (farmId == null || landId == null) return
+  if (farmId == null || landId == null) {
+    groupChoseList.value = []
+    return
+  }
   try {
-    const res = await getGroupListByLandId({ farmId, landId })
-    groupChoseList.value = Array.isArray(res?.data) ? res.data : []
+    const res = await getStepItems({ farmId, landId })
+    const data = res?.data || {}
+    const list = []
+    ;(Array.isArray(data.groups) ? data.groups : []).forEach((item) => {
+      list.push({
+        id: item.id,
+        stepType: 0,
+        name: item.name,
+        irrigationGroupId: item.id
+      })
+    })
+    ;(Array.isArray(data.ports) ? data.ports : []).forEach((pile) => {
+      ;(Array.isArray(pile.outletPorts) ? pile.outletPorts : []).forEach((port) => {
+        list.push({
+          id: port.id,
+          stepType: 1,
+          name: `${pile.name || ''}(${port.outletName || ''})`,
+          outletId: port.id,
+          deviceId: pile.id
+        })
+      })
+    })
+    groupChoseList.value = list
   } catch (e) {
-    console.error('[ProgramEdit] 获取轮灌组失败', e)
+    console.error('[ProgramEdit] 获取步骤项失败', e)
     groupChoseList.value = []
   }
 }
 
 function onLandChange() {
   proInfo.value.groups = []
-  fetchGroupList(proInfo.value.landId)
+  fetchStepItems(proInfo.value.landId)
 }
 
 function openGroupChose() {
-  const ids = proInfo.value.groups.map((g) => g.irrigationGroupId)
-  groupChoseRef.value?.open(groupChoseList.value, ids)
+  const selectedList = (proInfo.value.groups || []).map((item) => {
+    const matched = groupChoseList.value.find((g) => isSameStep(g, item))
+    if (matched) {
+      return {
+        ...matched,
+        groupIndex: item.groupIndex,
+        durationSeconds: item.durationSeconds,
+        angleMode: item.angleMode
+      }
+    }
+    return {
+      id: resolveStepId(item),
+      stepType: item.stepType ?? 0,
+      name: item.name,
+      irrigationGroupId: item.irrigationGroupId,
+      outletId: item.outletId,
+      deviceId: item.deviceId,
+      groupIndex: item.groupIndex,
+      durationSeconds: item.durationSeconds,
+      angleMode: item.angleMode
+    }
+  })
+  groupChoseRef.value?.open(groupChoseList.value, selectedList)
 }
 
 /** 对齐移动端 onConform */
-function onGroupChoseConfirm(selectIds) {
-  proInfo.value.groups = proInfo.value.groups.filter((item) =>
-    selectIds.includes(item.irrigationGroupId)
-  )
-  selectIds.forEach((irrigationGroupId) => {
-    const exists = proInfo.value.groups.some(
-      (g) => g.irrigationGroupId === irrigationGroupId
-    )
-    if (!exists) {
-      const groupItem = groupChoseList.value.find((g) => g.id === irrigationGroupId)
-      proInfo.value.groups.push({
-        name: groupItem?.name || '',
-        irrigationGroupId,
-        groupIndex: proInfo.value.groups.length,
-        durationSeconds: 0,
-        angleMode: 0
-      })
+function onGroupChoseConfirm(selectedItems) {
+  const selected = Array.isArray(selectedItems) ? selectedItems : []
+  proInfo.value.groups = selected.map((item, index) => {
+    const existing = proInfo.value.groups.find((g) => isSameStep(g, item))
+    if (existing) {
+      return { ...existing, ...item, groupIndex: index }
+    }
+    return {
+      id: item.id,
+      stepType: item.stepType ?? 0,
+      name: item.name,
+      irrigationGroupId: item.irrigationGroupId || item.id,
+      outletId: item.outletId || null,
+      deviceId: item.deviceId || null,
+      groupIndex: index,
+      durationSeconds: 0,
+      angleMode: 0
     }
   })
   proInfo.value.groups.forEach((item, index) => {
@@ -630,10 +695,8 @@ function onGroupChoseConfirm(selectIds) {
   })
 }
 
-function removeGroup(groupId) {
-  proInfo.value.groups = proInfo.value.groups.filter(
-    (g) => g.irrigationGroupId !== groupId
-  )
+function removeGroup(target) {
+  proInfo.value.groups = proInfo.value.groups.filter((g) => !isSameStep(g, target))
   proInfo.value.groups.forEach((item, index) => {
     item.groupIndex = index
   })
@@ -729,11 +792,11 @@ function validateBeforeSave() {
     return false
   }
   if (!info.groups.length) {
-    ElMessage.warning('请选择轮灌组')
+    ElMessage.warning('请选择轮灌步骤')
     return false
   }
   if (info.groups.some((g) => !g.durationSeconds || g.durationSeconds <= 0)) {
-    ElMessage.warning('请设置轮灌组灌溉时长')
+    ElMessage.warning('请设置灌溉时长')
     return false
   }
   if (info.timerTaskConfig.timerConfig.repeatType === 1) {
@@ -850,7 +913,26 @@ function onCancel() {
   else router.replace('/irrigation-program')
 }
 
+let boundFarmId = null
+
+function handleFarmChange() {
+  const nextId = getFarmId()
+  // 同农场的 farmChange（如保存后广播）不退出编辑页
+  if (
+    boundFarmId != null &&
+    nextId != null &&
+    String(nextId) === String(boundFarmId)
+  ) {
+    return
+  }
+  ElMessage.warning('农场已切换，请重新编辑轮灌程序')
+  farmStore.setProInfo(null)
+  router.replace('/irrigation-program')
+}
+
 onMounted(async () => {
+  boundFarmId = getFarmId()
+  offFarmChange = farmStore.onFarmChange(handleFarmChange)
   const farmId = getFarmId()
   if (farmId == null) {
     ElMessage.warning('请先选择农场')
@@ -865,6 +947,11 @@ onMounted(async () => {
   initOpenTime()
   await fetchLandList()
   setTimeout(() => nameInputRef.value?.focus?.(), 300)
+})
+
+onUnmounted(() => {
+  offFarmChange?.()
+  offFarmChange = null
 })
 </script>
 
@@ -1031,12 +1118,116 @@ onMounted(async () => {
 
 .program-card--start .program-card__head {
   flex-shrink: 0;
+  border-bottom: none;
+  padding-bottom: 8px;
+}
+
+.program-card--start .program-card__icon-wrap {
+  border-radius: 50%;
+  background: #e8f0fe;
 }
 
 .program-card--start .program-card__body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  padding-top: 8px;
+}
+
+.program-start-select {
+  margin-bottom: 16px;
+}
+
+.program-start-select__control {
+  width: 100%;
+}
+
+.program-start-select__control :deep(.el-select__wrapper) {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px #e2e8f0 inset;
+  background: #fff;
+}
+
+.program-start-select__control :deep(.el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1px #3653a0 inset;
+}
+
+.program-start-select__control :deep(.el-select__selected-item) {
+  font-size: 14px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.program-start-select__control :deep(.el-select__caret) {
+  color: #3653a0;
+}
+
+.program-start-field {
+  margin-bottom: 16px;
+}
+
+.program-start-field--inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.program-start-field__label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.program-start-field--inline .program-start-field__label {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.program-start-field__picker {
+  width: 100%;
+}
+
+.program-start-field__picker--full {
+  width: 100%;
+}
+
+.program-start-field__picker :deep(.el-input__wrapper) {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px #e2e8f0 inset;
+}
+
+.program-start-field__picker :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #3653a0 inset;
+}
+
+.program-start-field__picker :deep(.el-input__inner) {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.program-start-field__picker :deep(.el-input__suffix) {
+  color: #3653a0;
+}
+
+.program-start-field__duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 160px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 14px;
+  color: #0f172a;
+  cursor: pointer;
 }
 
 .program-card__head {
@@ -1083,6 +1274,255 @@ onMounted(async () => {
 
 .program-card__body {
   padding: 20px 24px 24px;
+}
+
+/* 运行规则：对齐最新设计稿 */
+.program-card--rules .program-card__head {
+  border-bottom: none;
+  padding-bottom: 8px;
+}
+
+.program-card--rules .program-card__icon-wrap {
+  border-radius: 50%;
+  background: #e8f0fe;
+}
+
+.program-card--rules .program-card__body {
+  padding-top: 8px;
+}
+
+.program-rules-count {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.program-rules-count__label {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.program-rules-count__box {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.program-rules-count__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.program-rules-count__input :deep(.el-input-number) {
+  width: 100%;
+}
+
+.program-rules-count__input :deep(.el-input__wrapper) {
+  padding: 0;
+  box-shadow: none !important;
+  background: transparent;
+}
+
+.program-rules-count__input :deep(.el-input__inner) {
+  height: 38px;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a3b87;
+}
+
+.program-rules-count__unit {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.program-rules-switch {
+  margin-top: 14px;
+  min-height: 64px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #f5f7fb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.program-rules-switch__text {
+  min-width: 0;
+}
+
+.program-rules-switch__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.program-rules-switch__desc {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.3;
+}
+
+.program-rules-switch :deep(.el-switch.is-checked .el-switch__core) {
+  background-color: #3653a0;
+  border-color: #3653a0;
+}
+
+/* 基础信息：对齐最新设计稿横向三列 + 底部开关条 */
+.program-card--basic .program-card__head {
+  border-bottom: none;
+  padding-bottom: 8px;
+}
+
+.program-card--basic .program-card__icon-wrap {
+  border-radius: 10px;
+  background: #e8f0fe;
+}
+
+.program-card--basic .program-card__body {
+  padding-top: 8px;
+}
+
+.program-basic-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 20px;
+  align-items: center;
+}
+
+.program-basic-field {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.program-basic-field.is-clickable {
+  cursor: pointer;
+}
+
+.program-basic-field__label {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.program-basic-field__control {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 14px;
+  color: #0f172a;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.program-basic-field__control:focus {
+  border-color: #3653a0;
+}
+
+.program-basic-field__control.is-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.program-basic-field__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.program-basic-field__text.is-placeholder {
+  color: #c0c4cc;
+}
+
+.program-basic-field__chevron {
+  flex-shrink: 0;
+  color: #c0c4cc;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.program-basic-field__select {
+  flex: 1;
+  min-width: 0;
+}
+
+.program-basic-switch {
+  margin-top: 16px;
+  min-height: 52px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: #f5f7fb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.program-basic-switch__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.program-basic-switch :deep(.el-switch.is-checked .el-switch__core) {
+  background-color: #3653a0;
+  border-color: #3653a0;
+}
+
+.program-basic-field__select :deep(.el-select__wrapper) {
+  min-height: 40px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px #e2e8f0 inset;
+  background: #fff;
+}
+
+.program-basic-field__select :deep(.el-select__wrapper.is-focused) {
+  box-shadow: 0 0 0 1px #3653a0 inset;
+}
+
+.program-basic-field__select :deep(.el-select__selected-item) {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.program-basic-field__select :deep(.el-select__caret) {
+  color: #c0c4cc;
+}
+
+@media (max-width: 1280px) {
+  .program-basic-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
 .program-field {
@@ -1251,7 +1691,8 @@ onMounted(async () => {
 }
 
 .program-group-row__name {
-  flex: 1;
+  flex: 0 1 auto;
+  max-width: 180px;
   min-width: 0;
   font-size: 14px;
   font-weight: 600;
@@ -1261,20 +1702,38 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-.program-group-row__duration {
-  min-width: 120px;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  background: #fff;
-  font-size: 13px;
-  color: #3653a0;
-  cursor: pointer;
+.program-group-row__duration-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 50px;
   flex-shrink: 0;
 }
 
+.program-group-row__duration-label {
+  font-size: 13px;
+  color: #94a3b8;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+.program-group-row__duration {
+  min-width: 108px;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
 .program-group-row__delete {
+  margin-left: auto;
   border: none;
   background: transparent;
   color: #909399;
@@ -1313,53 +1772,85 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.program-forbid__title {
   font-size: 14px;
-  color: #303133;
+  font-weight: 700;
+  color: #1a3b87;
 }
 
 .program-forbid__add {
-  width: 24px;
-  height: 24px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #c5d0e6;
+  border-radius: 50%;
   background: #fff;
+  color: #3653a0;
   cursor: pointer;
   font-size: 16px;
-  line-height: 1;
+  line-height: 20px;
+  padding: 0;
 }
 
 .program-forbid__switch {
   margin-left: auto;
 }
 
-.program-forbid__row {
+.program-forbid__switch :deep(.el-switch.is-checked .el-switch__core) {
+  background-color: #3653a0;
+  border-color: #3653a0;
+}
+
+.program-forbid__list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
 }
 
-.program-forbid__col {
-  width: 100%;
-  position: relative;
-}
-
-.program-forbid__col .program-field__picker {
-  width: 100%;
-}
-
-.program-forbid__sub {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 12px;
-  color: #909399;
-}
-
-.program-forbid__sub-row {
+.program-forbid__row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
+  gap: 8px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #f5f7fb;
+  box-sizing: border-box;
+}
+
+.program-forbid__clock {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: #94a3b8;
+}
+
+.program-forbid__picker {
+  flex: 1;
+  min-width: 0;
+}
+
+.program-forbid__picker :deep(.el-input__wrapper) {
+  padding: 0 4px;
+  box-shadow: none !important;
+  background: transparent;
+}
+
+.program-forbid__picker :deep(.el-input__inner) {
+  text-align: center;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.program-forbid__picker :deep(.el-input__prefix),
+.program-forbid__picker :deep(.el-input__suffix) {
+  display: none;
+}
+
+.program-forbid__sep {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #94a3b8;
 }
 
 .program-forbid__del {
@@ -1367,14 +1858,64 @@ onMounted(async () => {
   background: transparent;
   color: #909399;
   cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
 }
 
 .program-forbid__plus-one {
-  position: absolute;
-  right: 8px;
-  bottom: 10px;
+  flex-shrink: 0;
   font-size: 12px;
   font-weight: 700;
+  color: #3653a0;
+}
+
+.program-repeat {
+  margin-bottom: 16px;
+}
+
+.program-repeat__title {
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a3b87;
+}
+
+.program-repeat__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.program-repeat__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.program-repeat__item .iconfont {
+  font-size: 16px;
+  color: #c0c4cc;
+  line-height: 1;
+}
+
+.program-repeat__item.is-active {
+  border-color: #3653a0;
+  background: rgba(54, 83, 160, 0.06);
+  color: #3653a0;
+  font-weight: 600;
+}
+
+.program-repeat__item.is-active .iconfont {
   color: #3653a0;
 }
 
@@ -1382,12 +1923,17 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 16px;
 }
 
 .program-date-range__sep {
   font-size: 14px;
   color: #909399;
   flex-shrink: 0;
+}
+
+.program-week {
+  margin-bottom: 16px;
 }
 
 .program-week :deep(.el-checkbox-group) {

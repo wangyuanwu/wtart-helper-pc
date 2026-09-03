@@ -15,7 +15,7 @@
           @click="onDeleteFarm"
         >
           <i class="iconfont icon-device_ic_delete"></i>
-          删除农场
+          删除
         </button>
         <button
           type="button"
@@ -23,8 +23,8 @@
           :disabled="saving || deleting || !farmInfo"
           @click="onSave"
         >
-          <i class="iconfont icon-a-device_ic_edit1"></i>
-          保存所有更改
+          <el-icon class="edit-farm-page__btn-icon"><CircleCheck /></el-icon>
+          保存
         </button>
       </div>
     </div>
@@ -74,6 +74,7 @@
                 </div>
               </div>
             </div>
+            <div class="edit-farm-info-card__divider" aria-hidden="true"></div>
             <div class="edit-farm-stats">
               <div class="edit-farm-stat">
                 <span class="edit-farm-stat__label">地块数量</span>
@@ -118,20 +119,18 @@
               alt=""
             />
             <div class="edit-farm-member-card__body">
-              <div class="edit-farm-member-card__name-row">
-                <span class="edit-farm-member-card__name">
-                  {{ item.nickName || '暂无昵称' }}
-                </span>
-                <span class="edit-farm-member-card__role">
-                  {{ getIdentityByRoleId(item.roleId) }}
-                </span>
+              <div class="edit-farm-member-card__name">
+                {{ item.nickName || '暂无昵称' }}
+              </div>
+              <div class="edit-farm-member-card__role">
+                {{ getIdentityByRoleId(item.roleId) }}
               </div>
               <div class="edit-farm-member-card__phone">
                 {{ formatPhone(item.phoneNumber) }}
               </div>
             </div>
             <button
-              v-if="currentUserId !== item.userId"
+              v-if="isFarmOwner"
               type="button"
               class="edit-farm-member-card__edit"
               @click="onEditMember(item)"
@@ -140,6 +139,7 @@
             </button>
           </div>
           <button
+            v-if="isFarmOwner"
             type="button"
             class="edit-farm-member-add"
             @click="onAddMember"
@@ -155,6 +155,7 @@
         <div class="edit-farm-section__row">
           <h2 class="edit-farm-section__title">农场地块管理</h2>
           <button
+            v-if="isFarmOwner"
             type="button"
             class="edit-farm-page__btn is-primary-sm"
             @click="onAddLand"
@@ -275,6 +276,7 @@
 import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { CircleCheck } from '@element-plus/icons-vue'
 import {
   deleteFarm,
   getFarmDetail,
@@ -304,18 +306,31 @@ const deviceDialogVisible = ref(false)
 const deviceDialogLandId = ref(null)
 const farmDeleteConfirmVisible = ref(false)
 const farmDeleteRiskChecked = ref(false)
+/** 当前用户在本农场的角色，对齐移动端 myRoleId；10=农场主 */
+const myRoleId = ref(0)
 
 const currentUserId = computed(
   () => userStore.userInfo?.id ?? userStore.userInfo?.userId
 )
+
+/** 仅农场主可添加/编辑成员、添加地块（对齐移动端 myRoleId==10） */
+const isFarmOwner = computed(() => Number(myRoleId.value) === 10)
 
 function getFarmId() {
   return farmStore.selectFarm?.id ?? null
 }
 
 function getIdentityByRoleId(roleId) {
-  if (Number(roleId) === 10) return '农场主'
-  return '农场成员'
+  switch (Number(roleId)) {
+    case 10:
+      return '农场主'
+    case 11:
+      return '超级成员'
+    case 12:
+      return '普通成员'
+    default:
+      return '农场成员'
+  }
 }
 
 function formatArea(area) {
@@ -373,6 +388,15 @@ async function loadMembers() {
   try {
     const res = await getMemberList({ farmId }, { silent: true })
     memberList.value = Array.isArray(res?.data) ? res.data : []
+    // 对齐移动端：从成员列表解析当前用户 myRoleId
+    myRoleId.value = 0
+    const uid = currentUserId.value
+    if (uid != null) {
+      const me = memberList.value.find(
+        (item) => String(item.userId) === String(uid)
+      )
+      if (me?.roleId != null) myRoleId.value = Number(me.roleId)
+    }
   } catch (e) {
     console.error('[EditFarm] 获取成员列表失败', e)
   }
@@ -582,14 +606,23 @@ onActivated(() => {
 .edit-farm-page__btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
+  border-radius: 999px;
+  padding: 10px 22px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.edit-farm-page__btn .iconfont,
+.edit-farm-page__btn-icon {
+  font-size: 16px;
+  line-height: 1;
 }
 
 .edit-farm-page__btn:disabled {
@@ -598,24 +631,27 @@ onActivated(() => {
 }
 
 .edit-farm-page__btn.is-primary {
-  background: #1e3a8a;
+  background: #1a3b87;
   color: #fff;
+  box-shadow: 0 6px 14px rgba(26, 59, 135, 0.28);
 }
 
 .edit-farm-page__btn.is-primary-sm {
-  background: #1e3a8a;
+  background: #1a3b87;
   color: #fff;
-  padding: 8px 16px;
+  padding: 8px 20px;
   font-size: 13px;
-  border-radius: 8px;
+  border-radius: 999px;
   border: none;
   cursor: pointer;
+  box-shadow: 0 6px 14px rgba(26, 59, 135, 0.28);
 }
 
 .edit-farm-page__btn.is-danger-outline {
   background: #fff;
   color: #ef4444;
-  border: 1px solid #fecaca;
+  border: 1px solid #f87171;
+  box-shadow: none;
 }
 
 .edit-farm-page__loading {
@@ -649,41 +685,52 @@ onActivated(() => {
 .edit-farm-info-card {
   background: #fff;
   border: 1px solid #e8eaed;
-  border-radius: 14px;
+  border-radius: 20px;
   padding: 20px 24px 24px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  box-sizing: border-box;
 }
 
 .edit-farm-info-card__title {
-  margin: 0 0 18px;
+  margin: 0 0 16px;
   font-size: 18px;
   font-weight: 700;
   color: #111;
 }
 
+/* 左表单 + 分割线 + 右统计：右侧三卡在 body 内占满剩余高度 */
 .edit-farm-info-card__body {
   display: flex;
   align-items: stretch;
-  gap: 24px;
+  gap: 0;
+  min-height: 132px;
 }
 
 .edit-farm-info-card__form {
-  flex: 0 0 auto;
+  flex: 1.35 1 0;
   min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.edit-farm-info-card__divider {
+  flex: 0 0 1px;
+  width: 1px;
+  align-self: stretch;
+  margin: 0 20px;
+  background: #e5e7eb;
 }
 
 .edit-farm-field-row {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   align-items: flex-start;
   flex-wrap: nowrap;
+  width: 100%;
 }
 
-/* 固定像素宽度：百分比相对父级会因父级由子项撑开而无法解析，导致微调不生效 */
 .edit-farm-field {
-  flex: 0 0 330px;
-  width: 330px;
-  max-width: 330px;
+  flex: 1 1 0;
   min-width: 0;
   box-sizing: border-box;
 }
@@ -752,7 +799,7 @@ onActivated(() => {
 }
 
 .edit-farm-field__address .iconfont {
-  color: #2f6bff;
+  color: #9ca3af;
   font-size: 18px;
   flex-shrink: 0;
   margin-left: 8px;
@@ -762,49 +809,47 @@ onActivated(() => {
   display: flex;
   flex-direction: row;
   gap: 12px;
-  /* 吃掉表单左侧固定宽度后的剩余空间，三个卡片随模块一起变宽 */
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
-  width: auto;
-  max-width: none;
   align-items: stretch;
+  align-self: stretch;
   box-sizing: border-box;
 }
 
 .edit-farm-stat {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: space-between;
   flex: 1 1 0;
   min-width: 0;
-  background: #f3f4f6;
-  border-radius: 10px;
-  padding: 12px 14px;
-  text-align: center;
+  min-height: 100%;
+  background: #f8fafc;
+  border-radius: 16px;
+  padding: 16px 18px;
+  text-align: left;
   box-sizing: border-box;
 }
 
 .edit-farm-stat__label {
   display: block;
-  font-size: 12px;
-  color: #666;
-  margin-bottom: 8px;
+  font-size: 13px;
+  color: #6b7280;
   white-space: nowrap;
 }
 
 .edit-farm-stat__value {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 700;
-  color: #2f6bff;
-  line-height: 1.2;
+  color: #1a3b87;
+  line-height: 1.15;
 }
 
 .edit-farm-stat__value small {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
-  margin-left: 2px;
-  color: #2f6bff;
+  margin-left: 4px;
+  color: #9ca3af;
 }
 
 .edit-farm-member-grid {
@@ -819,8 +864,10 @@ onActivated(() => {
   gap: 12px;
   background: #fff;
   border-radius: 12px;
-  padding: 16px;
+  /* 原上下 padding 16px，各增 10px 使卡片高度 +20px */
+  padding: 26px 16px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  box-sizing: border-box;
 }
 
 .edit-farm-member-card__avatar {
@@ -837,22 +884,18 @@ onActivated(() => {
   min-width: 0;
 }
 
-.edit-farm-member-card__name-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
 .edit-farm-member-card__name {
   font-size: 15px;
   font-weight: 700;
   color: #111;
+  line-height: 1.3;
 }
 
 .edit-farm-member-card__role {
+  margin-top: 2px;
   font-size: 12px;
   color: #888;
+  line-height: 1.3;
 }
 
 .edit-farm-member-card__phone {
@@ -860,6 +903,7 @@ onActivated(() => {
   font-size: 14px;
   font-weight: 600;
   color: #2f6bff;
+  line-height: 1.3;
 }
 
 .edit-farm-member-card__edit {
@@ -879,7 +923,8 @@ onActivated(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 88px;
+  /* 与成员卡片同增高 20px，保持网格对齐 */
+  min-height: 108px;
   background: #fff;
   border: 2px dashed #d0d5dd;
   border-radius: 12px;
@@ -887,6 +932,7 @@ onActivated(() => {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .edit-farm-member-add__icon {
@@ -1032,6 +1078,13 @@ onActivated(() => {
 @media (max-width: 900px) {
   .edit-farm-info-card__body {
     flex-direction: column;
+    min-height: 0;
+  }
+
+  .edit-farm-info-card__divider {
+    width: 100%;
+    height: 1px;
+    margin: 16px 0;
   }
 
   .edit-farm-field-row {
@@ -1049,6 +1102,7 @@ onActivated(() => {
     width: 100%;
     min-width: 0;
     max-width: none;
+    min-height: 112px;
   }
 
   .edit-farm-stat {

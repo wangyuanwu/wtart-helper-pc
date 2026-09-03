@@ -55,11 +55,11 @@
     <div class="edit-member-role-card">
       <label class="edit-member-role-item">
         <input v-model="roleType" type="radio" value="master" />
-        <span>农场主（管理农场所有地块）</span>
+        <span>超级成员（管理农场所有地块）</span>
       </label>
       <label class="edit-member-role-item">
         <input v-model="roleType" type="radio" value="member" />
-        <span>农场成员（管理指定地块）</span>
+        <span>普通成员（管理指定地块）</span>
       </label>
       <button
         v-if="roleType === 'member'"
@@ -156,6 +156,7 @@ const pageType = computed(() =>
 
 const saving = ref(false)
 const landDialogVisible = ref(false)
+/** master=超级成员(11)，member=普通成员(12)；对齐移动端，不可新建 roleId=10 */
 const roleType = ref('master')
 
 const memberInfo = reactive({
@@ -163,7 +164,7 @@ const memberInfo = reactive({
   farmId: 0,
   nickName: '',
   phoneNumber: '',
-  roleId: 10,
+  roleId: 11,
   landIds: []
 })
 
@@ -182,7 +183,13 @@ function checkPhone(phone) {
 }
 
 function syncRoleFromType() {
-  memberInfo.roleId = roleType.value === 'master' ? 10 : 12
+  // 对齐移动端：超级成员 11 / 普通成员 12
+  memberInfo.roleId = roleType.value === 'master' ? 11 : 12
+}
+
+function roleTypeFromRoleId(roleId) {
+  // 12 → 普通成员；11（及移动端对 10 的默认表现）→ 超级成员
+  return Number(roleId) === 12 ? 'member' : 'master'
 }
 
 function initForm() {
@@ -199,6 +206,7 @@ function initForm() {
     memberInfo.nickName = ''
     memberInfo.phoneNumber = ''
     memberInfo.landIds = []
+    // 对齐移动端：新增默认选中超级成员（isMaster=true → roleId=11）
     roleType.value = 'master'
     syncRoleFromType()
     return
@@ -215,9 +223,9 @@ function initForm() {
   memberInfo.farmId = cached.farmId ?? farmId
   memberInfo.nickName = cached.nickName || ''
   memberInfo.phoneNumber = cached.phoneNumber || ''
-  memberInfo.roleId = cached.roleId ?? 12
+  memberInfo.roleId = cached.roleId ?? 11
   memberInfo.landIds = Array.isArray(cached.landIds) ? [...cached.landIds] : []
-  roleType.value = Number(memberInfo.roleId) === 10 ? 'master' : 'member'
+  roleType.value = roleTypeFromRoleId(memberInfo.roleId)
   loadMemberLands()
 }
 
@@ -256,6 +264,7 @@ async function onSave() {
 
   saving.value = true
   try {
+    // 超级成员清空 landIds（管全部地块）；普通成员提交所选地块
     const payload = {
       farmId: memberInfo.farmId,
       nickName,

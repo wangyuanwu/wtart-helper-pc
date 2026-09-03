@@ -6,6 +6,7 @@
     append-to-body
     destroy-on-close
     :close-on-click-modal="false"
+    class="device-sleep-dialog"
     @update:model-value="onVisibleChange"
   >
     <p class="device-sleep-dialog__tip">
@@ -34,8 +35,16 @@
       />
     </div>
     <template #footer>
-      <el-button @click="onVisibleChange(false)">取消</el-button>
-      <el-button type="primary" @click="onConfirm">确定</el-button>
+      <el-button class="device-op-dialog-btn device-op-dialog-btn--cancel" @click="onVisibleChange(false)">
+        取消
+      </el-button>
+      <el-button
+        type="primary"
+        class="device-op-dialog-btn device-op-dialog-btn--confirm"
+        @click="onConfirm"
+      >
+        确定
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -105,5 +114,99 @@ watch(
   margin-bottom: 6px;
   font-size: 13px;
   color: #909399;
+}
+</style>
+
+<style>
+.device-sleep-dialog.el-dialog {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.device-sleep-dialog .el-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.device-op-dialog-btn.el-button {
+  min-width: 88px;
+  height: 36px;
+  padding: 0 20px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.device-op-dialog-btn--cancel.el-button {
+  background: #fff;
+  border: 1px solid #d8dee8;
+  color: #303133;
+}
+
+.device-op-dialog-btn--cancel.el-button:hover {
+  background: #f7fafc;
+  border-color: #c0c4cc;
+  color: #303133;
+}
+
+.device-op-dialog-btn--confirm.el-button,
+.device-op-dialog-btn--confirm.el-button--primary {
+  background: #3653a0;
+  border-color: #3653a0;
+  color: #fff;
+}
+
+.device-op-dialog-btn--confirm.el-button:hover,
+.device-op-dialog-btn--confirm.el-button--primary:hover {
+  background: #2f4a90;
+  border-color: #2f4a90;
+  color: #fff;
+}
+
+.device-op-message-box.el-message-box {
+  border-radius: 16px;
+  overflow: hidden;
+  padding-bottom: 20px;
+}
+
+.device-op-message-box .el-message-box__btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.device-op-message-box .device-op-dialog-btn.el-button {
+  min-width: 88px;
+  height: 36px;
+  padding: 0 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  margin-left: 0;
+}
+
+.device-op-message-box .device-op-dialog-btn--cancel.el-button {
+  background: #fff;
+  border: 1px solid #d8dee8;
+  color: #303133;
+}
+
+.device-op-message-box .device-op-dialog-btn--cancel.el-button:hover {
+  background: #f7fafc;
+  border-color: #c0c4cc;
+  color: #303133;
+}
+
+.device-op-message-box .device-op-dialog-btn--confirm.el-button,
+.device-op-message-box .device-op-dialog-btn--confirm.el-button--primary {
+  background: #3653a0;
+  border-color: #3653a0;
+  color: #fff;
+}
+
+.device-op-message-box .device-op-dialog-btn--confirm.el-button:hover,
+.device-op-message-box .device-op-dialog-btn--confirm.el-button--primary:hover {
+  background: #2f4a90;
+  border-color: #2f4a90;
+  color: #fff;
 }
 </style>

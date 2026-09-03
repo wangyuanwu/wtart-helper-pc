@@ -49,8 +49,17 @@
       </div>
     </div>
     <template #footer>
-      <el-button @click="onVisibleChange(false)">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="onSave">保存</el-button>
+      <el-button class="set-default-open-dialog__cancel" @click="onVisibleChange(false)">
+        取消
+      </el-button>
+      <el-button
+        type="primary"
+        class="set-default-open-dialog__save"
+        :loading="saving"
+        @click="onSave"
+      >
+        保存
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -170,19 +179,19 @@ watch(
   margin: 0 0 16px;
 }
 
-/* 加宽竖直轨道 */
+/* 加宽竖直轨道（原 48px + 6px） */
 .set-default-open-dialog__col :deep(.el-slider.is-vertical .el-slider__runway) {
-  width: 48px;
+  width: 54px;
   margin: 0;
   border-radius: 10px;
   background-color: #e8edf2;
 }
 
 .set-default-open-dialog__col :deep(.el-slider.is-vertical .el-slider__bar) {
-  width: 48px;
+  width: 54px;
   border-radius: 10px;
   left: 0;
-  background-color: #3653a0;
+  background-color: #3b82f6;
 }
 
 .set-default-open-dialog__col
@@ -224,7 +233,7 @@ watch(
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #3653a0;
+  background: #3b82f6;
   color: #fff;
   font-size: 16px;
   font-weight: 700;
@@ -243,5 +252,66 @@ watch(
   margin-top: 4px;
   font-size: 12px;
   color: #909399;
+}
+</style>
+
+<style>
+.set-default-open-dialog.el-dialog {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.set-default-open-dialog .el-dialog__title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #1a3b87;
+  line-height: 1.2;
+}
+
+.set-default-open-dialog .el-dialog__footer .set-default-open-dialog__cancel {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 24px;
+  color: rgba(68, 70, 81, 0.8);
+}
+
+.set-default-open-dialog .el-dialog__footer .set-default-open-dialog__cancel:hover,
+.set-default-open-dialog .el-dialog__footer .set-default-open-dialog__cancel:focus {
+  border: none;
+  background: transparent;
+  color: rgba(68, 70, 81, 0.8);
+}
+
+.set-default-open-dialog .el-dialog__footer .set-default-open-dialog__save {
+  width: 100px;
+  height: 40px;
+  border-radius: 16px;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: #3653a0;
+  box-shadow:
+    0px 20px 25px -5px rgba(54, 83, 160, 0.2),
+    0px 8px 10px -6px rgba(54, 83, 160, 0.2);
+  --el-button-bg-color: #3653a0;
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: #2f4a90;
+  --el-button-hover-border-color: transparent;
+  --el-button-active-bg-color: #2f4a90;
+  --el-button-active-border-color: transparent;
+}
+
+.set-default-open-dialog .el-dialog__footer .set-default-open-dialog__save:hover,
+.set-default-open-dialog .el-dialog__footer .set-default-open-dialog__save:focus {
+  background-color: #2f4a90;
+  border-color: transparent;
+  color: #fff;
+  box-shadow:
+    0px 20px 25px -5px rgba(54, 83, 160, 0.2),
+    0px 8px 10px -6px rgba(54, 83, 160, 0.2);
 }
 </style>

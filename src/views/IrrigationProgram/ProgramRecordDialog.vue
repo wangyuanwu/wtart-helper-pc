@@ -1,17 +1,23 @@
 <template>
-  <el-drawer
+  <el-dialog
     :model-value="modelValue"
-    title="运行记录"
-    direction="rtl"
-    size="800px"
+    width="678px"
     append-to-body
     destroy-on-close
-    class="program-record-drawer"
+    align-center
+    draggable
+    overflow
+    :close-on-click-modal="false"
+    class="program-record-dialog"
     @update:model-value="onVisibleChange"
     @opened="onOpened"
   >
+    <template #header>
+      <div class="program-record-dialog__title">运行记录</div>
+    </template>
+
     <div class="program-record">
-      <!-- 时间范围 -->
+      <!-- 时间范围（对齐开关记录头部筛选区 / 设计稿） -->
       <div class="program-record__time-bar">
         <div class="program-record__tabs">
           <button
@@ -33,19 +39,24 @@
           >
             ‹
           </button>
-          <el-date-picker
-            v-if="activeTimeType === 'custom'"
-            v-model="customDateRange"
-            type="daterange"
-            range-separator="-"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-            :disabled-date="disableFutureDate"
-            class="program-record__daterange"
-            @change="onCustomRangeChange"
-          />
-          <span v-else class="program-record__range-text">{{ displayRange }}</span>
+          <div class="program-record__range-main">
+            <el-date-picker
+              v-if="activeTimeType === 'custom'"
+              v-model="customDateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              value-format="YYYY-MM-DD"
+              :disabled-date="disableFutureDate"
+              class="program-record__daterange"
+              @change="onCustomRangeChange"
+            />
+            <template v-else>
+              <span class="program-record__range-text">{{ displayRange }}</span>
+              <i class="iconfont icon-device_ic_timing program-record__range-icon"></i>
+            </template>
+          </div>
           <button
             type="button"
             class="program-record__arrow"
@@ -57,8 +68,12 @@
         </div>
       </div>
 
-      <!-- 搜索 -->
+      <!-- 搜索：对齐移动端 record_group_pro（程序名称） -->
       <div class="program-record__search">
+        <i
+          class="iconfont icon-farm_ic_search program-record__search-icon"
+          @click="onSearch"
+        ></i>
         <input
           v-model="searchText"
           class="program-record__search-input"
@@ -67,9 +82,6 @@
           @keyup.enter="onSearch"
           @input="onSearchInput"
         />
-        <button type="button" class="program-record__search-btn" @click="onSearch">
-          <i class="iconfont icon-farm_ic_search"></i>
-        </button>
       </div>
 
       <!-- 筛选 -->
@@ -100,7 +112,7 @@
         </button>
       </div>
 
-      <!-- 列表 -->
+      <!-- 列表卡片：对齐移动端 record_group_pro -->
       <div
         ref="listRef"
         v-loading="loading && pageIndex === 1"
@@ -115,7 +127,9 @@
           >
             <div class="program-record__day-head">
               <span class="program-record__day-title">{{ dayItem.dayTitle }}</span>
-              <span class="program-record__day-count">{{ dayItem.list.length }}项记录</span>
+              <span class="program-record__day-count">
+                {{ dayItem.list.length }}项记录
+              </span>
             </div>
             <article
               v-for="(record, ri) in dayItem.list"
@@ -123,23 +137,46 @@
               class="program-record__item"
             >
               <div class="program-record__item-head">
-                <span class="program-record__item-name">{{ record.name }}</span>
+                <div class="program-record__item-name-row">
+                  <span class="program-record__item-name">{{ record.name }}</span>
+                  <i
+                    v-if="record.hasFail && record.status !== 5"
+                    class="iconfont icon-device_ic_add_gantanhao program-record__item-warn"
+                  ></i>
+                </div>
                 <span
                   class="program-record__item-status"
-                  :class="record.status === 5 ? 'is-fail' : 'is-success'"
+                  :class="getStatusInfo(record.status).tone"
                 >
-                  {{ statusList[record.status] ?? '--' }}
+                  <i
+                    class="iconfont"
+                    :class="getStatusInfo(record.status).icon"
+                  ></i>
+                  {{ getStatusInfo(record.status).label }}
                 </span>
               </div>
+
               <div class="program-record__item-meta">
                 <template v-if="record.userName != null">
-                  操作人：{{ record.userName || '--' }}
+                  <i class="iconfont icon-device_ic_admin"></i>
+                  <span>操作人：{{ record.userName || '--' }}</span>
                 </template>
                 <template v-else>定时执行</template>
               </div>
-              <div class="program-record__item-time">
-                执行时间：{{ formatRecordRange(record.startTime, record.endTime) }}
+
+              <div class="program-record__item-row">
+                <span class="program-record__item-time">
+                  执行时间：{{ formatRecordRange(record.startTime, record.endTime) }}
+                </span>
+                <button
+                  type="button"
+                  class="program-record__detail-btn"
+                  @click="onViewDetail(record)"
+                >
+                  查看详情
+                </button>
               </div>
+
               <div
                 v-if="record.status === 5 && record.failReason"
                 class="program-record__item-fail"
@@ -167,18 +204,25 @@
         </div>
       </div>
     </div>
-  </el-drawer>
+
+    <ProgramRecordDetailDialog
+      v-model="detailVisible"
+      :record-id="detailRecordId"
+      :title="detailTitle"
+    />
+  </el-dialog>
 </template>
 
 <script setup>
 /**
- * 运行记录抽屉（右侧 Drawer）
- * 对齐移动端 pages/home/activity/base/record/record_group_pro
+ * 运行记录弹窗
+ * 业务对齐移动端 record_group_pro；头部样式对齐开关记录弹窗
  */
 import { computed, ref, watch } from 'vue'
 import { getProgramRecord } from '@/api/irrigationProgram'
 import { useFarmStore } from '@/store/farm'
 import { getDateOffsetStr, getNowDateStr } from '@/utils/programTime'
+import ProgramRecordDetailDialog from './ProgramRecordDetailDialog.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false }
@@ -189,7 +233,20 @@ const emit = defineEmits(['update:modelValue'])
 const farmStore = useFarmStore()
 
 const PAGE_SIZE = 20
-const statusList = ['待执行', '运行中', '已暂停', '已完成', '已取消', '异常']
+/** 对齐移动端 statusList：0待执行…5异常 */
+const statusMetaList = [
+  { value: 0, label: '待执行', tone: 'is-success', icon: 'icon-shibai' },
+  { value: 1, label: '运行中', tone: 'is-success', icon: 'icon-shibai' },
+  { value: 2, label: '已暂停', tone: 'is-success', icon: 'icon-shibai' },
+  { value: 3, label: '已完成', tone: 'is-success', icon: 'icon-shibai' },
+  { value: 4, label: '已取消', tone: 'is-success', icon: 'icon-shibai' },
+  {
+    value: 5,
+    label: '异常',
+    tone: 'is-fail',
+    icon: 'icon-device_ic_add_gantanhao'
+  }
+]
 
 const timeTabList = [
   { key: 'day', label: '一天' },
@@ -224,6 +281,9 @@ const groupByDayList = ref({})
 const allNum = ref(0)
 const successNum = ref(0)
 const failNum = ref(0)
+const detailVisible = ref(false)
+const detailRecordId = ref(null)
+const detailTitle = ref('记录详情')
 
 const dayArr = computed(() => Object.values(groupByDayList.value))
 
@@ -243,6 +303,16 @@ const getFarmId = () =>
   farmStore.selectFarm?.id ??
   farmStore.s_farm_info?.id ??
   null
+
+function getStatusInfo(status) {
+  return (
+    statusMetaList.find((item) => item.value === Number(status)) || {
+      label: '未知',
+      tone: 'is-muted',
+      icon: ''
+    }
+  )
+}
 
 function pad2(n) {
   return String(n).padStart(2, '0')
@@ -304,34 +374,49 @@ function onTimeTabClick(key) {
   fetchRecords(true)
 }
 
-function shiftRange(direction) {
-  if (activeTimeType.value === 'custom') return
-  const cfg = typeConfig[activeTimeType.value]
-  if (!cfg) return
-  if (direction > 0 && isRangeRightDisabled.value) return
-  rangeOffset.value = Math.max(0, rangeOffset.value - direction)
-  applyPresetRange(activeTimeType.value, rangeOffset.value)
-  fetchRecords(true)
-}
-
 function onCustomRangeChange(val) {
-  if (!val || val.length < 2) return
+  if (!val?.length) return
   startDate.value = val[0]
   endDate.value = val[1]
   fetchRecords(true)
 }
 
+function shiftRange(dir) {
+  if (activeTimeType.value === 'custom') return
+  if (dir > 0 && isRangeRightDisabled.value) return
+  rangeOffset.value = Math.max(0, rangeOffset.value - dir)
+  applyPresetRange(activeTimeType.value, rangeOffset.value)
+  fetchRecords(true)
+}
+
 function getDayTitle(dateStr) {
+  const now = new Date()
   const today = getNowDateStr()
   const yest = getDateOffsetStr(today, -1)
-  const now = new Date()
   const weekDay = now.getDay() || 7
   const weekStart = getDateOffsetStr(today, -(weekDay - 1))
-  const weekEnd = getDateOffsetStr(today, 7 - weekDay)
-  if (dateStr === today) return `今天 · ${today}`
-  if (dateStr === yest) return `昨天 · ${dateStr}`
-  if (dateStr >= weekStart && dateStr <= weekEnd) return `本周 · ${dateStr}`
-  return `更早 · ${dateStr}`
+  if (dateStr === today) return '今天'
+  if (dateStr === yest) return '昨天'
+  if (dateStr >= weekStart && dateStr < today) return '本周'
+  return '更早'
+}
+
+function groupData(list) {
+  const map = {}
+  ;(list || []).forEach((item) => {
+    const d = item.startTime ? new Date(item.startTime) : null
+    if (!d || Number.isNaN(d.getTime())) return
+    const dayKey = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+    if (!map[dayKey]) {
+      map[dayKey] = {
+        dayKey,
+        dayTitle: getDayTitle(dayKey),
+        list: []
+      }
+    }
+    map[dayKey].list.push(item)
+  })
+  groupByDayList.value = map
 }
 
 function calcTotalCount() {
@@ -346,7 +431,7 @@ function calcTotalCount() {
   allNum.value = success + fail
 }
 
-const filterList = computed(() => {
+function getFilteredList() {
   if (filterStatus.value === 1) {
     return recordList.value.filter((item) => item.status !== 5)
   }
@@ -354,38 +439,26 @@ const filterList = computed(() => {
     return recordList.value.filter((item) => item.status === 5)
   }
   return recordList.value
-})
-
-function groupData(list) {
-  const group = {}
-  list.forEach((item) => {
-    const dayStr = item.startTime ? String(item.startTime).split('T')[0] : ''
-    if (!dayStr) return
-    if (!group[dayStr]) {
-      group[dayStr] = {
-        dayKey: dayStr,
-        dayTitle: getDayTitle(dayStr),
-        list: []
-      }
-    }
-    group[dayStr].list.push(item)
-  })
-  groupByDayList.value = group
 }
 
 function changeFilter(type) {
   filterStatus.value = type
-  groupData(filterList.value)
+  groupData(getFilteredList())
   calcTotalCount()
 }
 
-async function fetchRecords(isReset = false) {
+async function fetchRecords(reset = false) {
   const farmId = getFarmId()
-  if (farmId == null || loading.value) return
+  if (farmId == null) {
+    recordList.value = []
+    groupByDayList.value = {}
+    return
+  }
+  if (loading.value) return
   if (!startDate.value || !endDate.value) return
 
   loading.value = true
-  if (isReset) {
+  if (reset) {
     pageIndex.value = 1
     recordList.value = []
     noMore.value = false
@@ -406,23 +479,26 @@ async function fetchRecords(isReset = false) {
       },
       { silent: pageIndex.value > 1 }
     )
-    const list = Array.isArray(res?.data?.result) ? res.data.result : []
-    if (isReset) {
-      recordList.value = list
-    } else {
-      recordList.value = [...recordList.value, ...list]
-    }
+    const rows = Array.isArray(res?.data?.result)
+      ? res.data.result
+      : Array.isArray(res?.data?.rows)
+        ? res.data.rows
+        : Array.isArray(res?.data)
+          ? res.data
+          : []
+    if (reset) recordList.value = rows
+    else recordList.value = [...recordList.value, ...rows]
     calcTotalCount()
-    groupData(filterList.value)
-    noMore.value = list.length < PAGE_SIZE
+    groupData(getFilteredList())
+    noMore.value = rows.length < PAGE_SIZE
   } catch (e) {
-    console.error('[ProgramRecordDialog] 获取记录失败', e)
-    if (isReset) {
+    console.error('[ProgramRecordDialog] 获取运行记录失败', e)
+    if (reset) {
       recordList.value = []
+      groupByDayList.value = {}
       allNum.value = 0
       successNum.value = 0
       failNum.value = 0
-      groupData([])
     }
   } finally {
     loading.value = false
@@ -436,8 +512,8 @@ function loadMore() {
 }
 
 function onListScroll(e) {
-  const el = e.target
-  if (!el || loading.value || noMore.value) return
+  const el = e?.target
+  if (!el) return
   if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
     loadMore()
   }
@@ -448,14 +524,12 @@ function onSearch() {
 }
 
 function onSearchInput() {
-  if (!searchText.value.trim()) {
-    fetchRecords(true)
-  }
+  if (!searchText.value) fetchRecords(true)
 }
 
 function resetState() {
-  searchText.value = ''
   filterStatus.value = 0
+  searchText.value = ''
   activeTimeType.value = 'day'
   rangeOffset.value = 0
   customDateRange.value = []
@@ -466,6 +540,9 @@ function resetState() {
   groupByDayList.value = {}
   pageIndex.value = 1
   noMore.value = false
+  allNum.value = 0
+  successNum.value = 0
+  failNum.value = 0
 }
 
 function onVisibleChange(val) {
@@ -476,6 +553,13 @@ function onOpened() {
   resetState()
   applyPresetRange('day', 0)
   fetchRecords(true)
+}
+
+function onViewDetail(record) {
+  if (!record?.id) return
+  detailRecordId.value = record.id
+  detailTitle.value = record.name || '记录详情'
+  detailVisible.value = true
 }
 
 watch(
@@ -492,57 +576,78 @@ watch(
 .program-record {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  height: 100%;
+  align-items: stretch;
+  gap: 10px;
+  flex: 1;
   min-height: 0;
+  height: 100%;
+  width: 100%;
 }
 
 .program-record__time-bar {
-  padding: 16px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #3653a0 0%, #4a6bc7 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 10px;
 }
 
 .program-record__tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 44px;
+  padding: 2px;
+  border-radius: 4px;
+  background: #eef1f6;
+  box-sizing: border-box;
 }
 
 .program-record__tab {
-  padding: 6px 14px;
+  flex: 1;
+  height: 40px;
+  padding: 0;
   border: none;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.9);
+  border-radius: 4.36px;
+  background: transparent;
+  color: #606266;
   font-size: 13px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .program-record__tab.is-active {
-  background: #fff;
-  color: #3653a0;
+  background: #3653a0;
+  color: #fff;
   font-weight: 600;
 }
 
 .program-record__range-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 12px;
+  justify-content: space-between;
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .program-record__arrow {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  font-size: 20px;
+  background: #f0f2f5;
+  color: #606266;
+  font-size: 18px;
   line-height: 1;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .program-record__arrow:disabled {
@@ -550,11 +655,25 @@ watch(
   cursor: not-allowed;
 }
 
+.program-record__range-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 .program-record__range-text {
-  color: #fff;
+  color: #303133;
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.program-record__range-icon {
+  font-size: 16px;
+  color: #909399;
 }
 
 .program-record__daterange {
@@ -564,73 +683,99 @@ watch(
 .program-record__search {
   display: flex;
   align-items: center;
+  width: 100%;
   gap: 8px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: #f5f7fa;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #f7f7f7;
+  box-sizing: border-box;
+}
+
+.program-record__search-icon {
+  font-size: 16px;
+  color: #8c8c8c;
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 .program-record__search-input {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   font-size: 14px;
+  color: #1a1a1a;
   outline: none;
 }
 
-.program-record__search-btn {
-  border: none;
-  background: transparent;
-  color: #909399;
-  cursor: pointer;
-  padding: 4px;
+.program-record__search-input::placeholder {
+  color: #b0b0b0;
 }
 
 .program-record__filters {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  width: 100%;
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #edf1f7;
+  box-sizing: border-box;
 }
 
 .program-record__filter {
-  padding: 6px 16px;
-  border: 1px solid #dcdfe6;
-  border-radius: 18px;
-  background: #f5f7fa;
+  width: 120px;
+  height: 30px;
+  padding: 0;
+  border: 0.66px solid #d8d8d8;
+  border-radius: 7.86px;
+  background: #eaedf1;
   color: #606266;
   font-size: 13px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .program-record__filter.is-active {
-  border-color: #3653a0;
-  background: #3653a0;
+  background: rgba(54, 83, 160, 0.7);
+  border-color: rgba(54, 83, 160, 0.7);
   color: #fff;
+  font-weight: 600;
 }
 
 .program-record__list {
   flex: 1;
+  width: 100%;
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
+  box-sizing: border-box;
+}
+
+.program-record__day + .program-record__day {
+  margin-top: 8px;
 }
 
 .program-record__day-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 4px;
+  padding: 8px 4px 10px;
 }
 
 .program-record__day-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
 }
 
 .program-record__day-count {
   font-size: 12px;
-  color: #909399;
+  color: #94a3b8;
 }
 
 .program-record__item {
@@ -639,6 +784,7 @@ watch(
   border-radius: 12px;
   background: #fff;
   border: 1px solid #edf1f7;
+  box-sizing: border-box;
 }
 
 .program-record__item-head {
@@ -648,16 +794,37 @@ watch(
   gap: 12px;
 }
 
+.program-record__item-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .program-record__item-name {
   font-size: 15px;
   font-weight: 700;
   color: #0f172a;
 }
 
+.program-record__item-warn {
+  color: #e6a23c;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
 .program-record__item-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
   font-weight: 600;
   flex-shrink: 0;
+}
+
+.program-record__item-status .iconfont {
+  font-size: 15px;
+  line-height: 1;
 }
 
 .program-record__item-status.is-success {
@@ -668,11 +835,50 @@ watch(
   color: #f53f3f;
 }
 
-.program-record__item-meta,
-.program-record__item-time {
-  margin-top: 10px;
+.program-record__item-status.is-muted {
+  color: #909399;
+}
+
+.program-record__item-meta {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 13px;
   color: #909399;
+}
+
+.program-record__item-meta .iconfont {
+  font-size: 14px;
+}
+
+.program-record__item-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.program-record__item-time {
+  font-size: 13px;
+  color: #909399;
+  min-width: 0;
+}
+
+.program-record__detail-btn {
+  border: none;
+  background: transparent;
+  color: #3653a0;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.program-record__detail-btn:hover {
+  color: #2f4a90;
 }
 
 .program-record__item-fail {
@@ -691,24 +897,44 @@ watch(
 </style>
 
 <style>
-.program-record-drawer.el-drawer {
-  border-radius: 16px 0 0 16px;
+.program-record-dialog.el-dialog {
+  width: 678px !important;
+  height: 968px !important;
+  max-height: 968px !important;
+  margin-top: 0 !important;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
   overflow: hidden;
 }
 
-.program-record-drawer .el-drawer__header {
-  margin-bottom: 12px;
-  padding: 16px 20px 0;
+.program-record-dialog .el-dialog__header {
+  margin-right: 0;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid #edf1f7;
+  flex-shrink: 0;
+  cursor: move;
+  user-select: none;
 }
 
-.program-record-drawer .el-drawer__title {
-  font-size: 16px;
+.program-record-dialog__title {
+  font-size: 18px;
   font-weight: 700;
   color: #0f172a;
+  line-height: 1.3;
 }
 
-.program-record-drawer .el-drawer__body {
-  padding: 8px 20px 20px;
+.program-record-dialog .el-dialog__body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
   overflow: hidden;
+}
+
+.program-record-dialog .el-dialog__headerbtn {
+  right: 20px;
 }
 </style>

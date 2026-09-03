@@ -284,3 +284,17 @@ export function getDeviceStatusHistory(params = {}, config = {}) {
     loading: config.loading === true
   })
 }
+
+/** 网卡信息（对齐移动端 getNetCard） */
+export function getNetCard(iccid, config = {}) {
+  return request({
+    url: `/api/netcard/${iccid}`,
+    method: 'GET',
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}

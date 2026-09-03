@@ -1,15 +1,21 @@
 <template>
-  <el-drawer
+  <el-dialog
     :model-value="modelValue"
-    title="开关记录"
-    direction="rtl"
-    size="720px"
+    width="678px"
     append-to-body
     destroy-on-close
-    class="switch-record-drawer"
+    align-center
+    draggable
+    overflow
+    :close-on-click-modal="false"
+    class="switch-record-dialog"
     @update:model-value="onVisibleChange"
     @opened="onOpened"
   >
+    <template #header>
+      <div class="switch-record-dialog__title">开关记录</div>
+    </template>
+
     <div class="switch-record">
       <!-- 时间范围（对齐移动端 a-record-time） -->
       <div class="switch-record__time-bar">
@@ -33,19 +39,24 @@
           >
             ‹
           </button>
-          <el-date-picker
-            v-if="activeTimeType === 'custom'"
-            v-model="customDateRange"
-            type="daterange"
-            range-separator="-"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-            :disabled-date="disableFutureDate"
-            class="switch-record__daterange"
-            @change="onCustomRangeChange"
-          />
-          <span v-else class="switch-record__range-text">{{ displayRange }}</span>
+          <div class="switch-record__range-main">
+            <el-date-picker
+              v-if="activeTimeType === 'custom'"
+              v-model="customDateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              value-format="YYYY-MM-DD"
+              :disabled-date="disableFutureDate"
+              class="switch-record__daterange"
+              @change="onCustomRangeChange"
+            />
+            <template v-else>
+              <span class="switch-record__range-text">{{ displayRange }}</span>
+              <i class="iconfont icon-device_ic_timing switch-record__range-icon"></i>
+            </template>
+          </div>
           <button
             type="button"
             class="switch-record__arrow"
@@ -59,6 +70,10 @@
 
       <!-- 搜索操作人 -->
       <div class="switch-record__search">
+        <i
+          class="iconfont icon-farm_ic_search switch-record__search-icon"
+          @click="onSearch"
+        ></i>
         <input
           v-model="searchText"
           class="switch-record__search-input"
@@ -67,9 +82,6 @@
           @keyup.enter="onSearch"
           @input="onSearchInput"
         />
-        <button type="button" class="switch-record__search-btn" @click="onSearch">
-          <i class="iconfont icon-farm_ic_search"></i>
-        </button>
       </div>
 
       <!-- 成功/失败筛选 -->
@@ -115,7 +127,9 @@
           >
             <div class="switch-record__day-head">
               <span class="switch-record__day-title">{{ dayItem.dayTitle }}</span>
-              <span class="switch-record__day-count">{{ dayItem.list.length }}项记录</span>
+              <span class="switch-record__day-count">
+                {{ dayItem.list.length }}条记录
+              </span>
             </div>
             <article
               v-for="(record, ri) in dayItem.list"
@@ -147,7 +161,7 @@
               <div class="switch-record__item-row">
                 <span class="switch-record__item-user">
                   <i class="iconfont icon-device_ic_admin"></i>
-                  操作人：{{ record.userName || '--' }}
+                  操作人员：{{ getOperatorText(record) }}
                 </span>
                 <span class="switch-record__item-time">
                   {{ formatOpTime(record.operationTimeUtc) }}
@@ -180,13 +194,13 @@
         </div>
       </div>
     </div>
-  </el-drawer>
+  </el-dialog>
 </template>
 
 <script setup>
 /**
- * 开关记录抽屉（右侧 Drawer）
- * 对齐移动端 pages/home/activity/base/record/record_page?from=group
+ * 开关记录弹窗
+ * 对齐移动端 pages/home/activity/base/record/record_page?from=group|device
  * TargetType: 0=设备 1=轮灌组
  */
 import { computed, ref, watch } from 'vue'
@@ -314,6 +328,13 @@ function getModelText(item) {
   return '--'
 }
 
+/** 对齐移动端：自动轮灌用 programName，其它用 userName */
+function getOperatorText(item) {
+  if (!item) return '--'
+  if (item.tiggerObject == 2) return item.programName || '--'
+  return item.userName || '--'
+}
+
 function disableFutureDate(date) {
   const today = new Date()
   today.setHours(23, 59, 59, 999)
@@ -334,23 +355,52 @@ function applyPresetRange(type, offset = 0) {
 }
 
 function onTimeTabClick(key) {
-  activeTimeType.value = key
-  rangeOffset.value = 0
   if (key === 'custom') {
-    if (!customDateRange.value?.length) {
+    // 对齐移动端：点「自定义」只切换 Tab / 展示选期，确认后再请求
+    activeTimeType.value = 'custom'
+    if (!customDateRange.value?.length && startDate.value && endDate.value) {
+      customDateRange.value = [startDate.value, endDate.value]
+    } else if (!customDateRange.value?.length) {
       const today = getNowDateStr()
       customDateRange.value = [today, today]
+      startDate.value = today
+      endDate.value = today
     }
-    startDate.value = customDateRange.value[0]
-    endDate.value = customDateRange.value[1]
-  } else {
-    applyPresetRange(key, 0)
+    return
   }
+  activeTimeType.value = key
+  rangeOffset.value = 0
+  applyPresetRange(key, 0)
   fetchRecords(true)
 }
 
+function getCustomDaySpan(startStr, endStr) {
+  // 对齐移动端：start 00:00:00 ~ end 23:59:59 → 含首尾天数
+  const start = new Date(`${startStr} 00:00:00`)
+  const end = new Date(`${endStr} 23:59:59`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 1
+  const diffMs = end.getTime() - start.getTime()
+  return Math.max(1, Math.round(diffMs / (24 * 60 * 60 * 1000)) || 1)
+}
+
 function shiftRange(direction) {
-  if (activeTimeType.value === 'custom') return
+  // 对齐移动端 a-record-time：自定义区间按所选跨度左右平移
+  if (activeTimeType.value === 'custom') {
+    if (!startDate.value || !endDate.value) return
+    if (direction > 0 && isRangeRightDisabled.value) return
+    const customDays = getCustomDaySpan(startDate.value, endDate.value)
+    const offsetMs = customDays * 24 * 60 * 60 * 1000
+    const start = new Date(`${startDate.value} 00:00:00`)
+    const end = new Date(`${endDate.value} 00:00:00`)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return
+    const nextStart = new Date(start.getTime() + direction * offsetMs)
+    const nextEnd = new Date(end.getTime() + direction * offsetMs)
+    startDate.value = formatYmd(nextStart)
+    endDate.value = formatYmd(nextEnd)
+    customDateRange.value = [startDate.value, endDate.value]
+    fetchRecords(true)
+    return
+  }
   const cfg = typeConfig[activeTimeType.value]
   if (!cfg) return
   if (direction > 0 && isRangeRightDisabled.value) return
@@ -363,6 +413,7 @@ function onCustomRangeChange(val) {
   if (!val || val.length < 2) return
   startDate.value = val[0]
   endDate.value = val[1]
+  customDateRange.value = [val[0], val[1]]
   fetchRecords(true)
 }
 
@@ -373,10 +424,12 @@ function getDayTitle(dateStr) {
   const weekDay = now.getDay() || 7
   const weekStart = getDateOffsetStr(today, -(weekDay - 1))
   const weekEnd = getDateOffsetStr(today, 7 - weekDay)
-  if (dateStr === today) return `今天 · ${today}`
-  if (dateStr === yest) return `昨天 · ${dateStr}`
-  if (dateStr >= weekStart && dateStr <= weekEnd) return `本周 · ${dateStr}`
-  return `更早 · ${dateStr}`
+  if (dateStr === today) return `今天 · ${formatDateCN(today)}`
+  if (dateStr === yest) return `昨天 · ${formatDateCN(dateStr)}`
+  if (dateStr >= weekStart && dateStr <= weekEnd) {
+    return `本周 · ${formatDateCN(dateStr)}`
+  }
+  return `更早 · ${formatDateCN(dateStr)}`
 }
 
 function calcTotalCount() {
@@ -531,57 +584,84 @@ watch(
 .switch-record {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  height: 100%;
+  align-items: stretch;
+  gap: 10px;
+  flex: 1;
   min-height: 0;
+  height: 100%;
+  width: 100%;
 }
 
 .switch-record__time-bar {
-  padding: 16px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #3653a0 0%, #4a6bc7 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 10px;
 }
 
 .switch-record__tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 44px;
+  padding: 2px;
+  border-radius: 4px;
+  background: #eef1f6;
+  box-sizing: border-box;
 }
 
 .switch-record__tab {
-  padding: 6px 14px;
+  flex: 1;
+  height: 40px;
+  padding: 0;
   border: none;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.9);
+  border-radius: 4.36px;
+  background: transparent;
+  color: #606266;
   font-size: 13px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .switch-record__tab.is-active {
-  background: #fff;
-  color: #3653a0;
+  background: #3653a0;
+  color: #fff;
   font-weight: 600;
 }
 
 .switch-record__range-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 12px;
+  justify-content: space-between;
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .switch-record__arrow {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  font-size: 20px;
-  line-height: 1;
+  border-radius: 0;
+  background: transparent;
+  color: #303133;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 30px;
   cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.switch-record__arrow:hover:not(:disabled) {
+  color: #3653a0;
 }
 
 .switch-record__arrow:disabled {
@@ -589,11 +669,28 @@ watch(
   cursor: not-allowed;
 }
 
+.switch-record__range-main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+}
+
 .switch-record__range-text {
-  color: #fff;
+  color: #303133;
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
+  line-height: 30px;
+}
+
+.switch-record__range-icon {
+  font-size: 16px;
+  color: #94a3b8;
+  line-height: 1;
 }
 
 .switch-record__daterange {
@@ -603,73 +700,99 @@ watch(
 .switch-record__search {
   display: flex;
   align-items: center;
+  width: 100%;
   gap: 8px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: #f5f7fa;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #f7f7f7;
+  box-sizing: border-box;
+}
+
+.switch-record__search-icon {
+  font-size: 16px;
+  color: #8c8c8c;
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 .switch-record__search-input {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   font-size: 14px;
+  color: #1a1a1a;
   outline: none;
 }
 
-.switch-record__search-btn {
-  border: none;
-  background: transparent;
-  color: #909399;
-  cursor: pointer;
-  padding: 4px;
+.switch-record__search-input::placeholder {
+  color: #b0b0b0;
 }
 
 .switch-record__filters {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  width: 100%;
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #edf1f7;
+  box-sizing: border-box;
 }
 
 .switch-record__filter {
-  padding: 6px 16px;
-  border: 1px solid #dcdfe6;
-  border-radius: 18px;
-  background: #f5f7fa;
+  width: 120px;
+  height: 30px;
+  padding: 0;
+  border: 0.66px solid #d8d8d8;
+  border-radius: 7.86px;
+  background: #eaedf1;
   color: #606266;
   font-size: 13px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .switch-record__filter.is-active {
-  border-color: #3653a0;
-  background: #3653a0;
+  background: rgba(54, 83, 160, 0.7);
+  border-color: rgba(54, 83, 160, 0.7);
   color: #fff;
+  font-weight: 600;
 }
 
 .switch-record__list {
   flex: 1;
+  width: 100%;
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
+  box-sizing: border-box;
+}
+
+.switch-record__day + .switch-record__day {
+  margin-top: 8px;
 }
 
 .switch-record__day-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 4px;
+  padding: 8px 4px 10px;
 }
 
 .switch-record__day-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #0f172a;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
 }
 
 .switch-record__day-count {
   font-size: 12px;
-  color: #909399;
+  color: #94a3b8;
 }
 
 .switch-record__item {
@@ -678,6 +801,7 @@ watch(
   border-radius: 12px;
   background: #fff;
   border: 1px solid #edf1f7;
+  box-sizing: border-box;
 }
 
 .switch-record__item-head {
@@ -703,16 +827,21 @@ watch(
 }
 
 .switch-record__item-status .iconfont {
-  font-size: 14px;
-  line-height: 1;
+  width: 15px;
+  height: 15px;
+  font-size: 15px;
+  line-height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .switch-record__item-status.is-success {
-  color: #39b54a;
+  color: #12b97e;
 }
 
 .switch-record__item-status.is-fail {
-  color: #f53f3f;
+  color: #f24724;
 }
 
 .switch-record__item-meta {
@@ -750,7 +879,7 @@ watch(
 .switch-record__item-fail {
   margin-top: 8px;
   font-size: 13px;
-  color: #f53f3f;
+  color: #f24724;
   line-height: 1.5;
 }
 
@@ -763,24 +892,44 @@ watch(
 </style>
 
 <style>
-.switch-record-drawer.el-drawer {
-  border-radius: 16px 0 0 16px;
+.switch-record-dialog.el-dialog {
+  width: 678px !important;
+  height: 968px !important;
+  max-height: 968px !important;
+  margin-top: 0 !important;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
   overflow: hidden;
 }
 
-.switch-record-drawer .el-drawer__header {
-  margin-bottom: 12px;
-  padding: 16px 20px 0;
+.switch-record-dialog .el-dialog__header {
+  margin-right: 0;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid #edf1f7;
+  flex-shrink: 0;
+  cursor: move;
+  user-select: none;
 }
 
-.switch-record-drawer .el-drawer__title {
-  font-size: 16px;
+.switch-record-dialog__title {
+  font-size: 18px;
   font-weight: 700;
   color: #0f172a;
+  line-height: 1.3;
 }
 
-.switch-record-drawer .el-drawer__body {
-  padding: 8px 20px 20px;
+.switch-record-dialog .el-dialog__body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
   overflow: hidden;
+}
+
+.switch-record-dialog .el-dialog__headerbtn {
+  right: 20px;
 }
 </style>

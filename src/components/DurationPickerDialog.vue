@@ -9,7 +9,7 @@
     <div class="duration-picker">
       <div class="duration-picker__field">
         <span class="duration-picker__label">时</span>
-        <el-input-number v-model="hours" :min="0" :max="99" controls-position="right" />
+        <el-input-number v-model="hours" :min="0" :max="maxHours" controls-position="right" />
       </div>
       <div class="duration-picker__field">
         <span class="duration-picker__label">分</span>
@@ -37,11 +37,13 @@ const visible = ref(false)
 const hours = ref(0)
 const minutes = ref(0)
 const seconds = ref(0)
+const maxHours = ref(99)
 let callback = null
 
-function open(durationSeconds, onConfirm) {
+function open(durationSeconds, onConfirm, options = {}) {
   const total = parseInt(durationSeconds, 10) || 0
-  hours.value = Math.floor(total / 3600)
+  maxHours.value = Number(options?.maxHours) > 0 ? Number(options.maxHours) : 99
+  hours.value = Math.min(Math.floor(total / 3600), maxHours.value)
   minutes.value = Math.floor((total % 3600) / 60)
   seconds.value = total % 60
   callback = onConfirm

@@ -1,7 +1,6 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="定时列表"
     width="720px"
     append-to-body
     destroy-on-close
@@ -12,24 +11,44 @@
     @update:model-value="onVisibleChange"
     @opened="onOpened"
   >
-    <div v-loading="loading" class="timer-pro-list">
-      <template v-if="proList.length">
-        <div class="timer-pro-list__scroll">
-          <article
-            v-for="(item, index) in proList"
-            :key="item.id || index"
-            class="timer-pro-card"
-            @click="onDetail(item)"
-          >
-            <div class="timer-pro-card__head">
-              <span class="timer-pro-card__time">{{ item.timerConfig?.time || '--' }}</span>
-              <el-switch
-                :model-value="!!item.enabled"
-                @click.stop
-                @change="(val) => onEnableChange(item, val)"
-              />
-            </div>
+    <template #header>
+      <div class="timer-pro-list-dialog__title">定时</div>
+    </template>
 
+    <div v-loading="loading" class="timer-pro-list">
+      <div v-if="!proList.length && !loading" class="timer-pro-list__empty">
+        <img
+          class="timer-pro-list__empty-img"
+          :src="emptyTimingImg"
+          alt=""
+        />
+        <p class="timer-pro-list__empty-text">无定时，请添加定时</p>
+      </div>
+
+      <div v-else-if="proList.length" class="timer-pro-list__grid">
+        <article
+          v-for="(item, index) in proList"
+          :key="item.id || index"
+          class="timer-pro-card"
+          @click="onDetail(item)"
+        >
+          <div class="timer-pro-card__head">
+            <span class="timer-pro-card__time">
+              {{ formatTimeDisplay(item.timerConfig?.time) }}
+            </span>
+            <el-switch
+              :model-value="!!item.enabled"
+              @click.stop
+              @change="(val) => onEnableChange(item, val)"
+            />
+          </div>
+
+          <div class="timer-pro-card__outlet">
+            {{ getOutletLabel(item) }}
+          </div>
+
+          <div class="timer-pro-card__details">
+            <!-- 重复规则 / 单次日期 -->
             <div class="timer-pro-card__row">
               <i
                 class="iconfont"
@@ -53,6 +72,7 @@
               </span>
             </div>
 
+            <!-- 有重复规则时展示日期区间（对齐设计稿红框） -->
             <div
               v-if="[1, 2].includes(item.timerConfig?.repeatType)"
               class="timer-pro-card__row"
@@ -63,6 +83,7 @@
                 {{ item.timerConfig?.endDate || '--' }}
               </span>
             </div>
+            <div v-else class="timer-pro-card__row is-placeholder" aria-hidden="true"></div>
 
             <div class="timer-pro-card__row">
               <i class="iconfont icon-device_ic_hourglass"></i>
@@ -70,34 +91,16 @@
                 打开时长:{{ second2Time(item.actionConfig?.duration) }}
               </span>
             </div>
-
-            <div
-              v-if="item.nextRunTime && item.enabled"
-              class="timer-pro-card__row"
-            >
-              <i class="iconfont icon-device_ic_hourglass"></i>
-              <span>下次启动时间:{{ formatUtc(item.nextRunTime) }}</span>
-            </div>
-          </article>
-        </div>
-
-        <button type="button" class="timer-pro-list__fab" @click="onAdd">
-          <i class="iconfont icon-jiahao"></i>
-        </button>
-      </template>
-
-      <div v-else-if="!loading" class="timer-pro-list__empty">
-        <img
-          class="timer-pro-list__empty-img"
-          :src="emptyTimingImg"
-          alt=""
-        />
-        <p class="timer-pro-list__empty-text">无定时，请添加定时</p>
-        <button type="button" class="timer-pro-list__empty-btn" @click="onAdd">
-          添加定时设置
-        </button>
+          </div>
+        </article>
       </div>
     </div>
+
+    <template #footer>
+      <button type="button" class="timer-pro-list__add-btn" @click="onAdd">
+        添加定时设置
+      </button>
+    </template>
 
     <TimerProEditDialog
       v-model="editVisible"
@@ -176,11 +179,23 @@ function pad2(n) {
   return String(n).padStart(2, '0')
 }
 
-function formatUtc(utcStr) {
-  if (!utcStr) return '--'
-  const d = new Date(utcStr)
-  if (Number.isNaN(d.getTime())) return '--'
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+function formatTimeDisplay(timeStr) {
+  if (!timeStr) return '--'
+  const parts = String(timeStr).split(':')
+  if (parts.length >= 2) return `${parts[0]}:${parts[1]}`
+  return timeStr
+}
+
+/** 出水口展示；暂无数据时留空占位 */
+function getOutletLabel(item) {
+  const ports = item?.actionConfig?.outPorts
+  if (!Array.isArray(ports) || !ports.length) return ''
+  const outletNo = Number(ports[0]?.outletNo)
+  if (!outletNo) return ''
+  const outletName = ports[0]?.outletName
+  if (outletName) return outletName
+  const letter = String.fromCharCode(64 + outletNo)
+  return `${letter}出水口`
 }
 
 function getWeekStr(data) {
@@ -227,20 +242,18 @@ async function onEnableChange(item, check) {
     ElMessage.success('操作成功')
     await fetchList()
   } catch (e) {
-    const code = e?.code
+    const code = Number(e?.code)
+    // 对齐移动端：40106 → 停止任务选择；其它业务错误 →「去设置」
     if (code === 40106) {
       await openStopChoiceDialog()
-    } else if (code === 40001) {
-      await openSetTimeTip()
     } else {
-      item.enabled = !check
-      if (e?.message) ElMessage.error(e.message)
+      await openSetTimeTip(e?.message || '开始执行时间必须大于当前时间。')
     }
   }
 }
 
 async function openStopChoiceDialog() {
-  const choice = ref(0)
+  const choice = ref(null)
   try {
     await ElMessageBox({
       title: '提示',
@@ -271,7 +284,14 @@ async function openStopChoiceDialog() {
       showCancelButton: true,
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      appendTo: 'body'
+      appendTo: 'body',
+      beforeClose: (action, instance, done) => {
+        if (action === 'confirm' && choice.value == null) {
+          ElMessage.warning('请选择操作项')
+          return
+        }
+        done()
+      }
     })
     await stopDvTaskHttp({
       id: controlTask.value?.id,
@@ -294,14 +314,18 @@ async function stopDvTaskHttp(order) {
   }
 }
 
-async function openSetTimeTip() {
+async function openSetTimeTip(message) {
   try {
-    await ElMessageBox.confirm('开始执行时间必须大于当前时间。', '提示', {
-      confirmButtonText: '去设置',
-      cancelButtonText: '取消',
-      type: 'warning',
-      appendTo: 'body'
-    })
+    await ElMessageBox.confirm(
+      message || '开始执行时间必须大于当前时间。',
+      '提示',
+      {
+        confirmButtonText: '去设置',
+        cancelButtonText: '取消',
+        type: 'warning',
+        appendTo: 'body'
+      }
+    )
     openEdit('edit', 'setTime', controlItem.value)
   } catch {
     if (controlItem.value) {
@@ -343,26 +367,27 @@ function onOpened() {
 
 <style scoped>
 .timer-pro-list {
-  position: relative;
-  min-height: 420px;
+  min-height: 360px;
   display: flex;
   flex-direction: column;
 }
 
-.timer-pro-list__scroll {
-  flex: 1;
-  max-height: 520px;
+.timer-pro-list__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 4px 0 8px;
+  max-height: 480px;
   overflow-y: auto;
-  padding: 4px 4px 72px;
   box-sizing: border-box;
 }
 
 .timer-pro-card {
-  margin-bottom: 12px;
   padding: 14px 16px;
-  border-radius: 12px;
+  border-radius: 14px;
   background: #fff;
   border: 1px solid #edf1f7;
+  box-shadow: 0 4px 16px rgba(31, 45, 61, 0.06);
   cursor: pointer;
   box-sizing: border-box;
 }
@@ -375,70 +400,64 @@ function onOpened() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #edf1f7;
+  gap: 8px;
 }
 
 .timer-pro-card__time {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   color: #3653a0;
   line-height: 1.2;
 }
 
+.timer-pro-card__outlet {
+  min-height: 20px;
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  line-height: 20px;
+}
+
+.timer-pro-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  /* 统一为 3 行详情高度（重复规则 + 日期 + 打开时长） */
+  min-height: calc(3 * 20px + 2 * 8px);
+}
+
 .timer-pro-card__row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 14px;
-  color: #303133;
+  gap: 6px;
+  min-height: 20px;
+  font-size: 13px;
+  color: #606266;
+  line-height: 20px;
+}
+
+.timer-pro-card__row.is-placeholder {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .timer-pro-card__row .iconfont {
   flex-shrink: 0;
-  font-size: 16px;
+  font-size: 15px;
   color: #3653a0;
   line-height: 1;
 }
 
-.timer-pro-list__fab {
-  position: absolute;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  width: 52px;
-  height: 52px;
-  border: none;
-  border-radius: 50%;
-  background: #3653a0;
-  color: #fff;
-  box-shadow: 0 6px 16px rgba(54, 83, 160, 0.35);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-}
-
-.timer-pro-list__fab .iconfont {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.timer-pro-list__fab:hover {
-  background: #2f4a90;
-}
-
 .timer-pro-list__empty {
   flex: 1;
-  min-height: 420px;
+  min-height: 360px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 32px 24px 40px;
+  padding: 24px 24px 8px;
   box-sizing: border-box;
 }
 
@@ -453,13 +472,13 @@ function onOpened() {
 }
 
 .timer-pro-list__empty-text {
-  margin: 0 0 28px;
+  margin: 0;
   font-size: 14px;
   color: #909399;
   line-height: 1.4;
 }
 
-.timer-pro-list__empty-btn {
+.timer-pro-list__add-btn {
   min-width: 180px;
   height: 44px;
   padding: 0 28px;
@@ -473,8 +492,14 @@ function onOpened() {
   box-shadow: 0 6px 16px rgba(54, 83, 160, 0.28);
 }
 
-.timer-pro-list__empty-btn:hover {
+.timer-pro-list__add-btn:hover {
   background: #2f4a90;
+}
+
+@media (max-width: 680px) {
+  .timer-pro-list__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>
 
@@ -491,5 +516,20 @@ function onOpened() {
 .timer-pro-list-dialog .el-dialog__header {
   cursor: move;
   user-select: none;
+  padding-bottom: 8px;
+}
+
+.timer-pro-list-dialog__title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #1a3b87;
+  line-height: 1.2;
+}
+
+.timer-pro-list-dialog .el-dialog__footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+  padding-bottom: 20px;
 }
 </style>

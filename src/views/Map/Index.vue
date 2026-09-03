@@ -1036,7 +1036,7 @@ const layerOptions = ref(resolveLayerOptions(farmStore.s_map_layer))
 const layerPanelExpanded = ref(false)
 /** 当前农场无地块提示弹窗（对齐移动端 noLandPop / pop_polt_empty） */
 const landEmptyVisible = ref(false)
-/** 灌溉统计抽屉（对齐移动端 farm_data） */
+/** 灌溉统计弹窗（对齐移动端 farm_data） */
 const irrStatsVisible = ref(false)
 /** 用户关闭/去新建后，同农场本次停留不再强制弹出无地块提示 */
 let landEmptyDismissedFarmId = null
@@ -1400,7 +1400,7 @@ const toggleLayerPanel = () => {
   layerPanelExpanded.value = !layerPanelExpanded.value
 }
 
-/** 打开灌溉统计抽屉（对齐移动端 showStatistics） */
+/** 打开灌溉统计弹窗（对齐移动端 showStatistics） */
 const openIrrStats = () => {
   layerPanelExpanded.value = false
   irrStatsVisible.value = true

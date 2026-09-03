@@ -1,8 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="dialogTitle"
-    width="640px"
+    width="560px"
     append-to-body
     destroy-on-close
     draggable
@@ -12,16 +11,20 @@
     @update:model-value="onVisibleChange"
     @opened="onOpened"
   >
+    <template #header>
+      <div class="timer-pro-edit-dialog__title">定时设置</div>
+    </template>
+
     <div v-if="paramInfo" class="timer-pro-edit">
-      <!-- 设备：出水口选择（对齐移动端 edit_pro from=device） -->
-      <div v-if="from === 'device'" class="timer-pro-edit__row">
-        <span class="timer-pro-edit__label">出水口选择</span>
+      <!-- 设备：出水口选择 -->
+      <div v-if="from === 'device'" class="timer-pro-edit__section">
+        <div class="timer-pro-edit__section-label">出水口选择</div>
         <div class="timer-pro-edit__ports">
           <button
             v-for="port in arrayPort"
             :key="port.value"
             type="button"
-            class="timer-pro-edit__port"
+            class="timer-pro-edit__choice"
             :class="{ 'is-active': isPortSelected(port.value) }"
             @click="onTogglePort(port.value)"
           >
@@ -36,132 +39,177 @@
         </div>
       </div>
 
-      <!-- 不重复：打开日期时间 -->
-      <div
-        v-if="paramInfo.timerConfig.repeatType === 0"
-        class="timer-pro-edit__row"
-      >
-        <span class="timer-pro-edit__label">打开时间</span>
-        <el-date-picker
-          v-model="openDateTime"
-          type="datetime"
-          value-format="YYYY-MM-DD HH:mm:ss"
-          format="YYYY-MM-DD HH:mm"
-          placeholder="选择打开时间"
-          class="timer-pro-edit__control"
-          @change="onOpenDateTimeChange"
-        />
-      </div>
-
-      <!-- 重复：仅时刻 -->
-      <div v-else class="timer-pro-edit__row">
-        <span class="timer-pro-edit__label">打开时间</span>
-        <el-time-picker
-          v-model="openTimeOnly"
-          value-format="HH:mm:ss"
-          format="HH:mm"
-          placeholder="选择打开时间"
-          class="timer-pro-edit__control"
-          @change="onOpenTimeOnlyChange"
-        />
-      </div>
-
-      <div class="timer-pro-edit__row">
-        <span class="timer-pro-edit__label">打开时长</span>
-        <button type="button" class="timer-pro-edit__picker" @click="onPickDuration">
-          <span>{{ second2Time(paramInfo.actionConfig.duration) }}</span>
-          <i class="iconfont icon-device_ic_timing"></i>
-        </button>
-      </div>
-
-      <div class="timer-pro-edit__block">
-        <div class="timer-pro-edit__row is-top">
-          <span class="timer-pro-edit__label">是否重复</span>
-          <el-radio-group v-model="paramInfo.timerConfig.repeatType">
-            <el-radio :value="0">不重复</el-radio>
-            <el-radio :value="1">间隔重复</el-radio>
-            <el-radio :value="2">周重复</el-radio>
-            <el-radio :value="3">定义日期</el-radio>
-          </el-radio-group>
+      <!-- 打开时间 + 打开时长 并排 -->
+      <div class="timer-pro-edit__duo">
+        <div class="timer-pro-edit__field">
+          <div class="timer-pro-edit__section-label">打开时间</div>
+          <el-date-picker
+            v-if="paramInfo.timerConfig.repeatType === 0"
+            v-model="openDateTime"
+            type="datetime"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            format="YYYY年MM月DD日 HH:mm"
+            placeholder="选择打开时间"
+            class="timer-pro-edit__control"
+            @change="onOpenDateTimeChange"
+          />
+          <el-time-picker
+            v-else
+            v-model="openTimeOnly"
+            value-format="HH:mm:ss"
+            format="HH:mm"
+            placeholder="选择打开时间"
+            class="timer-pro-edit__control"
+            @change="onOpenTimeOnlyChange"
+          />
+        </div>
+        <div class="timer-pro-edit__field">
+          <div class="timer-pro-edit__section-label">打开时长</div>
+          <button
+            type="button"
+            class="timer-pro-edit__picker"
+            @click="onPickDuration"
+          >
+            <span>{{ formatDurationFriendly(paramInfo.actionConfig.duration) }}</span>
+            <i class="iconfont icon-device_ic_hourglass"></i>
+          </button>
         </div>
       </div>
 
+      <!-- 是否重复：2x2 卡片 -->
+      <div class="timer-pro-edit__section">
+        <div class="timer-pro-edit__section-label">是否重复</div>
+        <div class="timer-pro-edit__repeat-grid">
+          <button
+            v-for="opt in repeatOptions"
+            :key="opt.value"
+            type="button"
+            class="timer-pro-edit__choice"
+            :class="{
+              'is-active': paramInfo.timerConfig.repeatType === opt.value
+            }"
+            @click="paramInfo.timerConfig.repeatType = opt.value"
+          >
+            <i
+              class="iconfont"
+              :class="
+                paramInfo.timerConfig.repeatType === opt.value
+                  ? 'icon-radio'
+                  : 'icon-radio1'
+              "
+            ></i>
+            <span>{{ opt.label }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 间隔重复规则 -->
       <div
         v-if="paramInfo.timerConfig.repeatType === 1"
-        class="timer-pro-edit__row"
+        class="timer-pro-edit__section"
       >
-        <span class="timer-pro-edit__label">重复周期</span>
-        <button type="button" class="timer-pro-edit__picker" @click="onPickInterval">
-          <span>{{ second2Time(paramInfo.timerConfig.interval) }}</span>
-          <i class="iconfont icon-device_ic_timing"></i>
+        <div class="timer-pro-edit__section-label">重复周期</div>
+        <button
+          type="button"
+          class="timer-pro-edit__picker is-full"
+          @click="onPickInterval"
+        >
+          <span>{{ formatIntervalDisplay(paramInfo.timerConfig.interval) }}</span>
+          <i class="iconfont icon-device_ic_run_01"></i>
         </button>
+        <div class="timer-pro-edit__range">
+          <i class="iconfont icon-device_ic_timing timer-pro-edit__range-icon"></i>
+          <el-date-picker
+            v-model="paramInfo.timerConfig.startDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="开始日期"
+            class="timer-pro-edit__range-picker"
+          />
+          <span class="timer-pro-edit__range-sep">至</span>
+          <el-date-picker
+            v-model="paramInfo.timerConfig.endDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="结束日期"
+            class="timer-pro-edit__range-picker"
+          />
+        </div>
       </div>
 
-      <div
-        v-if="[1, 2].includes(paramInfo.timerConfig.repeatType)"
-        class="timer-pro-edit__range"
-      >
-        <el-date-picker
-          v-model="paramInfo.timerConfig.startDate"
-          type="date"
-          value-format="YYYY-MM-DD"
-          placeholder="开始日期"
-        />
-        <span class="timer-pro-edit__range-sep">至</span>
-        <el-date-picker
-          v-model="paramInfo.timerConfig.endDate"
-          type="date"
-          value-format="YYYY-MM-DD"
-          placeholder="结束日期"
-        />
-      </div>
-
+      <!-- 周重复规则 -->
       <div
         v-if="paramInfo.timerConfig.repeatType === 2"
-        class="timer-pro-edit__weeks"
+        class="timer-pro-edit__section"
       >
-        <el-checkbox-group v-model="paramInfo.timerConfig.weekDays">
-          <el-checkbox
-            v-for="w in weekOptions"
-            :key="w.value"
-            :value="w.value"
-            :label="w.value"
-          >
-            {{ w.label }}
-          </el-checkbox>
-        </el-checkbox-group>
+        <div class="timer-pro-edit__section-label">重复周期</div>
+        <div class="timer-pro-edit__weeks">
+          <el-checkbox-group v-model="paramInfo.timerConfig.weekDays">
+            <el-checkbox
+              v-for="w in weekOptions"
+              :key="w.value"
+              :value="w.value"
+              :label="w.value"
+            >
+              {{ w.label }}
+            </el-checkbox>
+          </el-checkbox-group>
+        </div>
+        <div class="timer-pro-edit__range">
+          <i class="iconfont icon-device_ic_timing timer-pro-edit__range-icon"></i>
+          <el-date-picker
+            v-model="paramInfo.timerConfig.startDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="开始日期"
+            class="timer-pro-edit__range-picker"
+          />
+          <span class="timer-pro-edit__range-sep">至</span>
+          <el-date-picker
+            v-model="paramInfo.timerConfig.endDate"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="结束日期"
+            class="timer-pro-edit__range-picker"
+          />
+        </div>
       </div>
 
+      <!-- 自定义日期规则 -->
       <div
         v-if="paramInfo.timerConfig.repeatType === 3"
-        class="timer-pro-edit__row"
+        class="timer-pro-edit__section"
       >
-        <span class="timer-pro-edit__label">自定义日期</span>
+        <div class="timer-pro-edit__section-label">自定义日期</div>
         <el-date-picker
           v-model="paramInfo.timerConfig.dates"
           type="dates"
           value-format="YYYY-MM-DD"
           placeholder="选择日期"
-          class="timer-pro-edit__control"
+          class="timer-pro-edit__control is-full"
         />
       </div>
     </div>
 
     <template #footer>
       <div class="timer-pro-edit__footer">
+        <button
+          type="button"
+          class="timer-pro-edit__save"
+          :disabled="saving"
+          @click="onSave"
+        >
+          {{ saving ? '保存中...' : '保存' }}
+        </button>
         <el-button
           v-if="type !== 'add'"
           type="danger"
           plain
+          class="timer-pro-edit__delete"
           :loading="deleting"
           @click="onDelete"
         >
           删除
-        </el-button>
-        <div class="timer-pro-edit__footer-spacer"></div>
-        <el-button @click="onVisibleChange(false)">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="onSave">
-          保存
         </el-button>
       </div>
     </template>
@@ -175,11 +223,15 @@
  * 定时添加/编辑弹窗
  * 对齐移动端 pages/home/activity/base/time_pro/edit_pro（from=group|device）
  */
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { addTimePro, deleteTimePro, updateTimePro } from '@/api/deviceTask'
 import { useFarmStore } from '@/store/farm'
-import { getNowDateStr, getNowTimeStr, second2Time } from '@/utils/programTime'
+import {
+  formatDurationFriendly,
+  getNowDateStr,
+  getNowTimeStr
+} from '@/utils/programTime'
 import DurationPickerDialog from '@/components/DurationPickerDialog.vue'
 
 const props = defineProps({
@@ -212,9 +264,20 @@ const weekOptions = [
   { value: 6, label: '周六' }
 ]
 
-const dialogTitle = computed(() =>
-  props.type === 'add' ? '添加定时' : '定时设置'
-)
+const repeatOptions = [
+  { value: 0, label: '不重复' },
+  { value: 1, label: '间隔重复' },
+  { value: 2, label: '周重复' },
+  { value: 3, label: '自定义日期' }
+]
+
+/** 间隔周期展示：整小时显示 Nh，否则友好文案 */
+function formatIntervalDisplay(seconds) {
+  const sec = parseInt(seconds, 10) || 0
+  if (sec <= 0) return '请设置周期'
+  if (sec % 3600 === 0) return `${sec / 3600}h`
+  return formatDurationFriendly(sec)
+}
 
 function getFarmId() {
   return (
@@ -284,10 +347,7 @@ function createDefaultParam() {
       switch: 1,
       openingType: 0,
       duration: 0,
-      outPorts:
-        props.from === 'device'
-          ? []
-          : [{ outletNo: 1, opening: 0 }]
+      outPorts: [{ outletNo: 1, opening: 0 }]
     }
   }
 }
@@ -334,7 +394,8 @@ function onPickInterval() {
     paramInfo.value?.timerConfig?.interval || 0,
     (total) => {
       if (paramInfo.value) paramInfo.value.timerConfig.interval = total
-    }
+    },
+    { maxHours: 23 }
   )
 }
 
@@ -347,6 +408,16 @@ function startGtEnd(startDate, endDate) {
 async function onSave() {
   const info = paramInfo.value
   if (!info) return
+
+  // 对齐移动端设备定时：出水口至少选一个（移动端默认 outletNo:1）
+  if (
+    props.from === 'device' &&
+    (!Array.isArray(info.actionConfig?.outPorts) ||
+      info.actionConfig.outPorts.length === 0)
+  ) {
+    ElMessage.warning('请选择出水口')
+    return
+  }
 
   if ((info.actionConfig?.duration || 0) <= 0) {
     ElMessage.warning('请设置打开时长')
@@ -470,105 +541,126 @@ function onOpened() {
 .timer-pro-edit {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 18px;
   min-height: 280px;
+  padding: 4px 0 8px;
 }
 
-.timer-pro-edit__row {
+.timer-pro-edit__section {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid #edf1f7;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.timer-pro-edit__row.is-top {
-  align-items: flex-start;
-}
-
-.timer-pro-edit__label {
-  width: 88px;
-  flex-shrink: 0;
-  font-size: 14px;
-  color: #303133;
-  line-height: 32px;
-}
-
-.timer-pro-edit__control {
-  flex: 1;
-  min-width: 0;
+.timer-pro-edit__section-label {
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.4;
 }
 
 .timer-pro-edit__ports {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  align-items: center;
 }
 
-.timer-pro-edit__port {
+.timer-pro-edit__repeat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.timer-pro-edit__choice {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border: none;
-  background: transparent;
-  padding: 0;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
   cursor: pointer;
   font-size: 14px;
-  color: #606266;
+  color: #303133;
+  box-sizing: border-box;
 }
 
-.timer-pro-edit__port .iconfont {
+.timer-pro-edit__choice .iconfont {
   font-size: 18px;
   color: #c0c4cc;
   line-height: 1;
 }
 
-.timer-pro-edit__port.is-active {
+.timer-pro-edit__choice.is-active {
+  border-color: #3653a0;
   color: #3653a0;
   font-weight: 600;
+  background: rgba(54, 83, 160, 0.04);
 }
 
-.timer-pro-edit__port.is-active .iconfont {
+.timer-pro-edit__choice.is-active .iconfont {
   color: #3653a0;
+}
+
+.timer-pro-edit__duo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.timer-pro-edit__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.timer-pro-edit__control {
+  width: 100%;
+}
+
+.timer-pro-edit__control.is-full,
+.timer-pro-edit__picker.is-full {
+  width: 100%;
 }
 
 .timer-pro-edit__picker {
-  flex: 1;
-  min-width: 0;
-  height: 36px;
+  width: 100%;
+  height: 40px;
   padding: 0 12px;
-  border: none;
-  border-radius: 8px;
-  background: #f5f7fa;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   cursor: pointer;
   font-size: 14px;
   color: #303133;
+  box-sizing: border-box;
 }
 
 .timer-pro-edit__picker .iconfont {
   color: #909399;
   font-size: 16px;
-}
-
-.timer-pro-edit__block {
-  margin-top: 8px;
-  padding-top: 4px;
+  flex-shrink: 0;
 }
 
 .timer-pro-edit__range {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  margin: 8px 0;
-  border-radius: 8px;
-  background: #f5f7fa;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  box-sizing: border-box;
+}
+
+.timer-pro-edit__range-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: #3653a0;
 }
 
 .timer-pro-edit__range-sep {
@@ -577,24 +669,92 @@ function onOpened() {
   flex-shrink: 0;
 }
 
+.timer-pro-edit__range-picker {
+  flex: 1;
+  min-width: 0;
+}
+
 .timer-pro-edit__weeks {
-  padding: 12px 0;
+  padding: 4px 0;
 }
 
 .timer-pro-edit__footer {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   width: 100%;
 }
 
-.timer-pro-edit__footer-spacer {
-  flex: 1;
+.timer-pro-edit__delete {
+  width: 100%;
+  height: 48px;
+  margin: 0 !important;
+  border-radius: 12px;
+}
+
+.timer-pro-edit__save {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: #3653a0;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(54, 83, 160, 0.28);
+}
+
+.timer-pro-edit__save:hover:not(:disabled) {
+  background: #2f4a90;
+}
+
+.timer-pro-edit__save:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>
 
 <style>
+.timer-pro-edit-dialog.el-dialog {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
 .timer-pro-edit-dialog .el-dialog__header {
   cursor: move;
   user-select: none;
+  padding-bottom: 8px;
+}
+
+.timer-pro-edit-dialog__title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #1a3b87;
+  line-height: 1.2;
+}
+
+.timer-pro-edit-dialog .el-dialog__footer {
+  padding-top: 8px;
+  padding-bottom: 20px;
+}
+
+.timer-pro-edit-dialog .timer-pro-edit__control.el-date-editor,
+.timer-pro-edit-dialog .timer-pro-edit__control.el-time-editor,
+.timer-pro-edit-dialog .timer-pro-edit__range-picker.el-date-editor {
+  width: 100% !important;
+  box-sizing: border-box;
+}
+
+.timer-pro-edit-dialog .timer-pro-edit__control .el-input__wrapper,
+.timer-pro-edit-dialog .timer-pro-edit__range-picker .el-input__wrapper {
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px #e2e8f0 inset;
+}
+
+.timer-pro-edit-dialog .timer-pro-edit__range .el-input__wrapper {
+  background: transparent;
+  box-shadow: none;
 }
 </style>

@@ -170,7 +170,7 @@
                   >
                     <template
                       v-for="(g, idx) in getSortedGroups(item.groups)"
-                      :key="g.id || idx"
+                      :key="`${g.stepType ?? 0}-${g.id ?? g.irrigationGroupId ?? g.outletId ?? idx}`"
                     >
                       <span
                         class="program-card__group-name"
@@ -895,9 +895,30 @@ const onProSet = (item) => {
   })
 }
 
-/** 运行中当前轮灌组 → 组详情，对齐移动端 toGourpDetail / map-group-detail?from=pro */
+/** 运行中当前步骤 → 组详情 / 设备控制，对齐移动端 toGourpDetail */
 const onGroupNameClick = (item, group) => {
   if (!isCurrentRunningGroup(item, group)) return
+  const stepType = Number(group?.stepType ?? 0)
+
+  if (stepType === 1) {
+    const deviceId = group.deviceId
+    if (deviceId == null) {
+      ElMessage.warning('缺少设备信息')
+      return
+    }
+    const bean = {
+      ...group,
+      id: deviceId,
+      name: group.name || getGroupDisplayNameFromProgram(item, group)
+    }
+    farmStore.setControlDevice(bean)
+    router.push({
+      path: '/device/control',
+      query: { id: String(deviceId) }
+    })
+    return
+  }
+
   const groupId = group.irrigationGroupId ?? group.id
   if (groupId == null) return
   const bean = {
