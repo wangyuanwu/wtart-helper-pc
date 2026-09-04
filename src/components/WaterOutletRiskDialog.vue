@@ -186,12 +186,12 @@ const onConfirm = () => {
 
 .water-outlet-risk-dialog__btn.is-confirm {
   border: none;
-  background: #3653a0;
+  background: #274082;
   color: #fff;
 }
 
 .water-outlet-risk-dialog__btn.is-confirm:hover:not(:disabled) {
-  background: #2f478a;
+  background: #1f3468;
 }
 
 .water-outlet-risk-dialog__btn.is-confirm:disabled {

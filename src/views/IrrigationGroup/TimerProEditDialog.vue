@@ -698,16 +698,16 @@ function onOpened() {
   height: 48px;
   border: none;
   border-radius: 12px;
-  background: #3653a0;
+  background: #274082;
   color: #fff;
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(54, 83, 160, 0.28);
+  box-shadow: 0 8px 18px rgba(39, 64, 130, 0.28);
 }
 
 .timer-pro-edit__save:hover:not(:disabled) {
-  background: #2f4a90;
+  background: #1f3468;
 }
 
 .timer-pro-edit__save:disabled {

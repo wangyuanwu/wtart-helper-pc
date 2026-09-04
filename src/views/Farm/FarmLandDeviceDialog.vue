@@ -294,12 +294,12 @@ watch(
 }
 
 .farm-land-device-dialog__save-btn {
-  --el-button-bg-color: #3653a0;
-  --el-button-border-color: #3653a0;
-  --el-button-hover-bg-color: #2d4590;
-  --el-button-hover-border-color: #2d4590;
-  --el-button-active-bg-color: #2d4590;
-  --el-button-active-border-color: #2d4590;
+  --el-button-bg-color: #274082;
+  --el-button-border-color: #274082;
+  --el-button-hover-bg-color: #1f3468;
+  --el-button-hover-border-color: #1f3468;
+  --el-button-active-bg-color: #1f3468;
+  --el-button-active-border-color: #1f3468;
 }
 
 .farm-land-device-dialog__device {

@@ -293,25 +293,25 @@ watch(
   font-size: 12px;
   font-weight: 600;
   color: #fff;
-  background: #3653a0;
+  background: #274082;
   box-shadow:
-    0px 20px 25px -5px rgba(54, 83, 160, 0.2),
-    0px 8px 10px -6px rgba(54, 83, 160, 0.2);
-  --el-button-bg-color: #3653a0;
+    0px 20px 25px -5px rgba(39, 64, 130, 0.2),
+    0px 8px 10px -6px rgba(39, 64, 130, 0.2);
+  --el-button-bg-color: #274082;
   --el-button-border-color: transparent;
-  --el-button-hover-bg-color: #2f4a90;
+  --el-button-hover-bg-color: #1f3468;
   --el-button-hover-border-color: transparent;
-  --el-button-active-bg-color: #2f4a90;
+  --el-button-active-bg-color: #1f3468;
   --el-button-active-border-color: transparent;
 }
 
 .set-default-open-dialog .el-dialog__footer .set-default-open-dialog__save:hover,
 .set-default-open-dialog .el-dialog__footer .set-default-open-dialog__save:focus {
-  background-color: #2f4a90;
+  background-color: #1f3468;
   border-color: transparent;
   color: #fff;
   box-shadow:
-    0px 20px 25px -5px rgba(54, 83, 160, 0.2),
-    0px 8px 10px -6px rgba(54, 83, 160, 0.2);
+    0px 20px 25px -5px rgba(39, 64, 130, 0.2),
+    0px 8px 10px -6px rgba(39, 64, 130, 0.2);
 }
 </style>

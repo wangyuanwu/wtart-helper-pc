@@ -164,7 +164,7 @@ const handleCreateLand = () => {
   padding: 0 32px;
   border: none;
   border-radius: 22px;
-  background: #2755a0;
+  background: #274082;
   color: #fff;
   font-size: 15px;
   font-weight: 600;
@@ -172,11 +172,11 @@ const handleCreateLand = () => {
 }
 
 .land-empty-btn:hover {
-  background: #1f478a;
+  background: #1f3468;
 }
 
 .land-empty-btn:active {
-  background: #1a3d78;
+  background: #1a2d5c;
 }
 </style>
 

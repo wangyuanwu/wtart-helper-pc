@@ -305,6 +305,21 @@
             </span>
             <span>远程关机</span>
           </button>
+          <button
+            type="button"
+            class="device-detail__op"
+            :class="{ 'is-ringing': isRing }"
+            :disabled="ringLoading"
+            @click="onRingToggle"
+          >
+            <span
+              class="device-detail__op-icon"
+              :class="isRing ? 'is-ring-stop' : 'is-ring'"
+            >
+              <el-icon :size="24"><AlarmClock /></el-icon>
+            </span>
+            <span>{{ isRing ? '停止响铃' : '远程响铃' }}</span>
+          </button>
         </div>
       </section>
       </div>
@@ -320,10 +335,10 @@
 </template>
 
 <script setup>
-import { computed, onActivated, onMounted, ref, watch } from 'vue'
+import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { AlarmClock, ArrowDown } from '@element-plus/icons-vue'
 import { useFarmStore } from '@/store/farm'
 import {
   closeRestartDv,
@@ -362,6 +377,10 @@ const sleepVisible = ref(false)
 const chartVisible = ref(false)
 const chartFieldType = ref('SolarPanelVoltage')
 const selectedMetric = ref('')
+/** 对齐移动端 isRing：响铃中展示「停止」，60s 后自动恢复入口文案 */
+const isRing = ref(false)
+const ringLoading = ref(false)
+let ringTimer = null
 
 const deviceInfo = ref(null)
 const otherInfo = ref(null)
@@ -788,6 +807,42 @@ async function onShutdown() {
   }
 }
 
+function clearRingTimer() {
+  if (ringTimer) {
+    clearTimeout(ringTimer)
+    ringTimer = null
+  }
+}
+
+/** 对齐移动端：oper=7 开始响铃，oper=8 停止；成功后 60s 自动恢复「响铃」入口 */
+async function onRingToggle() {
+  if (!ensureWaterOutletId() || ringLoading.value) return
+  const oper = isRing.value ? 8 : 7
+  ringLoading.value = true
+  try {
+    await closeRestartDv(
+      { waterOutletId: waterOutletId.value, oper },
+      { loading: true }
+    )
+    ElMessage.success('操作成功')
+    if (oper === 7) {
+      isRing.value = true
+      clearRingTimer()
+      ringTimer = setTimeout(() => {
+        isRing.value = false
+        ringTimer = null
+      }, 60000)
+    } else {
+      isRing.value = false
+      clearRingTimer()
+    }
+  } catch (e) {
+    console.error('[DeviceDetail] 远程响铃失败', e)
+  } finally {
+    ringLoading.value = false
+  }
+}
+
 onMounted(async () => {
   await loadDeviceDetail()
   await fetchOtherData({ toast: false })
@@ -798,6 +853,10 @@ onActivated(() => {
   applyPendingDeviceEdit()
 })
 
+onUnmounted(() => {
+  clearRingTimer()
+})
+
 watch(
   () => route.query.id,
   async (id, prev) => {
@@ -805,6 +864,8 @@ watch(
       otherInfo.value = null
       cardInfo.value = null
       syncTime.value = ''
+      isRing.value = false
+      clearRingTimer()
       await loadDeviceDetail()
       await fetchOtherData({ toast: false })
     }
@@ -1421,16 +1482,15 @@ watch(
 
 .device-detail__ops {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  /* 在上次收短 30px 基础上各加宽 10px（净收短 20px），两处间距：12 + 30 = 42 */
-  gap: 42px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
   align-items: stretch;
 }
 
 .device-detail__op {
   height: 100%;
   min-height: 120px;
-  padding: 16px 12px;
+  padding: 16px 8px;
   border: 1px solid #e4e7ed;
   border-radius: 32px;
   background: #fff;
@@ -1440,10 +1500,19 @@ watch(
   justify-content: center;
   gap: 12px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #303133;
   box-sizing: border-box;
+}
+
+.device-detail__op:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.device-detail__op.is-ringing {
+  border-color: rgba(240, 65, 52, 0.35);
 }
 
 .device-detail__op-icon {
@@ -1457,12 +1526,16 @@ watch(
 }
 
 .device-detail__op-icon.is-sleep,
-.device-detail__op-icon.is-restart {
+.device-detail__op-icon.is-restart,
+.device-detail__op-icon.is-ring {
   background: rgba(54, 83, 160, 0.1);
+  color: #3653a0;
 }
 
-.device-detail__op-icon.is-shutdown {
+.device-detail__op-icon.is-shutdown,
+.device-detail__op-icon.is-ring-stop {
   background: rgba(240, 65, 52, 0.1);
+  color: #f04134;
 }
 
 .device-detail__op-icon img {
@@ -1471,7 +1544,7 @@ watch(
   object-fit: contain;
 }
 
-.device-detail__op:hover {
+.device-detail__op:hover:not(:disabled) {
   border-color: #3653a0;
   background: #f7fafc;
 }

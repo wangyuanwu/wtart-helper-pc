@@ -145,7 +145,7 @@
             @click="onAddMember"
           >
             <span class="edit-farm-member-add__icon">+</span>
-            <span>快速添加</span>
+            <span>添加成员</span>
           </button>
         </div>
       </section>
@@ -240,6 +240,12 @@
         :dv-type="50"
         @deleted="onDeviceDeleted"
       />
+      <EditFarmMemberDialog
+        v-model="memberDialogVisible"
+        :type="memberDialogType"
+        :member="memberDialogMember"
+        @success="onMemberSaved"
+      />
     </template>
 
     <!-- 对齐移动端 a-tip-sure：删除农场需勾选风险确认 -->
@@ -291,6 +297,7 @@ import landDeviceOutletImg from '@/assets/map/outlet-device-online.svg'
 import landDeviceFisImg from '@/assets/device/add/farm_img_fis.png'
 import landDeviceCameraImg from '@/assets/device/add/farm_img_Camera.png'
 import FarmLandDeviceDialog from './FarmLandDeviceDialog.vue'
+import EditFarmMemberDialog from './EditFarmMemberDialog.vue'
 
 const router = useRouter()
 const farmStore = useFarmStore()
@@ -304,6 +311,9 @@ const memberList = ref([])
 const landList = ref([])
 const deviceDialogVisible = ref(false)
 const deviceDialogLandId = ref(null)
+const memberDialogVisible = ref(false)
+const memberDialogType = ref('add')
+const memberDialogMember = ref(null)
 const farmDeleteConfirmVisible = ref(false)
 const farmDeleteRiskChecked = ref(false)
 /** 当前用户在本农场的角色，对齐移动端 myRoleId；10=农场主 */
@@ -434,12 +444,19 @@ function onEditAddress() {
 }
 
 function onAddMember() {
-  router.push('/farm/edit-member?type=add')
+  memberDialogType.value = 'add'
+  memberDialogMember.value = null
+  memberDialogVisible.value = true
 }
 
 function onEditMember(item) {
-  farmStore.setMemberInfo(item)
-  router.push('/farm/edit-member?type=edit')
+  memberDialogType.value = 'edit'
+  memberDialogMember.value = item ? { ...item } : null
+  memberDialogVisible.value = true
+}
+
+function onMemberSaved() {
+  loadMembers()
 }
 
 function onAddLand() {

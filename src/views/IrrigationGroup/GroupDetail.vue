@@ -400,7 +400,8 @@ const runIconText = computed(() => {
       ? groupInfo.value.deviceRuntime
       : groupInfo.value?.deviceNexRunTime
   if (!src) return '--'
-  // 对齐移动端 control-group：仅 tiggerObject==2 为自动轮灌
+  // 对齐移动端：runStatus==5 → 一键均压；仅 tiggerObject==2 为自动轮灌
+  if (src.runStatus == 5) return '一键均压'
   if (src.tiggerObject == 2) return '自动轮灌'
   if (src.mode == 0) return '手动'
   if (src.mode == 1) return '定时'
@@ -413,6 +414,7 @@ const runIconClass = computed(() => {
       ? groupInfo.value.deviceRuntime
       : groupInfo.value?.deviceNexRunTime
   if (!src) return 'icon-device_ic_timing'
+  if (src.runStatus == 5) return 'icon-group_ic_noti_01'
   if (src.tiggerObject == 2) return 'icon-home_ic_foot_program_01'
   if (src.mode == 0) return 'icon-device_ic_manual'
   if (src.mode == 1) return 'icon-device_ic_timing'

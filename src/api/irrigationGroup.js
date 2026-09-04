@@ -129,3 +129,23 @@ export function balancePressure(data, config = {}) {
     silent: config.silent === true
   })
 }
+
+/** 停止均压 POST /api/irrigation-group/balance-pressure/stop（对齐移动端 stopBalancePressure） */
+export function stopBalancePressure(data, config = {}) {
+  return request({
+    url: '/api/irrigation-group/balance-pressure/stop',
+    method: 'POST',
+    data,
+    silent: config.silent === true
+  })
+}
+
+/** 更新均压最大压力 PUT /api/irrigation-group/balance/max-pressure（对齐移动端 updateBalanceMaxPressure） */
+export function updateBalanceMaxPressure(data, config = {}) {
+  return request({
+    url: '/api/irrigation-group/balance/max-pressure',
+    method: 'PUT',
+    data,
+    silent: config.silent === true
+  })
+}

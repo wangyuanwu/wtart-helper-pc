@@ -1874,12 +1874,12 @@ onUnmounted(() => {
 }
 
 .land-delete-confirm-dialog .land-delete-confirm-dialog__btn.is-confirm {
-  --el-button-bg-color: #3653a0;
-  --el-button-border-color: #3653a0;
-  --el-button-hover-bg-color: #2f4a90;
-  --el-button-hover-border-color: #2f4a90;
-  --el-button-active-bg-color: #2f4a90;
-  --el-button-active-border-color: #2f4a90;
+  --el-button-bg-color: #274082;
+  --el-button-border-color: #274082;
+  --el-button-hover-bg-color: #1f3468;
+  --el-button-hover-border-color: #1f3468;
+  --el-button-active-bg-color: #1f3468;
+  --el-button-active-border-color: #1f3468;
 }
 
 .device-delete-confirm-dialog.el-dialog {
@@ -1948,12 +1948,12 @@ onUnmounted(() => {
 }
 
 .device-delete-confirm-dialog .el-dialog__footer .el-button--primary {
-  --el-button-bg-color: #3653a0;
-  --el-button-border-color: #3653a0;
-  --el-button-hover-bg-color: #2f4a90;
-  --el-button-hover-border-color: #2f4a90;
-  --el-button-active-bg-color: #2f4a90;
-  --el-button-active-border-color: #2f4a90;
+  --el-button-bg-color: #274082;
+  --el-button-border-color: #274082;
+  --el-button-hover-bg-color: #1f3468;
+  --el-button-hover-border-color: #1f3468;
+  --el-button-active-bg-color: #1f3468;
+  --el-button-active-border-color: #1f3468;
   --el-button-disabled-bg-color: #a8b4d4;
   --el-button-disabled-border-color: #a8b4d4;
 }

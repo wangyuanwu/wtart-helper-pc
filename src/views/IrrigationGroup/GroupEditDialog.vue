@@ -448,9 +448,9 @@ watch(
 
 .group-edit-dialog__btn.is-primary {
   border: none;
-  background: #3653a0;
+  background: #274082;
   color: #fff;
-  box-shadow: 0 6px 14px rgba(54, 83, 160, 0.28);
+  box-shadow: 0 6px 14px rgba(39, 64, 130, 0.28);
 }
 
 .group-edit-dialog__btn:disabled {

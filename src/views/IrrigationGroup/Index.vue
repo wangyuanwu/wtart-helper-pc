@@ -397,50 +397,54 @@ const getRunTimeText = (item) => {
 }
 
 const getRunText = (item) => {
-  const pick = (src) => {
-    if (!src) return null
-    const tiggerObject = src.tiggerObject
-    const mode = src.mode
-    if (tiggerObject == 2) return '自动轮灌'
-    if (mode == 0) return '手动'
-    if (mode == 1) return '定时'
-    return null
-  }
-
+  // 对齐移动端 getRunText：运行中 runStatus==5 → 一键均压
   if (item.deviceRuntime != null) {
-    if ((item.portOpeningCnt ?? 0) > 0) {
-      return pick(item.deviceRuntime) || '--'
+    const isRunning = (item.portOpeningCnt ?? 0) > 0
+    if (isRunning) {
+      const runTime = item.deviceRuntime
+      if (runTime.runStatus == 5) return '一键均压'
+      if (runTime.tiggerObject == 2) return '自动轮灌'
+      if (runTime.mode == 0) return '手动'
+      if (runTime.mode == 1) return '定时'
+      return '--'
     }
     if (item.deviceNexRunTime != null) {
-      return pick(item.deviceNexRunTime) || '--'
+      const nextTime = item.deviceNexRunTime
+      if (nextTime.tiggerObject == 2) return '自动轮灌'
+      if (nextTime.mode == 0) return '手动'
+      if (nextTime.mode == 1) return '定时'
+      return '--'
     }
   } else if (item.deviceNexRunTime != null) {
-    return pick(item.deviceNexRunTime) || '--'
+    const nextTime = item.deviceNexRunTime
+    if (nextTime.tiggerObject == 2) return '自动轮灌'
+    if (nextTime.mode == 0) return '手动'
+    if (nextTime.mode == 1) return '定时'
+    return '--'
   }
   return '--'
 }
 
-const resolveTiggerObject = (item) =>
-  item?.tiggerObject ??
-  item?.deviceRuntime?.tiggerObject ??
-  item?.deviceNexRunTime?.tiggerObject
+const resolveProgramName = (item) => item?.programName || '--'
 
-const resolveProgramName = (item) =>
-  item?.programName ?? item?.deviceRuntime?.programName ?? '--'
+/** 对齐移动端：无运行展示态且无下次任务时视为暂无排期 */
+const isScheduleEmpty = (item) => {
+  const runningUi =
+    !!item.deviceRuntime?.isRunning &&
+    (item.portOpeningCnt ?? 0) > 0 &&
+    !!item.localSwitch
+  return !(runningUi || item.deviceNexRunTime)
+}
 
-const isScheduleEmpty = (item) => !item.deviceRuntime && !item.deviceNexRunTime
-
+/** 对齐移动端：未运行且有下次时间 */
 const showNextRun = (item) =>
   item.deviceNexRunTime?.nextRunTime != null &&
-  !(
-    (item.portOpeningCnt ?? 0) > 0 &&
-    item.deviceRuntime &&
-    item.localSwitch
-  )
+  (!item.deviceRuntime || !item.deviceRuntime.isRunning)
 
+/** 对齐移动端：需 isRunning + 开阀 + 本地开 */
 const showRunDuration = (item) =>
   !!(
-    item.deviceRuntime &&
+    item.deviceRuntime?.isRunning &&
     (item.portOpeningCnt ?? 0) > 0 &&
     item.localSwitch
   )
@@ -453,17 +457,22 @@ const showPlanDuration = (item) =>
 const formatPlanDuration = (item) =>
   second2Time(item.deviceNexRunTime?.duration)
 
-const showProgram = (item) => {
-  const t = resolveTiggerObject(item)
-  const name = resolveProgramName(item)
-  return (t == 2 || t == 3) && !!name && name !== '--'
-}
+/** 对齐移动端：仅 tiggerObject==2 展示轮灌程序 */
+const showProgram = (item) =>
+  Number(item.tiggerObject) === 2 &&
+  !!item.programName &&
+  item.programName !== '--'
 
+/**
+ * 启动方式：对齐移动端展示条件，且与轮灌程序互斥（有程序时不重复展示启动方式）
+ */
 const showModeStat = (item) => {
-  if (isScheduleEmpty(item)) return false
-  if (showNextRun(item) && showProgram(item)) return false
-  if (showRunDuration(item) && showProgram(item)) return false
-  return !!(item.deviceRuntime || item.deviceNexRunTime)
+  if (showProgram(item)) return false
+  const runningUi =
+    !!item.deviceRuntime?.isRunning &&
+    (item.portOpeningCnt ?? 0) > 0 &&
+    !!item.localSwitch
+  return !!(runningUi || item.deviceNexRunTime)
 }
 
 const formatNextRun = (item) =>

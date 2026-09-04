@@ -126,15 +126,15 @@ function onConfirm() {
   width: 100%;
   height: 40px;
   border-radius: 20px;
-  background: #3653a0;
-  border-color: #3653a0;
+  background: #274082;
+  border-color: #274082;
   font-weight: 600;
 }
 
 .alarm-tip__confirm:hover,
 .alarm-tip__confirm:focus {
-  background: #2f4a90;
-  border-color: #2f4a90;
+  background: #1f3468;
+  border-color: #1f3468;
 }
 </style>
 

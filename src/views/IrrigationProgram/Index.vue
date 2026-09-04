@@ -195,59 +195,87 @@
 
     <div v-else-if="loading" class="program-loading">加载中...</div>
 
-    <!-- 定时运行中停止：对齐移动端 a-tip-chose，默认不选，须选一项才能确定 -->
+    <!-- 定时运行中停止：对齐移动端 a-tip-chose；外壳样式对齐启用定时失败提示 -->
     <el-dialog
       v-model="timerStopVisible"
-      title="提示"
-      width="440px"
+      width="520px"
       append-to-body
+      :show-close="false"
       :close-on-click-modal="false"
+      align-center
+      class="program-tip-dialog"
       @closed="onTimerStopClosed"
     >
-      <p class="program-manual-stop-desc">
-        当前预约定时有任务正在执行，请选择您的以下操作。
-      </p>
-      <el-radio-group v-model="timerStopChoice" class="program-timer-stop-radios">
-        <el-radio :value="0">仅终止本次任务</el-radio>
-        <el-radio :value="1">终止本次任务并取消后续重复任务</el-radio>
-      </el-radio-group>
-      <template #footer>
-        <el-button @click="timerStopVisible = false">取消</el-button>
-        <el-button
-          type="primary"
-          :disabled="timerStopChoice !== 0 && timerStopChoice !== 1"
-          @click="confirmTimerStop"
-        >
-          确定
-        </el-button>
-      </template>
+      <div class="program-tip">
+        <h3 class="program-tip__title">提示</h3>
+        <div class="program-tip__body">
+          <p class="program-tip__msg">
+            当前预约定时有任务正在执行，请选择您的以下操作。
+          </p>
+          <el-radio-group v-model="timerStopChoice" class="program-timer-stop-radios">
+            <el-radio :value="0">仅终止本次任务</el-radio>
+            <el-radio :value="1">终止本次任务并取消后续重复任务</el-radio>
+          </el-radio-group>
+        </div>
+        <div class="program-tip__actions">
+          <button
+            type="button"
+            class="program-tip__btn is-cancel"
+            @click="timerStopVisible = false"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="program-tip__btn is-confirm"
+            :disabled="timerStopChoice !== 0 && timerStopChoice !== 1"
+            @click="confirmTimerStop"
+          >
+            确定
+          </button>
+        </div>
+      </div>
     </el-dialog>
 
-    <!-- 手动停止确认（对齐移动端 a-tip-sure） -->
+    <!-- 手动停止确认：对齐移动端 a-tip-sure；外壳样式对齐启用定时失败提示 -->
     <el-dialog
       v-model="manualStopVisible"
-      title="提示"
-      width="420px"
+      width="520px"
       append-to-body
+      :show-close="false"
       :close-on-click-modal="false"
+      align-center
+      class="program-tip-dialog"
       @closed="onManualStopClosed"
     >
-      <p class="program-manual-stop-desc">
-        手动停止将关闭已经打开的所有设备,是否继续？
-      </p>
-      <el-checkbox v-model="manualStopRiskChecked">
-        已知晓风险，确认停止。
-      </el-checkbox>
-      <template #footer>
-        <el-button @click="onCancelManualStop">取消</el-button>
-        <el-button
-          type="primary"
-          :disabled="!manualStopRiskChecked"
-          @click="confirmManualStop"
-        >
-          确定
-        </el-button>
-      </template>
+      <div class="program-tip">
+        <h3 class="program-tip__title">提示</h3>
+        <div class="program-tip__body">
+          <p class="program-tip__msg">
+            手动停止将关闭已经打开的所有设备,是否继续？
+          </p>
+          <el-checkbox v-model="manualStopRiskChecked" class="program-tip__check">
+            已知晓风险，确认停止。
+          </el-checkbox>
+        </div>
+        <div class="program-tip__actions">
+          <button
+            type="button"
+            class="program-tip__btn is-cancel"
+            @click="onCancelManualStop"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="program-tip__btn is-confirm"
+            :disabled="!manualStopRiskChecked"
+            @click="confirmManualStop"
+          >
+            确定
+          </button>
+        </div>
+      </div>
     </el-dialog>
 
     <!-- 启用定时失败提示：图2样式；「否」=取消，「是」=去设置 -->
@@ -258,23 +286,25 @@
       :show-close="false"
       :close-on-click-modal="false"
       align-center
-      class="program-enable-fail-dialog"
+      class="program-tip-dialog"
       @closed="onEnableFailClosed"
     >
-      <div class="program-enable-fail">
-        <h3 class="program-enable-fail__title">提示</h3>
-        <p class="program-enable-fail__msg">{{ enableFailMessage }}</p>
-        <div class="program-enable-fail__actions">
+      <div class="program-tip">
+        <h3 class="program-tip__title">提示</h3>
+        <div class="program-tip__body is-center">
+          <p class="program-tip__msg">{{ enableFailMessage }}</p>
+        </div>
+        <div class="program-tip__actions">
           <button
             type="button"
-            class="program-enable-fail__btn is-no"
+            class="program-tip__btn is-cancel"
             @click="onEnableFailCancel"
           >
             否
           </button>
           <button
             type="button"
-            class="program-enable-fail__btn is-yes"
+            class="program-tip__btn is-confirm"
             @click="onEnableFailConfirm"
           >
             是
@@ -980,18 +1010,16 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-.program-manual-stop-desc {
-  margin: 0 0 16px;
-  color: #303133;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
 .program-timer-stop-radios {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
+  width: 100%;
+}
+
+.program-tip__check {
+  margin-top: 8px;
 }
 
 .program-search-empty {
@@ -1481,10 +1509,10 @@ onUnmounted(() => {
   word-break: break-all;
 }
 
-/* 启用定时失败提示弹窗（图2：520×260，圆角20） */
-.program-enable-fail-dialog.el-dialog {
+/* 通用提示弹窗外壳（与启用定时失败提示一致：520 宽、圆角 20） */
+.program-tip-dialog.el-dialog {
   width: 520px !important;
-  height: 260px;
+  min-height: 260px;
   border-radius: 20px;
   opacity: 1;
   background: #ffffff;
@@ -1492,21 +1520,20 @@ onUnmounted(() => {
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.16);
 }
 
-.program-enable-fail-dialog .el-dialog__header {
+.program-tip-dialog .el-dialog__header {
   display: none;
   padding: 0;
   margin: 0;
 }
 
-.program-enable-fail-dialog .el-dialog__body {
+.program-tip-dialog .el-dialog__body {
   padding: 0;
-  height: 260px;
   box-sizing: border-box;
 }
 
-.program-enable-fail {
+.program-tip {
   width: 100%;
-  height: 260px;
+  min-height: 260px;
   box-sizing: border-box;
   padding: 36px 40px 28px;
   display: flex;
@@ -1514,7 +1541,7 @@ onUnmounted(() => {
   background: #ffffff;
 }
 
-.program-enable-fail__title {
+.program-tip__title {
   margin: 0;
   text-align: center;
   font-size: 20px;
@@ -1524,14 +1551,21 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.program-enable-fail__msg {
+.program-tip__body {
   flex: 1;
-  margin: 0;
-  padding: 24px 8px 16px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
-  text-align: center;
+  padding: 20px 8px 16px;
+  box-sizing: border-box;
+}
+
+.program-tip__body.is-center {
+  align-items: center;
+}
+
+.program-tip__msg {
+  margin: 0;
   font-size: 15px;
   font-weight: 400;
   line-height: 1.6;
@@ -1539,7 +1573,15 @@ onUnmounted(() => {
   word-break: break-word;
 }
 
-.program-enable-fail__actions {
+.program-tip__body.is-center .program-tip__msg {
+  text-align: center;
+}
+
+.program-tip__body .program-timer-stop-radios {
+  margin-top: 14px;
+}
+
+.program-tip__actions {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1547,7 +1589,7 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.program-enable-fail__btn {
+.program-tip__btn {
   min-width: 88px;
   height: 40px;
   padding: 0 28px;
@@ -1559,24 +1601,29 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 
-.program-enable-fail__btn.is-no {
+.program-tip__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.program-tip__btn.is-cancel {
   border: 1px solid #dcdfe6;
   background: #ffffff;
   color: #303133;
 }
 
-.program-enable-fail__btn.is-no:hover {
+.program-tip__btn.is-cancel:hover:not(:disabled) {
   border-color: #c0c4cc;
   color: #1a1a1a;
 }
 
-.program-enable-fail__btn.is-yes {
+.program-tip__btn.is-confirm {
   border: none;
-  background: #3653a0;
+  background: #274082;
   color: #ffffff;
 }
 
-.program-enable-fail__btn.is-yes:hover {
-  background: #2f4a90;
+.program-tip__btn.is-confirm:hover:not(:disabled) {
+  background: #1f3468;
 }
 </style>

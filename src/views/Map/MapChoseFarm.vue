@@ -1144,7 +1144,7 @@ onUnmounted(() => {
   padding: 0 22px;
   border: none;
   border-radius: 8px;
-  background: #3653a0;
+  background: #274082;
   color: #fff;
   font-size: 14px;
   font-weight: 600;
@@ -1152,7 +1152,7 @@ onUnmounted(() => {
 }
 
 .chose-farm-confirm__ok:hover {
-  background: #2f4a90;
+  background: #1f3468;
 }
 
 /* ========== 保存农场信息弹框 ========== */
@@ -1296,7 +1296,7 @@ onUnmounted(() => {
   padding: 0 28px;
   border: none;
   border-radius: 8px;
-  background: #3653a0;
+  background: #274082;
   color: #fff;
   font-size: 14px;
   font-weight: 600;
@@ -1304,7 +1304,7 @@ onUnmounted(() => {
 }
 
 .chose-farm-save-dialog__ok:hover:not(:disabled) {
-  background: #2f4a90;
+  background: #1f3468;
 }
 
 .chose-farm-save-dialog__cancel:disabled,

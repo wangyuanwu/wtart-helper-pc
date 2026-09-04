@@ -31,17 +31,11 @@ const getPorts = (dv) => {
   return Array.isArray(ports) ? ports : []
 }
 
-const buildInfoCardHtml = (dv, isOnline) => {
+const buildInfoCardHtml = (dv) => {
   const ports = getPorts(dv)
-  const statusColor = isOnline ? '#00bb00' : '#ff5722'
-  const statusText = isOnline ? '在线' : '离线'
-  // PC 需求：Marker 信息卡暂不展示地址（逆地理逻辑保留）
-  const footHtml = `
-    <div class="device-status" style="text-align:center;margin-top:${px2rem(4)};font-size:${px2rem(12)};color:${statusColor};">${statusText}</div>
-  `
 
   if (!ports.length) {
-    return `<div style="text-align:center;line-height:1.8;color:#999;">暂无出水口数据</div>${footHtml}`
+    return `<div style="text-align:center;line-height:1.8;color:#999;">暂无出水口数据</div>`
   }
 
   const portsHtml = ports
@@ -57,7 +51,7 @@ const buildInfoCardHtml = (dv, isOnline) => {
     })
     .join('')
 
-  return `${portsHtml}${footHtml}`
+  return portsHtml
 }
 
 const getPortPositionMap = () => {
@@ -218,7 +212,7 @@ export function createWaterDvMarkerDrawer(hooks = {}) {
 
     const infoCard = dom.querySelector('.device-info-popup')
     if (infoCard) {
-      infoCard.innerHTML = buildInfoCardHtml(dv, isOnline)
+      infoCard.innerHTML = buildInfoCardHtml(dv)
       if (String(dv.id) === String(activeWaterDvId)) {
         infoCard.style.display = 'block'
         dom.style.transform = 'scale(1.1)'
@@ -368,7 +362,7 @@ export function createWaterDvMarkerDrawer(hooks = {}) {
       'z-index:999999',
       'color:#333'
     ].join(';')
-    infoCard.innerHTML = buildInfoCardHtml(dv, isOnline)
+    infoCard.innerHTML = buildInfoCardHtml(dv)
     iconContainer.appendChild(infoCard)
 
     dom.appendChild(iconContainer)

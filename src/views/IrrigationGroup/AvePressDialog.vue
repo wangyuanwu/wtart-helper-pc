@@ -15,12 +15,25 @@
   >
     <div v-loading="loading && !portInfo" class="ave-press">
       <template v-if="portInfo">
-        <div
-          class="ave-press__status"
-          :class="statusClass"
-        >
+        <div class="ave-press__status" :class="statusClass">
           <i class="iconfont icon-group_ic_noti_01"></i>
           <span>{{ statusText }}</span>
+          <span v-if="statusTimeText" class="ave-press__status-time">
+            {{ statusTimeText }}
+          </span>
+        </div>
+
+        <div class="ave-press__max">
+          <div class="ave-press__max-label">均压时允许最大压力值</div>
+          <button
+            type="button"
+            class="ave-press__max-field"
+            @click="openMaxPressureEditor"
+          >
+            <span class="ave-press__max-value">
+              {{ maxPressure == null ? '--' : maxPressure }}
+            </span>
+          </button>
         </div>
 
         <div class="ave-press__list">
@@ -31,7 +44,7 @@
           >
             <div class="ave-press__item-head">
               <span class="ave-press__item-name">
-                出水口{{ item.outletName || '--' }}
+                {{ formatPortName(item) }}
               </span>
               <span class="ave-press__item-open">
                 已打开{{ formatOpening(item.currentOpening) }}%
@@ -40,10 +53,10 @@
             <div class="ave-press__bar">
               <div
                 class="ave-press__bar-fill"
-                :style="{ width: `${clampOpening(item.currentOpening)}%` }"
+                :style="{ width: `${pressureBarWidth(item.pressure)}%` }"
               ></div>
               <span class="ave-press__bar-label">
-                水压{{ formatPressure(item.pressure) }}千帕
+                水压{{ formatPressure(item.pressure) }}bar公斤
               </span>
             </div>
           </article>
@@ -60,9 +73,10 @@
       </template>
     </div>
 
-    <template v-if="portInfo && !isBalancing" #footer>
+    <template v-if="portInfo" #footer>
       <div class="ave-press__footer">
         <el-button
+          v-if="!isBalancing"
           type="primary"
           class="ave-press__start-btn"
           :loading="starting"
@@ -70,9 +84,20 @@
         >
           开始均压
         </el-button>
+        <el-button
+          v-else
+          type="danger"
+          class="ave-press__stop-btn"
+          :loading="stopping"
+          @click="onStopBalance"
+        >
+          停止均压
+        </el-button>
       </div>
     </template>
   </el-dialog>
+
+  <NumberEditDialog ref="numberEditRef" />
 </template>
 
 <script setup>
@@ -82,8 +107,14 @@
  */
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { balancePressure, getBalancePress } from '@/api/irrigationGroup'
+import {
+  balancePressure,
+  getBalancePress,
+  stopBalancePressure,
+  updateBalanceMaxPressure
+} from '@/api/irrigationGroup'
 import { useFarmStore } from '@/store/farm'
+import NumberEditDialog from '@/components/NumberEditDialog.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -94,13 +125,18 @@ const emit = defineEmits(['update:modelValue'])
 
 const farmStore = useFarmStore()
 
-const BALANCE_STATUS = ['未均压', '均压中', '均压完成', '均压失败']
+const BALANCE_STATUS = ['未均压', '均压中', '均压完成', '均压失败', '手动取消']
 const POLL_MS = 3000
 
 const loading = ref(false)
 const starting = ref(false)
+const stopping = ref(false)
 const portInfo = ref(null)
 const portList = ref([])
+const maxPressure = ref(null)
+/** 编辑最大压力期间轮询不回写，对齐移动端 isLock */
+const maxPressureLocked = ref(false)
+const numberEditRef = ref(null)
 
 let pollTimer = null
 
@@ -117,9 +153,19 @@ const statusClass = computed(() => {
     0: 'is-idle',
     1: 'is-running',
     2: 'is-success',
-    3: 'is-fail'
+    3: 'is-fail',
+    4: 'is-idle'
   }
   return map[balanceStatus.value] || 'is-idle'
+})
+
+/** 均压中显示 balanceTime；均压完成显示 balanceEndTime */
+const statusTimeText = computed(() => {
+  const info = portInfo.value
+  if (!info) return ''
+  if (balanceStatus.value === 1) return formatUtcTime(info.balanceTime)
+  if (balanceStatus.value === 2) return formatUtcTime(info.balanceEndTime)
+  return ''
 })
 
 function resolveGroupId() {
@@ -131,10 +177,15 @@ function resolveGroupId() {
   )
 }
 
-function clampOpening(val) {
-  const n = Number(val)
-  if (!Number.isFinite(n)) return 0
-  return Math.min(100, Math.max(0, n))
+function pad2(n) {
+  return String(n).padStart(2, '0')
+}
+
+function formatUtcTime(utcStr) {
+  if (!utcStr) return ''
+  const d = new Date(utcStr)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
 }
 
 function formatOpening(val) {
@@ -147,17 +198,32 @@ function formatPressure(val) {
   if (val == null || val === '') return '--'
   const n = Number(val)
   if (!Number.isFinite(n)) return String(val)
-  return n % 1 === 0 ? String(n) : n.toFixed(1)
+  return n.toFixed(2)
+}
+
+/** 对齐移动端 progress：pressure/8 * 100 */
+function pressureBarWidth(val) {
+  const n = Number(val)
+  if (!Number.isFinite(n)) return 0
+  return Math.min(100, Math.max(0, (n / 8) * 100))
+}
+
+function formatPortName(item) {
+  const device = item.deviceName || ''
+  const outlet = item.outletName || '--'
+  return `${device}出水口${outlet}`
 }
 
 function normalizePortList(data) {
   const list = Array.isArray(data?.outletPiles) ? data.outletPiles : []
-  // 兼容：若返回的是出水桩结构（含 ports），展平为出水口列表
   if (list.length && list[0]?.outletName == null && Array.isArray(list[0]?.ports)) {
     const ports = []
     list.forEach((pile) => {
       ;(pile.ports || pile.waterOutletPile?.ports || []).forEach((p) => {
-        ports.push(p)
+        ports.push({
+          ...p,
+          deviceName: p.deviceName || pile.deviceName || pile.name || ''
+        })
       })
     })
     return ports
@@ -169,7 +235,12 @@ function normalizePortList(data) {
   ) {
     const ports = []
     list.forEach((pile) => {
-      ;(pile.waterOutletPile?.ports || []).forEach((p) => ports.push(p))
+      ;(pile.waterOutletPile?.ports || []).forEach((p) => {
+        ports.push({
+          ...p,
+          deviceName: p.deviceName || pile.deviceName || pile.name || ''
+        })
+      })
     })
     return ports
   }
@@ -190,6 +261,9 @@ async function fetchStatus({ showLoading = false } = {}) {
     })
     portInfo.value = res?.data || null
     portList.value = normalizePortList(res?.data)
+    if (res?.data?.balanceMaxPressure != null && !maxPressureLocked.value) {
+      maxPressure.value = Number(res.data.balanceMaxPressure)
+    }
   } catch (e) {
     console.error('[AvePressDialog] 获取均压状态失败', e)
     if (showLoading) {
@@ -199,6 +273,43 @@ async function fetchStatus({ showLoading = false } = {}) {
   } finally {
     if (showLoading) loading.value = false
   }
+}
+
+async function onMaxPressureChange(val) {
+  const id = resolveGroupId()
+  if (id == null || val == null || Number.isNaN(Number(val))) return
+  maxPressureLocked.value = true
+  try {
+    await updateBalanceMaxPressure(
+      { groupId: id, balanceMaxPressure: Number(val) },
+      { silent: true }
+    )
+    maxPressure.value = Number(val)
+    ElMessage.success('操作成功')
+  } catch (e) {
+    console.error('[AvePressDialog] 更新最大压力失败', e)
+    ElMessage.error(e?.message || '操作失败')
+  } finally {
+    maxPressureLocked.value = false
+  }
+}
+
+/** 对齐移动端 a-layout number：点击输入框 → number-edit-dialog */
+function openMaxPressureEditor() {
+  numberEditRef.value?.open(
+    maxPressure.value,
+    {
+      title: '均压时允许最大压力值',
+      unit: 'bar',
+      min: 0.5,
+      max: 6,
+      numType: 'float',
+      savePoint: 2
+    },
+    (val) => {
+      onMaxPressureChange(val)
+    }
+  )
 }
 
 async function onStartBalance() {
@@ -214,6 +325,22 @@ async function onStartBalance() {
     ElMessage.error(e?.message || '操作失败')
   } finally {
     starting.value = false
+  }
+}
+
+async function onStopBalance() {
+  const id = resolveGroupId()
+  if (id == null || stopping.value) return
+  stopping.value = true
+  try {
+    await stopBalancePressure({ groupId: id }, { silent: true })
+    ElMessage.success('操作成功')
+    await fetchStatus({ showLoading: false })
+  } catch (e) {
+    console.error('[AvePressDialog] 停止均压失败', e)
+    ElMessage.error(e?.message || '操作失败')
+  } finally {
+    stopping.value = false
   }
 }
 
@@ -238,6 +365,8 @@ function onVisibleChange(val) {
 async function onOpened() {
   portInfo.value = null
   portList.value = []
+  maxPressure.value = null
+  maxPressureLocked.value = false
   await fetchStatus({ showLoading: true })
   startPoll()
 }
@@ -246,7 +375,10 @@ function onClosed() {
   clearPoll()
   portInfo.value = null
   portList.value = []
+  maxPressure.value = null
+  maxPressureLocked.value = false
   starting.value = false
+  stopping.value = false
 }
 </script>
 
@@ -258,22 +390,30 @@ function onClosed() {
 }
 
 .ave-press__status {
-  align-self: flex-start;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  width: 100%;
+  height: 35px;
   margin-bottom: 16px;
-  padding: 6px 14px;
-  border-radius: 20px;
+  padding: 0 14px;
+  border-radius: 18px;
   background: #eef1f6;
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
+  box-sizing: border-box;
 }
 
 .ave-press__status .iconfont {
   font-size: 16px;
   line-height: 1;
+}
+
+.ave-press__status-time {
+  font-weight: 500;
+  opacity: 0.9;
 }
 
 .ave-press__status.is-idle {
@@ -292,9 +432,44 @@ function onClosed() {
   color: #f53f3f;
 }
 
+.ave-press__max {
+  margin-bottom: 16px;
+}
+
+.ave-press__max-label {
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111;
+}
+
+.ave-press__max-field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #ebebeb;
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.ave-press__max-field:hover {
+  background: #e5e7eb;
+}
+
+.ave-press__max-value {
+  font-size: 15px;
+  color: #111;
+  line-height: 1.3;
+}
+
 .ave-press__list {
   flex: 1;
-  max-height: 420px;
+  max-height: 360px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -386,8 +561,15 @@ function onClosed() {
   min-width: 220px;
   height: 42px;
   border-radius: 10px;
-  background: #3653a0;
-  border-color: #3653a0;
+  background: #274082;
+  border-color: #274082;
+  font-weight: 600;
+}
+
+.ave-press__stop-btn {
+  min-width: 220px;
+  height: 42px;
+  border-radius: 10px;
   font-weight: 600;
 }
 </style>
@@ -398,12 +580,19 @@ function onClosed() {
   overflow: hidden;
 }
 
-.ave-press-dialog .el-dialog__body {
-  padding-top: 8px;
-}
-
 .ave-press-dialog .el-dialog__header {
   cursor: move;
   user-select: none;
+}
+
+.ave-press-dialog .el-dialog__title {
+  font-size: 22px;
+  font-weight: bold;
+  line-height: 32px;
+  color: #1f2937;
+}
+
+.ave-press-dialog .el-dialog__body {
+  padding-top: 8px;
 }
 </style>

@@ -151,15 +151,15 @@ watch(
 
 .device-op-dialog-btn--confirm.el-button,
 .device-op-dialog-btn--confirm.el-button--primary {
-  background: #3653a0;
-  border-color: #3653a0;
+  background: #274082;
+  border-color: #274082;
   color: #fff;
 }
 
 .device-op-dialog-btn--confirm.el-button:hover,
 .device-op-dialog-btn--confirm.el-button--primary:hover {
-  background: #2f4a90;
-  border-color: #2f4a90;
+  background: #1f3468;
+  border-color: #1f3468;
   color: #fff;
 }
 
@@ -198,15 +198,15 @@ watch(
 
 .device-op-message-box .device-op-dialog-btn--confirm.el-button,
 .device-op-message-box .device-op-dialog-btn--confirm.el-button--primary {
-  background: #3653a0;
-  border-color: #3653a0;
+  background: #274082;
+  border-color: #274082;
   color: #fff;
 }
 
 .device-op-message-box .device-op-dialog-btn--confirm.el-button:hover,
 .device-op-message-box .device-op-dialog-btn--confirm.el-button--primary:hover {
-  background: #2f4a90;
-  border-color: #2f4a90;
+  background: #1f3468;
+  border-color: #1f3468;
   color: #fff;
 }
 </style>

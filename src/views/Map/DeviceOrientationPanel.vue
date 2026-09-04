@@ -287,7 +287,7 @@ watch(
   height: 40px;
   border: none;
   border-radius: 20px;
-  background: #3653a0;
+  background: #274082;
   color: #fff;
   font-size: 14px;
   font-weight: 600;
@@ -295,6 +295,6 @@ watch(
 }
 
 .orient-panel__confirm:hover {
-  background: #2d4590;
+  background: #1f3468;
 }
 </style>
