@@ -539,6 +539,7 @@ function onOpened() {
 
 <style scoped>
 .timer-pro-edit {
+  --timer-control-h: 40px;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -626,7 +627,7 @@ function onOpened() {
 
 .timer-pro-edit__picker {
   width: 100%;
-  height: 40px;
+  height: var(--timer-control-h);
   padding: 0 12px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -747,7 +748,30 @@ function onOpened() {
   box-sizing: border-box;
 }
 
-.timer-pro-edit-dialog .timer-pro-edit__control .el-input__wrapper,
+/*
+ * 高度走父级 CSS 变量（会转 rem），避免 .el- 选择器被 pxtorem 跳过。
+ * 边框与打开时长按钮统一为真实 border，避免 inset box-shadow 造成 1~2px 视觉差。
+ */
+.timer-pro-edit-dialog .timer-pro-edit__control.el-date-editor,
+.timer-pro-edit-dialog .timer-pro-edit__control.el-time-editor {
+  height: var(--timer-control-h);
+  line-height: var(--timer-control-h);
+}
+
+.timer-pro-edit-dialog .timer-pro-edit__control .el-input__wrapper {
+  height: 100%;
+  min-height: 100%;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: none !important;
+  box-sizing: border-box;
+}
+
+.timer-pro-edit-dialog .timer-pro-edit__control .el-input__wrapper.is-focus {
+  border-color: #3653a0;
+}
+
 .timer-pro-edit-dialog .timer-pro-edit__range-picker .el-input__wrapper {
   border-radius: 10px;
   box-shadow: 0 0 0 1px #e2e8f0 inset;

@@ -62,6 +62,15 @@ defineExpose({ open })
 
 <style scoped>
 .duration-picker {
+  /*
+   * 高度定义在非 .el- 选择器上，会走 pxtorem。
+   * el-input-number 本身被 selectorBlackList 跳过，若直接写 40px 则不同分辨率下
+   * 输入框高度不缩放，而图标/行高可能受根字号影响，右侧 ↓ 箭头易被 overflow 裁切。
+   */
+  --duration-input-h: 40px;
+  --duration-control-h: calc(var(--duration-input-h) / 2);
+  --duration-control-w: 32px;
+  --duration-icon-size: 12px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -82,5 +91,41 @@ defineExpose({ open })
 
 .duration-picker__field :deep(.el-input-number) {
   flex: 1;
+  width: 100%;
+  height: var(--duration-input-h);
+  line-height: var(--duration-input-h);
+  box-sizing: border-box;
+}
+
+.duration-picker__field :deep(.el-input-number .el-input__wrapper) {
+  height: var(--duration-input-h);
+  min-height: var(--duration-input-h);
+  box-sizing: border-box;
+}
+
+.duration-picker__field :deep(.el-input-number.is-controls-right .el-input-number__increase),
+.duration-picker__field :deep(.el-input-number.is-controls-right .el-input-number__decrease) {
+  width: var(--duration-control-w);
+  height: var(--duration-control-h) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.duration-picker__field :deep(.el-input-number.is-controls-right .el-input-number__increase) {
+  top: 0;
+  bottom: auto;
+}
+
+.duration-picker__field :deep(.el-input-number.is-controls-right .el-input-number__decrease) {
+  top: auto;
+  bottom: 0;
+}
+
+.duration-picker__field :deep(.el-input-number__increase .el-icon),
+.duration-picker__field :deep(.el-input-number__decrease .el-icon) {
+  font-size: var(--duration-icon-size);
 }
 </style>

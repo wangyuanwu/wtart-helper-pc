@@ -54,7 +54,7 @@
             />
             <template v-else>
               <span class="switch-record__range-text">{{ displayRange }}</span>
-              <i class="iconfont icon-device_ic_timing switch-record__range-icon"></i>
+              <el-icon class="switch-record__range-icon"><Calendar /></el-icon>
             </template>
           </div>
           <button
@@ -204,6 +204,7 @@
  * TargetType: 0=设备 1=轮灌组
  */
 import { computed, ref, watch } from 'vue'
+import { Calendar } from '@element-plus/icons-vue'
 import { getLog } from '@/api/log'
 import { useFarmStore } from '@/store/farm'
 import { getDateOffsetStr, getNowDateStr } from '@/utils/programTime'
@@ -640,21 +641,21 @@ watch(
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  height: 30px;
+  height: 40px;
   margin: 0;
   box-sizing: border-box;
 }
 
 .switch-record__arrow {
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
   border: none;
   border-radius: 0;
   background: transparent;
   color: #303133;
   font-size: 22px;
   font-weight: 700;
-  line-height: 30px;
+  line-height: 40px;
   cursor: pointer;
   flex-shrink: 0;
   padding: 0;
@@ -676,7 +677,7 @@ watch(
   gap: 8px;
   flex: 1;
   min-width: 0;
-  height: 30px;
+  height: 40px;
 }
 
 .switch-record__range-text {
@@ -684,7 +685,7 @@ watch(
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
-  line-height: 30px;
+  line-height: 40px;
 }
 
 .switch-record__range-icon {
@@ -735,8 +736,10 @@ watch(
   gap: 10px;
   flex-wrap: wrap;
   width: 100%;
-  margin: 0;
-  padding-bottom: 10px;
+  /* 上方：与搜索栏的间距；下方可视间距在按钮与底部分割线之间，走 padding-bottom */
+  margin-top: 5px;
+  margin-bottom: 5px;
+  padding-bottom: 15px;
   border-bottom: 1px solid #edf1f7;
   box-sizing: border-box;
 }

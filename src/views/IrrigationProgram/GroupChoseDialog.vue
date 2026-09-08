@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="选择轮灌步骤"
+    title="选择阀门或阀门组"
     width="520px"
     append-to-body
     :close-on-click-modal="false"

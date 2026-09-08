@@ -32,15 +32,19 @@
           <span class="water-dv-popup__metric-sep" aria-hidden="true">|</span>
           <div class="water-dv-popup__metric">
             <i class="iconfont icon-map_ic_signal"></i>
-            <span>{{ signalText }}</span>
-            <span v-if="snrText" class="water-dv-popup__snr">{{ snrText }}</span>
+            <span>{{ signalPowerText }}</span>
           </div>
           <span class="water-dv-popup__metric-sep" aria-hidden="true">|</span>
-          <div class="water-dv-popup__metric">
+          <div
+            class="water-dv-popup__metric water-dv-popup__metric--battery"
+            :class="{
+              'is-low': batteryPercent < 20,
+              'is-good': batteryPercent >= 20 && !isCharging,
+              'is-charging': isCharging
+            }"
+          >
             <i class="iconfont icon-map_ic_battery"></i>
-            <span :class="{ 'is-good': batteryPercent >= 50, 'is-charging': isCharging }">
-              {{ batteryText }}
-            </span>
+            <span>{{ batteryText }}</span>
           </div>
         </div>
 
@@ -49,7 +53,7 @@
           class="water-dv-popup__sync-row"
         >
           <span class="water-dv-popup__sync-time">
-            同步时间:{{ syncTimeText }}
+            同步时间:<em class="water-dv-popup__sync-time-value">{{ syncTimeText }}</em>
           </span>
           <button
             type="button"
@@ -96,7 +100,7 @@
                 </span>
               </div>
               <div class="water-dv-popup__flow">
-                {{ flowText }}
+                <span class="water-dv-popup__flow-val">{{ flowText }}</span>
                 <span class="water-dv-popup__flow-unit">m³/h</span>
               </div>
               <div v-if="isDvAlarm" class="water-dv-popup__alarm">
@@ -155,7 +159,11 @@
               <div class="water-dv-popup__pod-title">默认开度</div>
               <div class="water-dv-popup__gauge">
                 <span class="is-a">{{ defaultOpenText(portA) }}</span>
-                <i class="iconfont icon-map_ic_opening water-dv-popup__gauge-icon"></i>
+                <img
+                  class="water-dv-popup__gauge-icon"
+                  :src="defaultOpenIcon"
+                  alt=""
+                />
                 <span class="is-b">{{ defaultOpenText(portB) }}</span>
               </div>
             </div>
@@ -233,6 +241,7 @@ import {
 } from '@/composables/useWaterOutletRiskDialog'
 import deviceOnlineImg from '@/assets/map/outlet-device-online.svg'
 import deviceOfflineImg from '@/assets/map/outlet-device-offline.svg'
+import defaultOpenIcon from '@/assets/map/ic_kd.png'
 import SetDefaultOpenDialog from '@/views/Device/SetDefaultOpenDialog.vue'
 
 const POLL_MS = 3000
@@ -287,25 +296,18 @@ const batteryPercent = computed(() => {
   return v == null ? 0 : Number(v)
 })
 
-const batteryText = computed(() => {
-  if (isCharging.value) return '充电中'
-  return `${batteryPercent.value}%`
-})
+const batteryText = computed(() => `${batteryPercent.value}%`)
 
-const signalText = computed(() => {
+/** 对齐移动端 / 设备控制页：展示信号功率值，如 -37dBm(12) */
+const signalPowerText = computed(() => {
   const signal = statusInfo.value?.signal
-  if (signal == null) return '--'
-  const level = getSignalLevel(Number(signal))
-  if (level >= 4) return '强'
-  if (level >= 2) return '中'
-  if (level >= 1) return '弱'
-  return `${signal}dBm`
-})
-
-const snrText = computed(() => {
+  if (signal == null || signal === '') return '--'
   const snr = statusInfo.value?.snr
-  if (snr == null || snr === '') return ''
-  return `(${snr})`
+  let text = `${signal}dBm`
+  if (snr != null && snr !== '') {
+    text += `(${snr})`
+  }
+  return text
 })
 
 const isDvAlarm = computed(() => {
@@ -335,16 +337,6 @@ function findPort(outletNo) {
   const ports = statusInfo.value?.waterOutletPile?.ports
   if (!Array.isArray(ports)) return null
   return ports.find((p) => Number(p.outletNo) === outletNo) || null
-}
-
-function getSignalLevel(val) {
-  const sig0 = Number.isFinite(val) ? val : -105
-  if (sig0 > -85) return 5
-  if (sig0 > -90) return 4
-  if (sig0 > -95) return 3
-  if (sig0 > -100) return 2
-  if (sig0 > -105) return 1
-  return 0
 }
 
 function formatSyncTime(utc) {
@@ -818,7 +810,7 @@ defineExpose({
 .water-dv-popup {
   position: absolute;
   top: 16px;
-  left: 16px;
+  left: 26px;
   z-index: 1200;
   width: 380px;
   height: 522px;
@@ -904,6 +896,7 @@ defineExpose({
   margin-top: 4px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .water-dv-popup__sync-row {
@@ -911,35 +904,51 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 8px;
+  margin-top: 13px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .water-dv-popup__sync-time {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
-  color: #909399;
+  font-size: 14px;
+  font-weight: normal;
+  color: #9ca3af;
   white-space: nowrap;
   line-height: 1.4;
+}
+
+.water-dv-popup__sync-time-value {
+  font-style: italic;
+  font-weight: normal;
+  color: inherit;
 }
 
 .water-dv-popup__sync-btn {
   flex-shrink: 0;
-  border: 1px solid rgba(47, 107, 255, 0.35);
-  background: rgba(255, 255, 255, 0.92);
-  color: #2f6bff;
+  width: 80px;
+  height: 26px;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid rgba(54, 83, 160, 0.2);
+  border-radius: 13px;
+  background: rgba(54, 83, 160, 0.05);
+  color: #3653a0;
   font-size: 12px;
-  border-radius: 14px;
-  padding: 4px 12px;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  line-height: 1.4;
+  line-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .water-dv-popup__sync-btn:hover {
-  background: #fff;
-  border-color: #2f6bff;
+  background: rgba(54, 83, 160, 0.1);
+  border-color: rgba(54, 83, 160, 0.35);
 }
 
 .water-dv-popup__metrics {
@@ -948,27 +957,29 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0;
   width: fit-content;
+  min-width: 340px;
   max-width: 100%;
-  padding: 8px 12px;
+  padding: 8px 28px;
   background: #fff;
   border-radius: 20px;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .water-dv-popup__metric {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 13px;
   color: #333;
   white-space: nowrap;
 }
 
 .water-dv-popup__metric-sep {
-  margin: 0 10px;
+  margin: 0 18px;
   color: #d0d0d0;
   font-size: 12px;
   line-height: 1;
@@ -980,20 +991,28 @@ defineExpose({
   color: #666;
 }
 
-.water-dv-popup__metric .is-good {
+.water-dv-popup__metric--battery {
   color: #22c55e;
   font-weight: 600;
 }
 
-.water-dv-popup__metric .is-charging {
-  color: #2f6bff;
-  font-weight: 600;
+.water-dv-popup__metric--battery .iconfont {
+  font-size: 16px;
+  color: inherit;
+  transform: rotate(90deg);
+  line-height: 1;
 }
 
-.water-dv-popup__snr {
-  margin-left: 2px;
-  font-size: 11px;
-  color: #999;
+.water-dv-popup__metric--battery.is-good {
+  color: #22c55e;
+}
+
+.water-dv-popup__metric--battery.is-low {
+  color: #f56c6c;
+}
+
+.water-dv-popup__metric--battery.is-charging {
+  color: #2f6bff;
 }
 
 .water-dv-popup__device {
@@ -1003,26 +1022,35 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .water-dv-popup__device-img {
-  width: 168px;
-  height: 168px;
+  width: 208px;
+  height: 208px;
   object-fit: contain;
   display: block;
   user-select: none;
   pointer-events: none;
+  position: relative;
+  z-index: 1;
+  /*
+   * 上移：用 margin-bottom 在 flex 交叉轴内抬高，
+   * 避免 top/transform 画出容器后被裁切，顶部出现假「横线」
+   * 当前等效上移 25px（相对居中）
+   */
+  margin-bottom: 50px;
 }
 
 .water-dv-popup__device-img.is-offline {
-  width: 180px;
-  height: 180px;
+  width: 208px;
+  height: 208px;
   opacity: 0.85;
 }
 
 .water-dv-popup__outlet-marker {
   position: absolute;
-  top: 18%;
+  top: calc(18% + 30px);
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -1040,11 +1068,11 @@ defineExpose({
 }
 
 .water-dv-popup__outlet-marker.is-left {
-  left: 34%;
+  left: calc(34% - 15px);
 }
 
 .water-dv-popup__outlet-marker.is-right {
-  right: 34%;
+  right: calc(34% - 15px);
 }
 
 .water-dv-popup__outlet-marker.is-on {
@@ -1095,9 +1123,9 @@ defineExpose({
 
 .water-dv-popup__pressure {
   position: absolute;
-  top: 42%;
+  top: calc(42% + 10px);
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 4px;
 }
 
@@ -1120,6 +1148,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: flex-start;
   line-height: 1.15;
 }
 
@@ -1132,13 +1161,19 @@ defineExpose({
 
 .water-dv-popup__flow {
   position: absolute;
-  bottom: 4px;
+  bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 18px;
-  font-weight: 700;
-  color: #1a1a1a;
+  display: inline-flex;
+  align-items: baseline;
   white-space: nowrap;
+}
+
+.water-dv-popup__flow-val {
+  font-size: 22px;
+  font-weight: 900;
+  color: #323233;
+  line-height: 1;
 }
 
 .water-dv-popup__flow-unit {
@@ -1275,8 +1310,11 @@ defineExpose({
 }
 
 .water-dv-popup__gauge-icon {
-  font-size: 22px;
-  color: #c0c4cc;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
 }
 
 .water-dv-popup__offline-body {

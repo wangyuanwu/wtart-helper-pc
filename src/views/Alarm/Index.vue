@@ -56,28 +56,22 @@
         >
           <div class="alarm-card__head">
             <div class="alarm-card__title-wrap">
-              <span class="alarm-card__title">{{ getAlarmBrief(item) }}</span>
+              <span class="alarm-card__title">{{ getAlarmCardTitle(item) }}</span>
               <span
                 v-if="!isResolvedAlarm(item)"
                 class="alarm-card__warn-dot"
                 aria-hidden="true"
               ></span>
             </div>
-            <span class="alarm-card__head-time">
-              {{
-                isResolvedAlarm(item)
-                  ? formatAlarmTime(item.resolvedTime)
-                  : formatAlarmTime(item.alarmTime)
-              }}
+            <span
+              v-if="!isResolvedAlarm(item)"
+              class="alarm-card__head-time"
+            >
+              {{ formatAlarmTime(item.alarmTime) }}
             </span>
           </div>
 
           <div class="alarm-card__rows">
-            <div class="alarm-card__row alarm-card__row--name">
-              <span class="alarm-card__value is-name">
-                <template v-if="item.deviceId">{{ item.deviceName || '--' }}</template>
-              </span>
-            </div>
             <div class="alarm-card__row alarm-card__row--id">
               <template v-if="item.deviceId">
                 <span class="alarm-card__label">设备ID</span>
@@ -88,19 +82,35 @@
             </div>
             <div class="alarm-card__row alarm-card__row--desc">
               <span class="alarm-card__label">事件描述</span>
-              <span class="alarm-card__value is-desc">
-                {{ item.eventDescription || '--' }}
-              </span>
+              <el-tooltip
+                :content="item.eventDescription || '--'"
+                placement="top"
+                :show-after="200"
+                :disabled="!item.eventDescription"
+                popper-class="alarm-card-desc-tooltip"
+              >
+                <div class="alarm-card__value is-desc">
+                  {{ item.eventDescription || '--' }}
+                </div>
+              </el-tooltip>
             </div>
           </div>
 
+          <!-- 对齐移动端：印章叠在内容区右侧，覆盖文字之上 -->
+          <img
+            v-if="isResolvedAlarm(item)"
+            class="alarm-card__stamp"
+            :src="resolvedStampIcon"
+            alt="已解除"
+          />
+
           <div class="alarm-card__foot">
-            <img
+            <span
               v-if="isResolvedAlarm(item)"
-              class="alarm-card__stamp"
-              :src="resolvedStampIcon"
-              alt="已解除"
-            />
+              class="alarm-card__foot-time"
+            >
+              {{ formatAlarmTime(item.resolvedTime) }}
+            </span>
             <div class="alarm-card__actions">
               <button
                 v-if="item.status !== 0"
@@ -149,7 +159,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deletedAlarm, getAlarmList, handleAlarm } from '@/api/alarm'
 import { useFarmStore } from '@/store/farm'
-import resolvedStampIcon from '@/assets/alarm/alarm-resolved-stamp.svg'
+import resolvedStampIcon from '@/assets/alarm/bg_pass.png'
 
 const router = useRouter()
 const farmStore = useFarmStore()
@@ -199,14 +209,12 @@ function isResolvedAlarm(item) {
   return item?.status === 1
 }
 
-function getAlarmBrief(item) {
-  return (
-    item?.title ||
-    item?.alarmTitle ||
-    item?.briefDescription ||
-    item?.eventDescription ||
-    '--'
-  )
+/** 对齐移动端 alarm_record 卡片顶栏标题：有 deviceId 显示 deviceName，否则「通知」 */
+function getAlarmCardTitle(item) {
+  if (item?.deviceId != null && item.deviceId !== '') {
+    return item.deviceName
+  }
+  return '通知'
 }
 
 /** 对齐移动端 formatUtcCustom MM-dd hh:mm:ss */
@@ -610,6 +618,8 @@ watch(
 }
 
 .alarm-card__rows {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -639,32 +649,52 @@ watch(
   word-break: break-all;
 }
 
-.alarm-card__value.is-name {
-  font-size: 14px;
-  font-weight: bold;
-  color: #1e293b;
-}
-
 .alarm-card__value.is-device-id {
   font-size: 13.88px;
   font-weight: bold;
   color: #3653a0;
 }
 
+.alarm-card__row--desc {
+  /* 标签与两行描述顶部对齐 */
+  align-items: flex-start;
+}
+
+.alarm-card__row--desc .alarm-card__label {
+  line-height: 18px;
+  padding-top: 0;
+}
+
+/* el-tooltip 触发节点占满剩余宽度，保证两行截断生效 */
+.alarm-card__row--desc :deep(.el-tooltip__trigger) {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .alarm-card__value.is-desc {
+  box-sizing: border-box;
+  width: 100%;
   font-size: 12px;
   font-weight: bold;
   color: #475569;
+  line-height: 18px;
+  /* 固定预留两行高度，避免文案长短导致卡片高度不齐 */
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+  cursor: default;
 }
 
 .alarm-card.is-resolved .alarm-card__label {
   color: #94a3b8;
-}
-
-.alarm-card.is-resolved .alarm-card__value.is-name {
-  font-size: 14px;
-  font-weight: bold;
-  color: #475569;
 }
 
 .alarm-card.is-resolved .alarm-card__value.is-device-id {
@@ -674,8 +704,6 @@ watch(
 }
 
 .alarm-card.is-resolved .alarm-card__value.is-desc {
-  font-size: 14px;
-  font-weight: bold;
   color: #94a3b8;
 }
 
@@ -685,23 +713,33 @@ watch(
   border-top: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
   position: relative;
+  z-index: 2;
+  min-height: 34px;
+}
+
+.alarm-card__foot-time {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 17.34px;
+  color: #94a3b8;
+  white-space: nowrap;
 }
 
 .alarm-card__stamp {
-  flex-shrink: 0;
-  width: 72px;
-  height: auto;
+  /* 对齐移动端 bg_pass：内容区右侧，叠在文字之上 */
+  position: absolute;
+  right: 20px;
+  bottom: 88px;
+  z-index: 3;
+  width: 100px;
+  height: 100px;
   object-fit: contain;
   pointer-events: none;
-  position: relative;
-  z-index: 1;
-  /* 上移覆盖内容区与按钮区之间的灰色分界线 */
-  margin-top: -34px;
-  margin-bottom: -6px;
-  margin-right: 4px;
 }
 
 .alarm-card__actions {
@@ -709,6 +747,7 @@ watch(
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .alarm-card__btn {
@@ -781,5 +820,15 @@ watch(
   .alarm-page__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+</style>
+
+<style>
+/* append-to-body 的 tooltip，需非 scoped 才能生效 */
+.alarm-card-desc-tooltip {
+  max-width: 360px;
+  line-height: 1.5;
+  word-break: break-all;
+  white-space: normal;
 }
 </style>

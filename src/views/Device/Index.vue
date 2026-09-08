@@ -243,7 +243,7 @@
                     :disabled="isPortSwitchDisabled(device)"
                     inline-prompt
                     :active-text="`${portOpenText(portA(device))}%`"
-                    inactive-text="关"
+                    :inactive-text="`${portOpenText(portA(device))}%`"
                     active-color="#00c970"
                     inactive-color="#ff2f30"
                     @change="(val) => onPortSwitch(device, portA(device), val)"
@@ -265,7 +265,7 @@
                     :disabled="isPortSwitchDisabled(device)"
                     inline-prompt
                     :active-text="`${portOpenText(portB(device))}%`"
-                    inactive-text="关"
+                    :inactive-text="`${portOpenText(portB(device))}%`"
                     active-color="#00c970"
                     inactive-color="#ff2f30"
                     @change="(val) => onPortSwitch(device, portB(device), val)"
@@ -1584,6 +1584,14 @@ onUnmounted(() => {
   position: relative;
   display: inline-flex;
   align-items: center;
+}
+
+.device-card__port-switch:first-child {
+  transform: translateX(-20px);
+}
+
+.device-card__port-switch:nth-child(2) {
+  transform: translateX(20px);
 }
 
 .device-card__port-switch :deep(.el-switch) {

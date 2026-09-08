@@ -145,7 +145,7 @@
               </button>
             </div>
             <button type="button" class="program-add-group-btn" @click="openGroupChose">
-              + 添加步骤
+              + 添加阀门或阀门组
             </button>
           </div>
         </section>
@@ -317,7 +317,7 @@
               <!-- 间隔重复 -->
               <div
                 v-if="proInfo.timerTaskConfig.timerConfig.repeatType === 1"
-                class="program-start-field program-start-field--inline"
+                class="program-start-field program-start-field--inline program-start-repeat-extra"
               >
                 <label class="program-start-field__label">重复周期</label>
                 <button
@@ -333,7 +333,7 @@
               <!-- 日期范围 -->
               <div
                 v-if="[1, 2].includes(proInfo.timerTaskConfig.timerConfig.repeatType)"
-                class="program-date-range"
+                class="program-date-range program-start-repeat-extra"
               >
                 <el-date-picker
                   v-model="proInfo.timerTaskConfig.timerConfig.startDate"
@@ -371,7 +371,7 @@
               <!-- 自定义日期 -->
               <div
                 v-if="proInfo.timerTaskConfig.timerConfig.repeatType === 3"
-                class="program-start-field"
+                class="program-start-field program-start-repeat-extra"
               >
                 <label class="program-start-field__label">自定义日期</label>
                 <el-date-picker
@@ -1008,7 +1008,7 @@ onUnmounted(() => {
   min-width: 100px;
   height: 40px;
   padding: 0 20px;
-  border-radius: 8px;
+  border-radius: 20px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -1070,7 +1070,7 @@ onUnmounted(() => {
 }
 
 .program-edit-page__side {
-  width: 380px;
+  width: 430px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -1135,6 +1135,7 @@ onUnmounted(() => {
 }
 
 .program-start-select {
+  --program-start-control-h: 44px;
   margin-bottom: 16px;
 }
 
@@ -1143,15 +1144,19 @@ onUnmounted(() => {
 }
 
 .program-start-select__control :deep(.el-select__wrapper) {
-  min-height: 44px;
+  min-height: var(--program-start-control-h);
+  height: var(--program-start-control-h);
   padding: 0 14px;
   border-radius: 12px;
-  box-shadow: 0 0 0 1px #e2e8f0 inset;
+  border: 1px solid #e2e8f0;
+  box-shadow: none !important;
   background: #fff;
+  box-sizing: border-box;
 }
 
 .program-start-select__control :deep(.el-select__wrapper.is-focused) {
-  box-shadow: 0 0 0 1px #3653a0 inset;
+  border-color: #3653a0;
+  box-shadow: none !important;
 }
 
 .program-start-select__control :deep(.el-select__selected-item) {
@@ -1213,6 +1218,103 @@ onUnmounted(() => {
 
 .program-start-field__picker :deep(.el-input__suffix) {
   color: #3653a0;
+}
+
+/*
+ * 开始时间选择框对齐「定时启动」：
+ * 1) 高度写在 :deep(.el-input__wrapper) 上直接用变量（勿用 height:100%，父级高度若未命中会失效）
+ * 2) 必须 :deep，否则 scoped 可能打不到 EP 根节点
+ * 3) 规则放在通用 picker 样式之后，避免被 min-height:44px（不转 rem）盖住
+ */
+#targetTimeItem {
+  --program-start-control-h: 44px;
+  --program-start-control-radius: 12px;
+}
+
+#targetTimeItem :deep(.el-date-editor),
+#targetTimeItem :deep(.el-time-editor) {
+  width: 100% !important;
+  height: var(--program-start-control-h) !important;
+  line-height: var(--program-start-control-h);
+  box-sizing: border-box;
+}
+
+#targetTimeItem :deep(.el-input__wrapper) {
+  height: var(--program-start-control-h) !important;
+  min-height: var(--program-start-control-h) !important;
+  padding: 0 14px;
+  border-radius: var(--program-start-control-radius) !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: none !important;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+#targetTimeItem :deep(.el-input__wrapper.is-focus) {
+  border-color: #3653a0 !important;
+  box-shadow: none !important;
+}
+
+#targetTimeItem :deep(.el-input__inner) {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+#targetTimeItem :deep(.el-input__prefix),
+#targetTimeItem :deep(.el-input__suffix) {
+  color: #3653a0;
+}
+
+/* 间隔/周/自定义 下方日期时间选择：扁平化（真实边框，无 inset 阴影） */
+.program-start-repeat-extra {
+  --program-start-control-h: 44px;
+  --program-start-control-radius: 12px;
+}
+
+.program-start-repeat-extra :deep(.el-date-editor),
+.program-start-repeat-extra :deep(.el-time-editor) {
+  width: 100% !important;
+  height: var(--program-start-control-h) !important;
+  line-height: var(--program-start-control-h);
+  box-sizing: border-box;
+}
+
+.program-start-repeat-extra :deep(.el-input__wrapper) {
+  height: var(--program-start-control-h) !important;
+  min-height: var(--program-start-control-h) !important;
+  padding: 0 14px;
+  border-radius: var(--program-start-control-radius) !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: none !important;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.program-start-repeat-extra :deep(.el-input__wrapper.is-focus) {
+  border-color: #3653a0 !important;
+  box-shadow: none !important;
+}
+
+.program-start-repeat-extra :deep(.el-input__inner) {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.program-start-repeat-extra :deep(.el-input__prefix),
+.program-start-repeat-extra :deep(.el-input__suffix) {
+  color: #3653a0;
+}
+
+.program-start-repeat-extra .program-start-field__duration {
+  height: var(--program-start-control-h);
+  min-height: var(--program-start-control-h);
+  border-radius: var(--program-start-control-radius);
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
+  font-weight: 600;
+  box-sizing: border-box;
 }
 
 .program-start-field__duration {
@@ -1406,6 +1508,7 @@ onUnmounted(() => {
 }
 
 .program-basic-field {
+  --program-basic-control-h: 40px;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -1427,7 +1530,7 @@ onUnmounted(() => {
 .program-basic-field__control {
   flex: 1;
   min-width: 0;
-  height: 40px;
+  height: var(--program-basic-control-h);
   padding: 0 14px;
   border: 1px solid #e2e8f0;
   border-radius: 999px;
@@ -1497,16 +1600,19 @@ onUnmounted(() => {
 }
 
 .program-basic-field__select :deep(.el-select__wrapper) {
-  min-height: 40px;
-  height: 40px;
+  min-height: var(--program-basic-control-h);
+  height: var(--program-basic-control-h);
   padding: 0 14px;
   border-radius: 999px;
-  box-shadow: 0 0 0 1px #e2e8f0 inset;
+  border: 1px solid #e2e8f0;
+  box-shadow: none !important;
   background: #fff;
+  box-sizing: border-box;
 }
 
 .program-basic-field__select :deep(.el-select__wrapper.is-focused) {
-  box-shadow: 0 0 0 1px #3653a0 inset;
+  border-color: #3653a0;
+  box-shadow: none !important;
 }
 
 .program-basic-field__select :deep(.el-select__selected-item) {
@@ -1795,11 +1901,12 @@ onUnmounted(() => {
 
 .program-forbid__switch {
   margin-left: auto;
+  --el-switch-on-color: #3653a0;
 }
 
 .program-forbid__switch :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: #3653a0;
-  border-color: #3653a0;
+  background-color: #3653a0 !important;
+  border-color: #3653a0 !important;
 }
 
 .program-forbid__list {

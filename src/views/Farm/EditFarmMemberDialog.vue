@@ -113,6 +113,16 @@
     <template #footer>
       <div class="farm-member-dialog__footer">
         <button
+          v-if="isEdit"
+          type="button"
+          class="farm-member-dialog__btn is-danger"
+          :disabled="saving"
+          @click="onDelete"
+        >
+          删除
+        </button>
+        <button
+          v-else
           type="button"
           class="farm-member-dialog__btn is-cancel"
           :disabled="saving"
@@ -206,8 +216,8 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { addMember, getMemberInfo, updateMember } from '@/api/farm'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { addMember, deleteMember, getMemberInfo, updateMember } from '@/api/farm'
 import { useFarmStore } from '@/store/farm'
 import roleSuperIcon from '@/assets/farm/ic_role_super.svg'
 import roleMemberIcon from '@/assets/farm/ic_role_member.svg'
@@ -332,6 +342,28 @@ function onOpened() {
 
 function onCancel() {
   onVisibleChange(false)
+}
+
+async function onDelete() {
+  if (!memberInfo.id) return
+  try {
+    await ElMessageBox.confirm('请确认是否删除成员？', '删除成员', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    saving.value = true
+    await deleteMember(memberInfo.id)
+    ElMessage.success('操作成功')
+    onVisibleChange(false)
+    emit('success')
+  } catch (e) {
+    if (e !== 'cancel' && e?.message !== 'cancel') {
+      console.error('[EditFarmMemberDialog] 删除成员失败', e)
+    }
+  } finally {
+    saving.value = false
+  }
 }
 
 function openLandPicker() {
@@ -634,6 +666,17 @@ async function onSave() {
 
 .farm-member-dialog__btn.is-cancel:hover {
   color: #374151;
+}
+
+.farm-member-dialog__btn.is-danger {
+  background: #fff;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+}
+
+.farm-member-dialog__btn.is-danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
 }
 
 .farm-member-dialog__btn.is-primary {

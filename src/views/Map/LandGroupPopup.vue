@@ -5,17 +5,43 @@
     @click.stop
     @mousedown.stop
   >
-    <div class="land-group-popup__header">
-      <div class="land-group-popup__title-row">
-        <h3 class="land-group-popup__title">{{ displayName }}</h3>
-        <button
-          type="button"
-          class="land-group-popup__link"
-          @click="onViewDetail"
-        >
-          查看详情 &gt;
-        </button>
+    <div class="land-group-popup__top">
+      <div class="land-group-popup__top-main">
+        <div class="land-group-popup__header">
+          <div class="land-group-popup__title-row">
+            <h3 class="land-group-popup__title">{{ displayName }}</h3>
+            <button
+              type="button"
+              class="land-group-popup__link"
+              @click="onViewDetail"
+            >
+              查看详情 &gt;
+            </button>
+          </div>
+        </div>
+
+        <div class="land-group-popup__meta">
+          <span class="land-group-popup__meta-item">
+            <i class="iconfont icon-map_ic_land"></i>
+            面积 {{ areaText }}亩
+          </span>
+          <span class="land-group-popup__meta-item">
+            <el-icon class="land-group-popup__sync-icon"><Refresh /></el-icon>
+            同步: {{ syncTimeText }}
+          </span>
+        </div>
       </div>
+
+      <button
+        type="button"
+        class="land-group-popup__sync"
+        :disabled="syncing"
+        @click="onSync(true)"
+      >
+        <el-icon class="land-group-popup__sync-btn-icon"><RefreshRight /></el-icon>
+        立即同步
+      </button>
+
       <button
         type="button"
         class="land-group-popup__close"
@@ -26,17 +52,6 @@
       </button>
     </div>
 
-    <div class="land-group-popup__meta">
-      <span class="land-group-popup__meta-item">
-        <i class="iconfont icon-map_ic_land"></i>
-        面积 {{ areaText }}亩
-      </span>
-      <span class="land-group-popup__meta-item">
-        <el-icon class="land-group-popup__sync-icon"><Refresh /></el-icon>
-        同步: {{ syncTimeText }}
-      </span>
-    </div>
-
     <div v-if="loading && !groupDetail" class="land-group-popup__loading">
       加载中...
     </div>
@@ -45,28 +60,15 @@
       <div class="land-group-popup__actions">
         <button
           type="button"
-          class="land-group-popup__sync"
-          :disabled="syncing"
-          @click="onSync(true)"
-        >
-          <el-icon class="land-group-popup__sync-btn-icon"><RefreshRight /></el-icon>
-          立即同步
-        </button>
-        <button
-          type="button"
           class="land-group-popup__batch"
           :class="batchIsClose ? 'is-close' : 'is-open'"
           :disabled="batchLoading || !groupDetail?.id"
           @click="onBatchToggle"
         >
-          <template v-if="batchIsClose">
-            <span>批量关</span>
-            <span class="land-group-popup__batch-badge">{{ portCountText }}</span>
-          </template>
-          <template v-else>
-            <span class="land-group-popup__batch-badge">{{ portCountText }}</span>
-            <span>批量开</span>
-          </template>
+          <span class="land-group-popup__batch-label">
+            {{ batchIsClose ? '批量关' : '批量开' }}
+          </span>
+          <span class="land-group-popup__batch-badge">{{ portCountText }}</span>
         </button>
       </div>
 
@@ -559,12 +561,25 @@ defineExpose({
   overflow: hidden;
 }
 
+.land-group-popup__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  position: relative;
+  padding-right: 18px;
+}
+
+.land-group-popup__top-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .land-group-popup__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  flex-shrink: 0;
 }
 
 .land-group-popup__title-row {
@@ -599,6 +614,9 @@ defineExpose({
 }
 
 .land-group-popup__close {
+  position: absolute;
+  top: -2px;
+  right: -2px;
   border: none;
   background: transparent;
   color: #c0c4cc;
@@ -624,7 +642,6 @@ defineExpose({
   gap: 12px 16px;
   font-size: 13px;
   color: #909399;
-  flex-shrink: 0;
 }
 
 .land-group-popup__meta-item {
@@ -650,28 +667,31 @@ defineExpose({
 .land-group-popup__actions {
   margin-top: 24px;
   display: flex;
-  gap: 10px;
+  justify-content: center;
   flex-shrink: 0;
 }
 
 .land-group-popup__sync {
-  flex: 1;
-  height: 40px;
-  border: 1px solid #d6e0ff;
-  border-radius: 20px;
-  background: #fff;
-  color: #2f6bff;
-  font-size: 14px;
+  width: 100px;
+  height: 38.9px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.6);
+  box-sizing: border-box;
+  border: 0.9px solid rgba(54, 83, 160, 0.2);
+  color: #3653a0;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .land-group-popup__sync:hover:not(:disabled) {
-  background: #f5f8ff;
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .land-group-popup__sync:disabled {
@@ -680,37 +700,39 @@ defineExpose({
 }
 
 .land-group-popup__sync .land-group-popup__sync-btn-icon {
-  font-size: 15px;
+  font-size: 14px;
+  color: #3653a0;
 }
 
 .land-group-popup__batch {
-  flex: 1.15;
-  height: 40px;
+  position: relative;
+  width: 150px;
+  max-width: 100%;
+  height: 38px;
+  border-radius: 37px;
+  opacity: 1;
   border: none;
-  border-radius: 20px;
   color: #fff;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: center;
   box-sizing: border-box;
+  padding: 0 12px;
 }
 
 .land-group-popup__batch.is-close {
-  background: #2ecc71;
-  padding: 0 4px 0 14px;
+  background: #22c55e;
 }
 
 .land-group-popup__batch.is-close:hover:not(:disabled) {
-  background: #27ae60;
+  background: #16a34a;
 }
 
 .land-group-popup__batch.is-open {
   background: #f56c6c;
-  padding: 0 14px 0 4px;
 }
 
 .land-group-popup__batch.is-open:hover:not(:disabled) {
@@ -722,7 +744,17 @@ defineExpose({
   cursor: not-allowed;
 }
 
+.land-group-popup__batch-label {
+  position: relative;
+  z-index: 1;
+  line-height: 1;
+  text-align: center;
+}
+
 .land-group-popup__batch-badge {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   min-width: 36px;
   height: 28px;
   padding: 0 8px;
@@ -736,6 +768,15 @@ defineExpose({
   justify-content: center;
   line-height: 1;
   flex-shrink: 0;
+  z-index: 1;
+}
+
+.land-group-popup__batch.is-open .land-group-popup__batch-badge {
+  left: 4px;
+}
+
+.land-group-popup__batch.is-close .land-group-popup__batch-badge {
+  right: 4px;
 }
 
 .land-group-popup__stats {

@@ -315,8 +315,8 @@ const aboutSoftwareVisible = ref(false)
 const editNicknameVisible = ref(false)
 const editNicknameDialogRef = ref(null)
 
-let offFarmChange = null
-let alarmFetchTimer = null
+/** 对齐移动端 getAlarmListHttp：可叠加的延迟拉取定时器（不清空已有） */
+const alarmFetchTimers = new Set()
 let tipChainTimer = null
 
 /** 对齐移动端首页 onShow：回前台延迟全量拉未处理告警 */
@@ -397,11 +397,13 @@ function getAlarmingSize(list) {
   return (list || []).filter((item) => item.status === 0).length
 }
 
+function clearAlarmFetchTimers() {
+  alarmFetchTimers.forEach((id) => clearTimeout(id))
+  alarmFetchTimers.clear()
+}
+
 function clearAlarmTimers() {
-  if (alarmFetchTimer) {
-    clearTimeout(alarmFetchTimer)
-    alarmFetchTimer = null
-  }
+  clearAlarmFetchTimers()
   if (tipChainTimer) {
     clearTimeout(tipChainTimer)
     tipChainTimer = null
@@ -416,12 +418,17 @@ function resetAlarmTipState() {
   tipAlarmQueue.value = []
 }
 
-/** 对齐移动端 getAlarmListHttp：延迟拉取未处理告警 */
+/**
+ * 对齐移动端 getAlarmListHttp：
+ * - 固定延迟 3000ms 后再请求
+ * - 不清空已有定时器（可叠加），避免频繁触发时把等待反复重置
+ */
 function scheduleFetchAlarms() {
-  if (alarmFetchTimer) clearTimeout(alarmFetchTimer)
-  alarmFetchTimer = setTimeout(() => {
+  const timerId = setTimeout(() => {
+    alarmFetchTimers.delete(timerId)
     fetchHomeAlarms()
   }, 3000)
+  alarmFetchTimers.add(timerId)
 }
 
 async function fetchHomeAlarms() {
@@ -688,19 +695,17 @@ onMounted(async () => {
   } finally {
     farmBootstrapDone.value = true
   }
+  // 对齐移动端：农场列表首次就绪后 getAlarmListHttp（延迟 3s）
   scheduleFetchAlarms()
   // 对齐移动端 index onShow：浏览器标签回前台时再拉
   document.addEventListener('visibilitychange', onDocumentVisible)
-  offFarmChange = farmStore.onFarmChange(() => {
-    resetAlarmTipState()
-    alarmStore.clearAlarmingArray()
-    scheduleFetchAlarms()
-  })
+  // 注意：不对齐监听 farmChange 拉告警。
+  // 移动端 farmChange 只广播地图等业务；告警仅由 clickFarm / onShow / 首次列表显式触发。
+  // 此前 PC 在每次 farmChange 时 reset 弹窗 + 防抖清零，会造成响应明显变慢。
 })
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', onDocumentVisible)
-  offFarmChange?.()
   resetAlarmTipState()
 })
 

@@ -1301,16 +1301,20 @@ onUnmounted(() => {
 .group-detail-page__body {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 0 20px 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  box-sizing: border-box;
 }
 
 .group-detail-top {
-  flex: 1;
-  min-height: 0;
+  /* 相对可视区域保留原先地图区高度；出水桩增多时由 body 整体滚动 */
+  flex: none;
+  height: calc(100% - 274px);
+  min-height: 360px;
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr);
   gap: 16px;
@@ -1449,8 +1453,8 @@ onUnmounted(() => {
 
 .group-detail-side__run-ring {
   position: relative;
-  width: 120px;
-  height: 120px;
+  width: 160px;
+  height: 160px;
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -1677,10 +1681,10 @@ onUnmounted(() => {
 }
 
 .group-detail-outlets {
-  flex-shrink: 0;
-  height: 258px;
-  min-height: 258px;
-  max-height: 258px;
+  flex: none;
+  height: auto;
+  min-height: 0;
+  max-height: none;
   padding: 0;
   border-radius: 0;
   background: transparent;
@@ -1699,8 +1703,6 @@ onUnmounted(() => {
 }
 
 .group-detail-outlets__empty {
-  flex: 1;
-  min-height: 0;
   padding: 40px;
   text-align: center;
   color: #909399;
@@ -1712,29 +1714,12 @@ onUnmounted(() => {
 }
 
 .group-detail-outlets__grid {
-  flex: 1;
-  min-height: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;
   align-content: start;
-  padding-right: 4px;
   box-sizing: border-box;
-}
-
-.group-detail-outlets__grid::-webkit-scrollbar {
-  width: 6px;
-}
-
-.group-detail-outlets__grid::-webkit-scrollbar-thumb {
-  border-radius: 3px;
-  background: rgba(54, 83, 160, 0.25);
-}
-
-.group-detail-outlets__grid::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 .outlet-card {

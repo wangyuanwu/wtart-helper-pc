@@ -158,7 +158,7 @@
                 :class="portSwitchClass(portA)"
               >
                 <span class="control-device__switch-compact-label">
-                  {{ portLabel(portA, 'A') }} 出水口
+                  出水口 {{ portLabel(portA, 'A') }}
                 </span>
                 <div
                   class="control-device__switch-wrap"
@@ -169,7 +169,7 @@
                     :disabled="isPortSwitchDisabled"
                     inline-prompt
                     :active-text="`${portOpenPct(portA)}%`"
-                    inactive-text="关"
+                    :inactive-text="`${portOpenPct(portA)}%`"
                     @change="(val) => onPortSwitch(portA, val)"
                   />
                   <span class="control-device__switch-badge">
@@ -185,9 +185,17 @@
               >
                 <span class="control-device__switch-compact-label">默认开度</span>
                 <div class="control-device__opening-compact-right">
-                  <span>{{ defaultOpenPct(portA) }}%</span>
-                  <i class="iconfont icon-map_ic_opening"></i>
-                  <span>{{ defaultOpenPct(portB) }}%</span>
+                  <span class="control-device__opening-pct">
+                    {{ defaultOpenPct(portA) }}%
+                  </span>
+                  <img
+                    class="control-device__opening-icon"
+                    :src="defaultOpenIcon"
+                    alt=""
+                  />
+                  <span class="control-device__opening-pct">
+                    {{ defaultOpenPct(portB) }}%
+                  </span>
                 </div>
               </div>
 
@@ -197,7 +205,7 @@
                 :class="portSwitchClass(portB)"
               >
                 <span class="control-device__switch-compact-label">
-                  {{ portLabel(portB, 'B') }} 出水口
+                  出水口 {{ portLabel(portB, 'B') }}
                 </span>
                 <div
                   class="control-device__switch-wrap"
@@ -208,7 +216,7 @@
                     :disabled="isPortSwitchDisabled"
                     inline-prompt
                     :active-text="`${portOpenPct(portB)}%`"
-                    inactive-text="关"
+                    :inactive-text="`${portOpenPct(portB)}%`"
                     @change="(val) => onPortSwitch(portB, val)"
                   />
                   <span class="control-device__switch-badge">
@@ -354,6 +362,7 @@ import SwitchRecordDialog from '@/views/IrrigationGroup/SwitchRecordDialog.vue'
 import TimerProListDialog from '@/views/IrrigationGroup/TimerProListDialog.vue'
 import outletOnlineImg from '@/assets/map/outlet-device-online.svg'
 import outletOfflineImg from '@/assets/map/outlet-device-offline.svg'
+import defaultOpenIcon from '@/assets/map/ic_kd.png'
 import runningDiscImg from '@/assets/device/device_img_running.png'
 import navRecordIcon from '@/assets/device/nav-record-icon.svg'
 import navTimerIcon from '@/assets/device/nav-timer-icon.svg'
@@ -1017,12 +1026,14 @@ watch(
   height: 40px;
   padding: 0 20px;
   border: none;
-  border-radius: 10px;
+  border-radius: 20px;
   background: #3653a0;
   color: #fff;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: none;
+  outline: none;
 }
 
 .control-device__map-btn:hover {
@@ -1074,13 +1085,21 @@ watch(
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
-  font-size: 14px;
-  color: #909399;
+}
+
+.control-device__sync-time {
+  font-family: Inter, 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: normal;
+  line-height: 15px;
+  letter-spacing: 0px;
+  color: #9ca3af;
 }
 
 .control-device__sync-time-value {
+  font: inherit;
   font-style: italic;
-  font-weight: 500;
+  color: inherit;
   font-synthesis: style;
 }
 
@@ -1174,7 +1193,7 @@ watch(
   justify-content: center;
   overflow: visible;
   /* 为设备图上移预留空间，避免顶部被裁切出现横线 */
-  padding-top: 25px;
+  padding-top: 95px;
   box-sizing: border-box;
 }
 
@@ -1183,12 +1202,12 @@ watch(
   height: 360px;
   object-fit: contain;
   position: relative;
-  top: -25px;
+  top: -95px;
 }
 
 .control-device__port-overlay {
   position: absolute;
-  top: calc(18% + 40px);
+  top: calc(18% + 70px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1289,7 +1308,7 @@ watch(
 
 .control-device__flow {
   position: absolute;
-  bottom: 34px;
+  bottom: 54px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 36px;
@@ -1350,8 +1369,8 @@ watch(
 
 .control-device__bottom-item {
   min-width: 0;
-  height: 87px;
-  min-height: 87px;
+  height: 97px;
+  min-height: 97px;
   padding: 12px 16px;
   border-radius: 20px;
   opacity: 1;
@@ -1394,21 +1413,24 @@ watch(
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: #3653a0;
 }
 
-.control-device__opening-compact-right .iconfont {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: rgba(54, 83, 160, 0.12);
-  color: #3653a0;
-  font-size: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.control-device__opening-pct {
+  font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 20px;
+  font-weight: bold;
+  line-height: normal;
+  letter-spacing: 0px;
+  color: #969799;
+}
+
+.control-device__opening-compact-right .control-device__opening-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
 }
 
 .control-device__nav-row {
@@ -1419,7 +1441,7 @@ watch(
 }
 
 .control-device__nav-card {
-  height: 72px;
+  height: 98px;
   border: none;
   display: flex;
   align-items: center;
@@ -1468,7 +1490,7 @@ watch(
 .control-device__status {
   padding: 20px 20px 24px;
   flex: 1;
-  min-height: 320px;
+  min-height: 294px;
   display: flex;
   flex-direction: column;
 }
@@ -1489,8 +1511,8 @@ watch(
 
 .control-device__run-ring {
   position: relative;
-  width: 132px;
-  height: 132px;
+  width: 160px;
+  height: 160px;
   flex-shrink: 0;
   box-sizing: border-box;
 }
