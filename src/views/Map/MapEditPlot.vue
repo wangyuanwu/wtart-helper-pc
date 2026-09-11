@@ -1,11 +1,13 @@
 <template>
   <div class="edit-plot-page">
     <div class="edit-plot-top">
-      <h2 class="edit-plot-top__title">{{ pageTitle }}</h2>
-      <button type="button" class="edit-plot-back" @click="onBack">
-        <span class="edit-plot-back__arrow">←</span>
-        返回
-      </button>
+      <div class="edit-plot-top__left">
+        <button type="button" class="edit-plot-back" @click="onBack">
+          <span class="edit-plot-back__arrow">←</span>
+          返回
+        </button>
+        <h2 class="edit-plot-top__title">{{ pageTitle }}</h2>
+      </div>
     </div>
 
     <div class="edit-plot-map-wrap">
@@ -1469,11 +1471,18 @@ onUnmounted(() => {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 16px 24px;
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   z-index: 20;
+}
+
+.edit-plot-top__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .edit-plot-top__title {
@@ -1484,23 +1493,20 @@ onUnmounted(() => {
 }
 
 .edit-plot-back {
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  background: #fff;
-  color: #606266;
+  border: none;
+  background: transparent;
+  color: #3653a0;
   font-size: 14px;
-  font-weight: 600;
   cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
 .edit-plot-back:hover {
-  border-color: #3653a0;
-  color: #3653a0;
+  color: #2f4a90;
 }
 
 .edit-plot-back__arrow {

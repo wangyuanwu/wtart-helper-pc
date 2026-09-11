@@ -119,6 +119,47 @@
           <Breadcrumb v-if="showBreadcrumb" />
         </div>
         <div class="header-right">
+          <el-popover
+            v-model:visible="quickCreateVisible"
+            placement="bottom"
+            :width="200"
+            trigger="click"
+            :offset="10"
+            popper-class="quick-create-popper"
+          >
+            <template #reference>
+              <button
+                type="button"
+                class="quick-create-btn"
+                title="快捷创建"
+                @click.stop
+              >
+                <el-icon class="quick-create-btn__icon"><Plus /></el-icon>
+              </button>
+            </template>
+            <div class="quick-create-menu">
+              <button
+                v-for="item in quickCreateMenus"
+                :key="item.key"
+                type="button"
+                class="quick-create-menu__item"
+                @click="onQuickCreate(item.key)"
+              >
+                <el-icon
+                  v-if="item.elIcon"
+                  class="quick-create-menu__icon is-el"
+                >
+                  <component :is="item.elIcon" />
+                </el-icon>
+                <i
+                  v-else
+                  class="iconfont quick-create-menu__icon"
+                  :class="item.icon"
+                ></i>
+                <span>{{ item.label }}</span>
+              </button>
+            </div>
+          </el-popover>
           <div
             class="notice-btn"
             title="预警信息"
@@ -230,6 +271,10 @@
         :alarm="currentTipAlarm"
         @confirm="onAlarmTipConfirm"
       />
+      <LandEmptyDialog
+        v-model="landEmptyVisible"
+        @create="onCreateLandFromEmpty"
+      />
       <div v-if="showPageTags" class="page-tags-container">
         <PageTags />
       </div>
@@ -251,11 +296,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowDown,
   Expand,
-  Fold
+  Fold,
+  Plus
 } from '@element-plus/icons-vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import PageTags from '@/components/PageTags.vue'
 import FarmEmpty from '@/views/Map/FarmEmpty.vue'
+import LandEmptyDialog from '@/views/Map/LandEmptyDialog.vue'
 import ServicePhoneDialog from '@/views/Home/ServicePhoneDialog.vue'
 import AboutSoftwareDialog from '@/views/Home/AboutSoftwareDialog.vue'
 import EditNicknameDialog from '@/views/Home/EditNicknameDialog.vue'
@@ -307,6 +354,8 @@ const currentTipAlarm = ref(null)
 /** 当前弹窗队列用的告警列表（对齐移动端 alarmTips 入参） */
 const tipAlarmQueue = ref([])
 const userMenuVisible = ref(false)
+const quickCreateVisible = ref(false)
+const landEmptyVisible = ref(false)
 const farmPopoverVisible = ref(false)
 const farmSearchText = ref('')
 const avatarInputRef = ref(null)
@@ -387,6 +436,81 @@ const goEditFarm = () => {
 
 const toAlarmList = () => {
   router.push('/alarm')
+}
+
+/** 快捷创建菜单（图标对齐地图图层 / 左侧菜单） */
+const quickCreateMenus = [
+  { key: 'farm', label: '新建农场', icon: 'icon-map_ic_farme' },
+  { key: 'land', label: '新建地块', icon: 'icon-map_ic_land' },
+  { key: 'device', label: '添加设备', elIcon: Plus },
+  { key: 'group', label: '新建轮灌组', icon: 'icon-home_ic_foot_group_01' },
+  {
+    key: 'program',
+    label: '新建轮灌程序',
+    icon: 'icon-home_ic_foot_program'
+  }
+]
+
+function closeQuickCreate() {
+  quickCreateVisible.value = false
+}
+
+async function ensureFarmHasLands() {
+  const farmId = getFarmId()
+  if (farmId == null) {
+    ElMessage.warning('请先选择农场')
+    return false
+  }
+  let info = farmStore.s_farm_info
+  if (!info || info.id !== farmId) {
+    info = await farmStore.fetchFarmFullInfo(farmId)
+  }
+  const lands = info?.lands
+  if (!Array.isArray(lands) || lands.length <= 0) {
+    landEmptyVisible.value = true
+    return false
+  }
+  return true
+}
+
+async function onQuickCreate(key) {
+  closeQuickCreate()
+  try {
+    if (key === 'farm') {
+      router.push({ path: '/map/chose-farm', query: { type: 'add' } })
+      return
+    }
+    if (key === 'land') {
+      if (getFarmId() == null) {
+        ElMessage.warning('请先选择农场')
+        return
+      }
+      router.push({ path: '/map/edit-plot', query: { type: 'add' } })
+      return
+    }
+    if (key === 'device') {
+      if (!(await ensureFarmHasLands())) return
+      router.push('/device/add')
+      return
+    }
+    if (key === 'group') {
+      if (!(await ensureFarmHasLands())) return
+      router.push({ path: '/map/edit-group', query: { from: 'home' } })
+      return
+    }
+    if (key === 'program') {
+      if (!(await ensureFarmHasLands())) return
+      router.push({ path: '/irrigation-program/edit', query: { type: 'add' } })
+    }
+  } catch (e) {
+    console.error('[Home] 快捷创建失败', e)
+    ElMessage.error('操作失败，请稍后重试')
+  }
+}
+
+const onCreateLandFromEmpty = () => {
+  landEmptyVisible.value = false
+  router.push({ path: '/map/edit-plot', query: { type: 'add' } })
 }
 
 function getFarmId() {
@@ -897,6 +1021,38 @@ watch(
   gap: 16px;
 }
 
+.quick-create-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: #3653a0;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.quick-create-btn:hover {
+  background: #2f4a90;
+}
+
+.quick-create-btn__icon {
+  font-size: 16px;
+  color: #fff;
+  font-weight: 700;
+}
+
+.quick-create-btn__icon :deep(svg) {
+  stroke: currentColor;
+  stroke-width: 100;
+  paint-order: stroke fill;
+}
+
 .notice-btn {
   position: relative;
   display: flex;
@@ -1306,5 +1462,84 @@ watch(
   border-radius: 14px;
   border: 1px solid #f0f0f0;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+
+.quick-create-popper.el-popover.el-popper {
+  padding: 6px 0;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.quick-create-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.quick-create-menu__item {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  padding: 17px 16px;
+  font-family: 'Source Han Sans', 'Source Han Sans SC', 'Noto Sans SC',
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 18px;
+  font-weight: 350;
+  font-feature-settings: 'kern' on;
+  color: #646466;
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.quick-create-menu__item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 44px;
+  right: 16px;
+  bottom: 0;
+  height: 1px;
+  background: #f0f0f0;
+}
+
+.quick-create-menu__item:last-child {
+  border-bottom: none;
+}
+
+.quick-create-menu__item:hover {
+  background: #f7f8fa;
+}
+
+.quick-create-menu__icon {
+  width: 18px;
+  height: 18px;
+  font-size: 16px;
+  color: #646466;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.quick-create-menu__icon.is-el {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #646466;
+  color: #fff;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.quick-create-menu__icon.is-el svg {
+  color: #fff;
+  stroke: currentColor;
+  stroke-width: 80;
+  paint-order: stroke fill;
 }
 </style>

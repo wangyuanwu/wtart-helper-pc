@@ -934,15 +934,13 @@ watch(
 }
 
 .control-device__back {
-  /* 暂时隐藏返回，保留点击逻辑 */
-  visibility: hidden;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  padding: 0;
-  margin: 0;
   border: none;
-  pointer-events: none;
+  background: transparent;
+  color: #3653a0;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .control-device__title {

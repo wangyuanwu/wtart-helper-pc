@@ -2,6 +2,9 @@
   <div class="device-detail" v-loading="pageLoading">
     <div class="device-detail__header">
       <div class="device-detail__head-left">
+        <button type="button" class="device-detail__back" @click="onBack">
+          ← 返回
+        </button>
         <h2 class="device-detail__title">出水桩设置</h2>
       </div>
       <div class="device-detail__actions">
@@ -894,7 +897,18 @@ watch(
 .device-detail__head-left {
   display: flex;
   align-items: center;
+  gap: 12px;
   min-width: 0;
+}
+
+.device-detail__back {
+  border: none;
+  background: transparent;
+  color: #3653a0;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .device-detail__title {

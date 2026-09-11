@@ -146,8 +146,8 @@
             :key="`${item._dayKey}-${index}-${item.startTime}`"
             :timestamp="getTimelineTimestamp(item)"
             placement="top"
-            type="primary"
-            color="#409eff"
+            hollow
+            color="#53A3FD"
             size="large"
           >
             <article class="farm-irr-stats__card">
@@ -888,16 +888,35 @@ watch(
   font-weight: 500;
 }
 
-.farm-irr-stats__el-timeline :deep(.el-timeline-item__node--large) {
-  left: -2px;
+.farm-irr-stats__el-timeline :deep(.el-timeline-item__wrapper) {
+  padding-left: 24px;
+  top: 0;
 }
 
-.farm-irr-stats__el-timeline :deep(.el-timeline-item__wrapper) {
-  padding-left: 22px;
+.farm-irr-stats__el-timeline :deep(.el-timeline-item__tail) {
+  border-left: 2px dashed #53a3fd;
+  left: 6px;
+}
+
+.farm-irr-stats__el-timeline :deep(.el-timeline-item__node--large) {
+  left: -1px;
+  width: 14px;
+  height: 14px;
+  background-color: #fff !important;
+  border-color: #53a3fd !important;
+}
+
+.farm-irr-stats__el-timeline :deep(.el-timeline-item__node.is-hollow) {
+  background-color: #fff !important;
+  border-width: 3px;
 }
 
 .farm-irr-stats__el-timeline :deep(.el-timeline-item:last-child .el-timeline-item__tail) {
   display: none;
+}
+
+.farm-irr-stats__el-timeline :deep(.el-timeline-item) {
+  padding-bottom: 16px;
 }
 
 .farm-irr-stats__card {

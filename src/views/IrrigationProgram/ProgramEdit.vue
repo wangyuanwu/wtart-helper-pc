@@ -26,7 +26,7 @@
           :disabled="saving || deleting"
           @click="onSave"
         >
-          {{ saving ? '保存中...' : '保存程序' }}
+          {{ saving ? '保存中...' : '保存' }}
         </button>
       </div>
     </header>

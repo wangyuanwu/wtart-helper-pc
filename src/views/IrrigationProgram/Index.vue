@@ -147,7 +147,7 @@
               </span>
             </div>
 
-            <!-- 底部：分割线下方仅展示轮灌组链路（固定两排高度） -->
+            <!-- 底部：分割线下方仅展示轮灌组链路（固定五排高度） -->
             <div class="program-card__footer">
               <el-tooltip
                 v-if="getSortedGroups(item.groups).length"
@@ -1227,14 +1227,14 @@ onUnmounted(() => {
 .program-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: 280px;
+  grid-auto-rows: 343px;
   gap: 20px;
 }
 
 .program-card {
-  height: 280px;
-  min-height: 280px;
-  max-height: 280px;
+  height: 343px;
+  min-height: 343px;
+  max-height: 343px;
   padding: 20px;
   border-radius: 16px;
   background: #fff;
@@ -1422,11 +1422,11 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* ---- 底部（固定高度：分割线 + 两排链路） ---- */
+/* ---- 底部（固定高度：分割线 + 五排链路） ---- */
 
 .program-card__footer {
   flex-shrink: 0;
-  height: 55px;
+  height: 118px;
   padding-top: 12px;
   border-top: 1px solid #edf1f7;
   box-sizing: border-box;
@@ -1436,7 +1436,7 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 4px;
-  height: 42px;
+  height: 105px;
   font-size: 14px;
   color: #909399;
   line-height: 1.5;
@@ -1454,12 +1454,12 @@ onUnmounted(() => {
 .program-card__groups-chain {
   flex: 1;
   min-width: 0;
-  height: 42px;
+  height: 105px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
   word-break: break-all;
 }
 

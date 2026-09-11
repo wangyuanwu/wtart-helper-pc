@@ -182,21 +182,6 @@
                   </span>
                 </div>
                 <div class="device-card__top-right">
-                  <i
-                    v-if="isManualMode(device)"
-                    class="iconfont icon-a-lujing1 device-card__manual"
-                    title="手动模式"
-                  ></i>
-                  <i
-                    v-if="isDvAlarm(device.id)"
-                    class="iconfont icon-lujing-1 device-card__alarm"
-                    title="告警中"
-                  ></i>
-                  <i
-                    v-if="isTimerRunning(device)"
-                    class="iconfont icon-ic_lun_cook device-card__timer"
-                    title="定时运行中"
-                  ></i>
                   <span
                     v-if="device.batteryPercent != null"
                     class="device-card__battery"
@@ -214,6 +199,31 @@
                     ></i>
                   </span>
                 </div>
+              </div>
+
+              <div
+                v-if="
+                  isManualMode(device) ||
+                  isDvAlarm(device.id) ||
+                  isTimerRunning(device)
+                "
+                class="device-card__flags"
+              >
+                <i
+                  v-if="isManualMode(device)"
+                  class="iconfont icon-a-lujing1 device-card__manual"
+                  title="手动模式"
+                ></i>
+                <i
+                  v-if="isDvAlarm(device.id)"
+                  class="iconfont icon-lujing-1 device-card__alarm"
+                  title="告警中"
+                ></i>
+                <i
+                  v-if="isTimerRunning(device)"
+                  class="iconfont icon-ic_lun_cook device-card__timer"
+                  title="定时运行中"
+                ></i>
               </div>
 
               <div class="device-card__body">
@@ -1435,6 +1445,19 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.device-card__flags {
+  position: absolute;
+  top: 72px;
+  right: 16px;
+  bottom: 88px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  pointer-events: none;
 }
 
 .device-card__alarm {

@@ -1723,6 +1723,7 @@ onUnmounted(() => {
 }
 
 .outlet-card {
+  height: 280px;
   padding: 14px;
   border-radius: 14px;
   background: #fff;
@@ -1852,20 +1853,26 @@ onUnmounted(() => {
 
 .outlet-card__img {
   margin-top: 2px;
-  width: 108px;
-  height: 108px;
+  margin-bottom: -42px;
+  width: 150px;
+  height: 150px;
   object-fit: contain;
+  position: relative;
+  top: -10px;
+  z-index: 1;
 }
 
 .outlet-card__ports {
-  margin-top: 12px;
-  width: calc(100% - 50px);
+  margin-top: 42px;
+  width: 100%;
   display: flex;
+  justify-content: center;
   gap: 8px;
 }
 
 .outlet-card__port {
-  flex: 1;
+  flex: none;
+  width: 120px;
   height: 34px;
   border: none;
   border-radius: 17px;
@@ -1877,7 +1884,16 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 4px;
-  padding: 0 6px;
+  padding: 0 3px;
+  box-sizing: border-box;
+}
+
+.outlet-card__port:first-child {
+  transform: translateX(-30px);
+}
+
+.outlet-card__port:nth-child(2) {
+  transform: translateX(30px);
 }
 
 .outlet-card__port.is-open {
@@ -1898,15 +1914,17 @@ onUnmounted(() => {
 }
 
 .outlet-card__port-badge {
-  min-width: 22px;
-  height: 22px;
-  border-radius: 11px;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 14px;
   background: #fff;
   color: #303133;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 12px;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 @keyframes outlet-blink {
