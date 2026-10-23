@@ -136,18 +136,25 @@
               </div>
               <div
                 class="water-dv-popup__port-switch"
-                :class="{ 'is-busy': valveBusy }"
+                :class="{
+                  'is-busy': valveBusy,
+                  'is-open': isPortOpen(portA)
+                }"
               >
                 <el-switch
                   :model-value="isPortOpen(portA)"
                   :disabled="valveBusy || portToggleLoading"
-                  inline-prompt
-                  :active-text="portOpenText(portA)"
-                  inactive-text="关"
                   active-color="#22c55e"
                   inactive-color="#ef4444"
                   @change="(val) => onPortSwitchChange(portA, val)"
                 />
+                <!-- 文案放在圆形滑块内，不占用轨道区域 -->
+                <span
+                  class="water-dv-popup__port-knob"
+                  :class="portKnobTextClass(portA)"
+                >
+                  {{ portOpenText(portA) }}
+                </span>
               </div>
             </div>
 
@@ -180,18 +187,24 @@
               </div>
               <div
                 class="water-dv-popup__port-switch"
-                :class="{ 'is-busy': valveBusy }"
+                :class="{
+                  'is-busy': valveBusy,
+                  'is-open': isPortOpen(portB)
+                }"
               >
                 <el-switch
                   :model-value="isPortOpen(portB)"
                   :disabled="valveBusy || portToggleLoading"
-                  inline-prompt
-                  :active-text="portOpenText(portB)"
-                  inactive-text="关"
                   active-color="#22c55e"
                   inactive-color="#ef4444"
                   @change="(val) => onPortSwitchChange(portB, val)"
                 />
+                <span
+                  class="water-dv-popup__port-knob"
+                  :class="portKnobTextClass(portB)"
+                >
+                  {{ portOpenText(portB) }}
+                </span>
               </div>
             </div>
           </div>
@@ -365,6 +378,15 @@ function portOpenText(port) {
   if (!port) return '关'
   const open = Number(port.currentOpening || 0)
   return open > 0 ? `${Math.round(open)}%` : '关'
+}
+
+/** 圆形滑块内文案字号：按字符数适配，避免溢出圆钮 */
+function portKnobTextClass(port) {
+  const text = portOpenText(port)
+  const len = text.length
+  if (len >= 4) return 'is-xs'
+  if (len >= 3) return 'is-sm'
+  return 'is-md'
 }
 
 function defaultOpenText(port) {
@@ -1248,10 +1270,18 @@ defineExpose({
 }
 
 .water-dv-popup__port-switch {
-  display: flex;
+  /*
+   * 尺寸用父级 CSS 变量（走 pxtorem），再传给 :deep(.el-*)，
+   * 保证圆钮与轨道同比例，文案只画在圆钮内。
+   */
+  --port-switch-h: 32px;
+  --port-switch-inset: 3px;
+  --port-switch-knob: calc(var(--port-switch-h) - var(--port-switch-inset) * 2);
+  --port-switch-min-w: 60px;
+  position: relative;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
 }
 
 .water-dv-popup__port-switch.is-busy :deep(.el-switch) {
@@ -1261,34 +1291,69 @@ defineExpose({
 .water-dv-popup__port-switch :deep(.el-switch) {
   --el-switch-on-color: #22c55e;
   --el-switch-off-color: #ef4444;
-  height: 28px;
+  height: var(--port-switch-h);
 }
 
 .water-dv-popup__port-switch :deep(.el-switch__core) {
-  min-width: 56px;
-  height: 28px;
-  border-radius: 16px;
+  min-width: var(--port-switch-min-w);
+  height: var(--port-switch-h);
+  border-radius: calc(var(--port-switch-h) / 2);
+  box-sizing: border-box;
 }
 
-.water-dv-popup__port-switch :deep(.el-switch.is-checked .el-switch__core .el-switch__inner) {
-  padding-left: 6px;
-  padding-right: 22px;
+/* 轨道内不展示文案 */
+.water-dv-popup__port-switch :deep(.el-switch__inner) {
+  display: none;
 }
 
-.water-dv-popup__port-switch :deep(.el-switch__core .el-switch__inner) {
-  padding-right: 6px;
-  padding-left: 22px;
+/* 隐藏原生滑块，改用自定义圆形文案钮 */
+.water-dv-popup__port-switch :deep(.el-switch__action) {
+  width: var(--port-switch-knob);
+  height: var(--port-switch-knob);
+  opacity: 0;
 }
 
-.water-dv-popup__port-switch :deep(.el-switch__core .el-switch__inner .is-text) {
-  font-size: 11px;
-  font-weight: 600;
-  color: #fff;
+.water-dv-popup__port-knob {
+  position: absolute;
+  top: 50%;
+  left: var(--port-switch-inset);
+  z-index: 2;
+  transform: translateY(-50%);
+  width: var(--port-switch-knob);
+  height: var(--port-switch-knob);
+  border-radius: 50%;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: #ef4444;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  box-sizing: border-box;
+  padding: 0 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: left 0.3s, color 0.3s;
 }
 
-.water-dv-popup__port-switch :deep(.el-switch__core .el-switch__action) {
-  width: 22px;
-  height: 22px;
+.water-dv-popup__port-switch.is-open .water-dv-popup__port-knob {
+  left: calc(100% - var(--port-switch-knob) - var(--port-switch-inset));
+  color: #22c55e;
+}
+
+.water-dv-popup__port-knob.is-md {
+  font-size: 12px;
+}
+
+.water-dv-popup__port-knob.is-sm {
+  font-size: 10px;
+}
+
+.water-dv-popup__port-knob.is-xs {
+  font-size: 9px;
 }
 
 .water-dv-popup__gauge {

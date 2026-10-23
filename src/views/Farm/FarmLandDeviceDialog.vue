@@ -9,7 +9,7 @@
     @update:model-value="onVisibleChange"
   >
     <template #header>
-      <div class="farm-land-device-dialog__title">智能出水桩</div>
+      <div class="farm-land-device-dialog__title">{{ dialogTitle }}</div>
     </template>
 
     <div class="farm-land-device-dialog__search">
@@ -49,11 +49,11 @@
             <div class="farm-land-device-dialog__device">
               <img
                 class="farm-land-device-dialog__device-img"
-                :src="outletIcon"
+                :src="deviceIcon"
                 alt=""
               />
               <span class="farm-land-device-dialog__device-name">
-                {{ row.name || '出水桩' }}
+                {{ row.name || deviceNameFallback }}
               </span>
             </div>
           </template>
@@ -128,19 +128,23 @@
 
 <script setup>
 /**
- * 农场设置 - 地块智能出水桩管理弹窗
- * 对齐移动端 pages/home/activity/farm/device_list?dvType=50&landId=
+ * 农场设置 - 地块设备管理弹窗
+ * - dvType=50：智能出水桩（对齐移动端 device_list）
+ * - dvType=52：物联网设备/施肥机（对齐移动端 iot_device_list）
  */
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { batchDeleteDevices, getDeviceList } from '@/api/device'
 import { useFarmStore } from '@/store/farm'
 import outletIcon from '@/assets/map/outlet-device-online.svg'
+import fertilizerIcon from '@/assets/device/fertilizer/fert_card_online.png'
+
+const FISMART_DEVICE_TYPE = 52
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   landId: { type: [Number, String], default: null },
-  /** 设备类型，出水桩固定 50 */
+  /** 设备类型：50 出水桩 / 52 物联网（施肥机） */
   dvType: { type: [Number, String], default: 50 }
 })
 
@@ -158,6 +162,20 @@ const tableRef = ref(null)
 const confirmVisible = ref(false)
 const riskChecked = ref(false)
 const pendingDeleteIds = ref([])
+
+const isIotDevice = computed(() => Number(props.dvType) === FISMART_DEVICE_TYPE)
+
+const dialogTitle = computed(() =>
+  isIotDevice.value ? '物联网设备' : '智能出水桩'
+)
+
+const deviceIcon = computed(() =>
+  isIotDevice.value ? fertilizerIcon : outletIcon
+)
+
+const deviceNameFallback = computed(() =>
+  isIotDevice.value ? '施肥机' : '出水桩'
+)
 
 function onVisibleChange(v) {
   emit('update:modelValue', v)
@@ -243,7 +261,7 @@ async function confirmDelete() {
 }
 
 watch(
-  () => [props.modelValue, props.landId],
+  () => [props.modelValue, props.landId, props.dvType],
   ([visible]) => {
     if (visible) {
       searchText.value = ''

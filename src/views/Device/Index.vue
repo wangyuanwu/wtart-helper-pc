@@ -1,20 +1,10 @@
 <template>
   <div class="device-page" @click="clearDeviceAction">
-    <!-- 空态：农场下无任何设备 -->
-    <div v-if="showEmpty" class="device-empty">
-      <img
-        class="device-empty__img"
-        src="@/assets/device/device-empty.png"
-        alt=""
-      />
-      <p class="device-empty__text">嗨！您还没有设备，请添加设备</p>
-      <button type="button" class="device-empty__btn" @click.stop="onAddDevice">
-        添加设备
-      </button>
+    <div v-if="deviceLandList === null && loading" class="device-loading">
+      加载中...
     </div>
 
-    <!-- 有设备：按地块分组 -->
-    <template v-else-if="deviceLandList">
+    <template v-else-if="deviceLandList !== null">
       <div class="device-page-header">
         <div class="device-page-header__row">
           <h2 class="device-page-header__title">设备列表</h2>
@@ -67,7 +57,20 @@
         </div>
       </div>
 
-      <div class="device-scroll">
+      <!-- 对齐移动端 DeviceEmpty：无地块数据时展示空态（保留搜索/筛选栏） -->
+      <div v-if="showEmpty" class="device-empty">
+        <img
+          class="device-empty__img"
+          src="@/assets/device/device-empty.png"
+          alt=""
+        />
+        <p class="device-empty__text">嗨！您还没有添加设备</p>
+        <button type="button" class="device-empty__btn" @click.stop="onAddDevice">
+          添加设备
+        </button>
+      </div>
+
+      <div v-else class="device-scroll">
         <div
           v-for="land in visibleLandList"
           :key="land.landId"
@@ -101,9 +104,22 @@
                 </button>
               </template>
               <div class="device-land-menu" @click.stop>
+                <!-- 对齐移动端 airPopDataLand：排序 → 编辑 → 删除 -->
                 <button
                   type="button"
                   class="device-land-menu__item device-land-menu__item--divider"
+                  @click.stop="onSortLand(land)"
+                >
+                  <img
+                    class="device-land-menu__icon-img"
+                    :src="landMenuSortIcon"
+                    alt=""
+                  />
+                  设备排序
+                </button>
+                <button
+                  type="button"
+                  class="device-land-menu__item"
                   @click.stop="onEditLand(land)"
                 >
                   <img
@@ -112,18 +128,6 @@
                     alt=""
                   />
                   编辑地块
-                </button>
-                <button
-                  type="button"
-                  class="device-land-menu__item"
-                  @click.stop="onSortLand(land)"
-                >
-                  <img
-                    class="device-land-menu__icon-img"
-                    :src="landMenuSortIcon"
-                    alt=""
-                  />
-                  阀门排序
                 </button>
                 <button
                   type="button"
@@ -143,7 +147,7 @@
 
           <div class="device-grid">
             <button
-              v-if="!land.devices?.length && tabIndex === 0"
+              v-if="!land.devices?.length"
               type="button"
               class="device-add-card"
               @click.stop="onAddDevice"
@@ -152,13 +156,15 @@
               <span>添加设备</span>
             </button>
 
+            <!-- type=50 出水桩卡片（对齐移动端） -->
             <div
               v-for="device in getVisibleDevices(land)"
               :key="device.id"
               class="device-card"
               :class="{
                 'is-offline': !device.isOnline,
-                'is-action': actionDeviceId === String(device.id)
+                'is-action': actionDeviceId === String(device.id),
+                'is-fismart': isFertilizerDevice(device)
               }"
               @click.stop="onDeviceClick(device)"
               @pointerdown="onDevicePointerDown($event, device)"
@@ -171,7 +177,7 @@
               <div class="device-card__top">
                 <div class="device-card__info">
                   <div class="device-card__name">
-                    {{ device.name || '未命名设备' }}
+                    {{ device.name || (isFertilizerDevice(device) ? '施肥机' : '未命名设备') }}
                   </div>
                   <span
                     class="device-card__status"
@@ -181,7 +187,7 @@
                     {{ getOnlineText(device) }}
                   </span>
                 </div>
-                <div class="device-card__top-right">
+                <div v-if="isWaterOutletDevice(device)" class="device-card__top-right">
                   <span
                     v-if="device.batteryPercent != null"
                     class="device-card__battery"
@@ -203,9 +209,10 @@
 
               <div
                 v-if="
-                  isManualMode(device) ||
-                  isDvAlarm(device.id) ||
-                  isTimerRunning(device)
+                  isWaterOutletDevice(device) &&
+                  (isManualMode(device) ||
+                    isDvAlarm(device.id) ||
+                    isTimerRunning(device))
                 "
                 class="device-card__flags"
               >
@@ -226,16 +233,20 @@
                 ></i>
               </div>
 
-              <div class="device-card__body">
+              <div
+                class="device-card__body"
+                :class="{ 'is-fismart': isFertilizerDevice(device) }"
+              >
                 <img
                   class="device-card__img"
-                  :src="device.isOnline ? outletOnlineImg : outletOfflineImg"
+                  :class="{ 'is-fismart': isFertilizerDevice(device) }"
+                  :src="getDeviceCardImage(device)"
                   alt=""
                 />
               </div>
 
               <div
-                v-if="hasWaterPile(device)"
+                v-if="isWaterOutletDevice(device) && hasWaterPile(device)"
                 class="device-card__ports"
                 :class="{ 'is-valve-busy': isValveBusy(device) }"
                 @click.stop
@@ -315,8 +326,6 @@
       </div>
     </template>
 
-    <div v-else-if="loading" class="device-loading">加载中...</div>
-
     <DeviceLandSortDialog
       v-model="sortDialogVisible"
       :farm-id="getFarmId()"
@@ -356,7 +365,7 @@
           :loading="landDeleting"
           @click="confirmDeleteLand"
         >
-          确定
+          删除
         </el-button>
       </template>
     </el-dialog>
@@ -375,7 +384,7 @@
         删除后不能操作该设备，是否继续？
       </p>
       <el-checkbox v-model="deviceDeleteRiskChecked">
-        已知晓风险，确定要删除。
+        已知晓风险，确认删除。
       </el-checkbox>
       <template #footer>
         <el-button @click="deviceDeleteConfirmVisible = false">取消</el-button>
@@ -385,7 +394,7 @@
           :loading="deviceDeleting"
           @click="confirmDeleteDevice"
         >
-          确定
+          删除
         </el-button>
       </template>
     </el-dialog>
@@ -415,6 +424,12 @@ import DeviceLandSortDialog from './DeviceLandSortDialog.vue'
 import LandEmptyDialog from '@/views/Map/LandEmptyDialog.vue'
 import outletOnlineImg from '@/assets/map/outlet-device-online.svg'
 import outletOfflineImg from '@/assets/map/outlet-device-offline.svg'
+import fertCardOnlineImg from '@/assets/device/fertilizer/fert_card_online.png'
+import fertCardOfflineImg from '@/assets/device/fertilizer/fert_card_offline.png'
+
+/** 对齐移动端 type=50 出水桩 / type=52 施肥机 */
+const WATER_DEVICE_TYPE = 50
+const FISMART_DEVICE_TYPE = 52
 
 const router = useRouter()
 const farmStore = useFarmStore()
@@ -471,6 +486,18 @@ let longPressMoved = false
 
 const timerRunningDevice = ref([])
 
+/** 对齐移动端 Number(type)===52 */
+const isFertilizerDevice = (device) =>
+  Number(device?.type) === FISMART_DEVICE_TYPE
+
+/** 对齐移动端 Number(type)===50 */
+const isWaterOutletDevice = (device) =>
+  Number(device?.type) === WATER_DEVICE_TYPE
+
+/** 列表仅展示 type=50 / type=52（对齐移动端卡片 v-if） */
+const isListDevice = (device) =>
+  isWaterOutletDevice(device) || isFertilizerDevice(device)
+
 const counts = computed(() => {
   let total = 0
   let online = 0
@@ -481,12 +508,16 @@ const counts = computed(() => {
   const list = deviceLandList.value || []
   list.forEach((land) => {
     ;(land.devices || []).forEach((dev) => {
+      if (!isListDevice(dev)) return
       total += 1
       if (dev.isOnline) online += 1
       else offline += 1
-      if (isLowPower(dev)) lowPower += 1
-      if (isDeviceOpen(dev)) openCount += 1
-      else closeCount += 1
+      // 低电量 / 开闭：仅 type=50 出水桩（对齐移动端 calcTabCount）
+      if (isWaterOutletDevice(dev)) {
+        if (isLowPower(dev)) lowPower += 1
+        if (isDeviceOpen(dev)) openCount += 1
+        else closeCount += 1
+      }
     })
   })
   return { total, online, offline, lowPower, openCount, closeCount }
@@ -501,11 +532,14 @@ const tabList = computed(() => [
   { key: 'close', label: `已关闭(${counts.value.closeCount})` }
 ])
 
-/** 无任何设备且非搜索态 → 空态（对齐移动端 DeviceEmpty 条件） */
+/**
+ * 对齐移动端 DeviceEmpty：无地块数据且非搜索态才展示全页空态；
+ * 有地块但无设备时仍展示地块分组 + 「添加设备」卡片。
+ */
 const showEmpty = computed(() => {
   if (!deviceLandList.value) return false
   if (isSearch.value || searchText.value !== '') return false
-  return counts.value.total <= 0
+  return deviceLandList.value.length <= 0
 })
 
 const visibleLandList = computed(() => {
@@ -579,9 +613,10 @@ const batteryClass = (percent) => {
   return ''
 }
 
-/** 对齐移动端 getOnlienText(isOnline, ds) */
+/** 对齐移动端 getOnlienText；施肥机离线文案为「掉线」 */
 const getOnlineText = (device) => {
   if (device?.isOnline) return '在线'
+  if (isFertilizerDevice(device)) return '掉线'
   const ds = Number(device?.specificData?.waterOutletPile?.ds)
   switch (ds) {
     case 1:
@@ -597,6 +632,14 @@ const getOnlineText = (device) => {
     default:
       return '离线'
   }
+}
+
+/** 对齐移动端 getImgeByType：50 按在线态 SVG；52 在线/掉线施肥机 PNG */
+const getDeviceCardImage = (device) => {
+  if (isFertilizerDevice(device)) {
+    return device?.isOnline ? fertCardOnlineImg : fertCardOfflineImg
+  }
+  return device?.isOnline ? outletOnlineImg : outletOfflineImg
 }
 
 /** 对齐移动端卡片 ds==9 手动模式图标 */
@@ -618,13 +661,24 @@ const isCharging = (device) => Number(device?.chargingStatus) === 1
 const batteryText = (device) => `${device?.batteryPercent ?? 0}%`
 
 const getVisibleDevices = (land) => {
-  const devices = land?.devices || []
+  const devices = (land?.devices || []).filter(isListDevice)
   if (tabIndex.value === 0) return devices
-  if (tabIndex.value === 1) return devices.filter((d) => !!d.isOnline)
-  if (tabIndex.value === 2) return devices.filter((d) => !d.isOnline)
-  if (tabIndex.value === 3) return devices.filter((d) => isLowPower(d))
-  if (tabIndex.value === 4) return devices.filter((d) => isDeviceOpen(d))
-  if (tabIndex.value === 5) return devices.filter((d) => !isDeviceOpen(d))
+  if (tabIndex.value === 1) {
+    return devices.filter((d) => !!d.isOnline)
+  }
+  if (tabIndex.value === 2) {
+    return devices.filter((d) => !d.isOnline)
+  }
+  // 低电量 / 已打开 / 已关闭：仅 type=50（对齐移动端 showLowPower/Open/Close）
+  if (tabIndex.value === 3) {
+    return devices.filter((d) => isWaterOutletDevice(d) && isLowPower(d))
+  }
+  if (tabIndex.value === 4) {
+    return devices.filter((d) => isWaterOutletDevice(d) && isDeviceOpen(d))
+  }
+  if (tabIndex.value === 5) {
+    return devices.filter((d) => isWaterOutletDevice(d) && !isDeviceOpen(d))
+  }
   return devices
 }
 
@@ -720,6 +774,14 @@ const onDeviceClick = (device) => {
   clearDeviceAction()
   if (!device?.id) return
   farmStore.setControlDevice(device)
+  // 对齐移动端 toControl：52 → control_fertilizer，否则 control_device
+  if (isFertilizerDevice(device)) {
+    router.push({
+      path: '/device/control-fertilizer',
+      query: { id: String(device.id) }
+    })
+    return
+  }
   router.push({
     path: '/device/control',
     query: { id: String(device.id) }
@@ -757,11 +819,18 @@ const onCreateLandFromEmpty = () => {
   router.push({ path: '/map/edit-plot', query: { type: 'add' } })
 }
 
-/** 编辑设备：对齐移动端 tapPopup → device_detail?id= */
+/** 编辑设备：对齐移动端 tapPopup → edit_fertilizer / device_detail */
 const onEditDevice = (device) => {
   if (!device?.id) return
   clearDeviceAction()
   farmStore.setControlDevice(device)
+  if (isFertilizerDevice(device)) {
+    router.push({
+      path: '/device/edit-fertilizer',
+      query: { id: String(device.id) }
+    })
+    return
+  }
   router.push({
     path: '/device/detail',
     query: { id: String(device.id) }
@@ -792,7 +861,9 @@ const confirmDeleteDevice = async () => {
     deviceDeleteConfirmVisible.value = false
     clearDeviceAction()
     await farmStore.fetchFarmList()
-    await fetchDeviceList({ silent: false })
+    // 对齐移动端 deleteDeviceHttp：延迟刷新列表
+    await new Promise((r) => setTimeout(r, 500))
+    await fetchDeviceList({ silent: false, isSearch: true })
   } catch (e) {
     console.error('[Device] 删除设备失败', e)
     ElMessage.error(e?.message || '删除设备失败')
@@ -868,7 +939,8 @@ const confirmDeleteLand = async () => {
     ElMessage.success('操作成功')
     landDeleteConfirmVisible.value = false
     await farmStore.fetchFarmList()
-    await fetchDeviceList({ silent: false })
+    await new Promise((r) => setTimeout(r, 500))
+    await fetchDeviceList({ silent: false, isSearch: true })
   } catch (e) {
     console.error('[Device] 删除地块失败', e)
     ElMessage.error(e?.message || '删除地块失败')
@@ -1448,10 +1520,10 @@ onUnmounted(() => {
 }
 
 .device-card__flags {
+  /* 紧贴电池下方右上角；勿设 bottom，否则会在中间区域被垂直居中 */
   position: absolute;
-  top: 72px;
-  right: 16px;
-  bottom: 88px;
+  top: 53px;
+  right: 25px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
@@ -1461,19 +1533,19 @@ onUnmounted(() => {
 }
 
 .device-card__alarm {
-  font-size: 14px;
+  font-size: 19px;
   color: #ef4444;
   line-height: 1;
 }
 
 .device-card__manual {
-  font-size: 14px;
+  font-size: 19px;
   color: #ef4444;
   line-height: 1;
 }
 
 .device-card__timer {
-  font-size: 14px;
+  font-size: 19px;
   color: #3653a0;
   line-height: 1;
 }
@@ -1578,10 +1650,27 @@ onUnmounted(() => {
   justify-content: center;
 }
 
+/* 施肥机主图略大，对齐移动端 fert-device-img */
+.device-card__body.is-fismart {
+  width: 168px;
+  height: 178px;
+  margin-top: 4px;
+}
+
 .device-card__img {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.device-card.is-fismart .device-card__body {
+  flex: 1;
+}
+
+/* 掉线施肥机使用 fert_card_offline.png，尺寸对齐移动端 getDeviceImgStyle */
+.device-card.is-fismart.is-offline .device-card__body.is-fismart {
+  width: 132px;
+  height: 142px;
 }
 
 .device-card__ports {

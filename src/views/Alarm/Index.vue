@@ -63,12 +63,6 @@
                 aria-hidden="true"
               ></span>
             </div>
-            <span
-              v-if="!isResolvedAlarm(item)"
-              class="alarm-card__head-time"
-            >
-              {{ formatAlarmTime(item.alarmTime) }}
-            </span>
           </div>
 
           <div class="alarm-card__rows">
@@ -105,12 +99,18 @@
           />
 
           <div class="alarm-card__foot">
-            <span
-              v-if="isResolvedAlarm(item)"
-              class="alarm-card__foot-time"
-            >
-              {{ formatAlarmTime(item.resolvedTime) }}
-            </span>
+            <!-- 对齐移动端：底部左侧预警时间；有解除时间时右侧间隔 30px -->
+            <div class="alarm-card__foot-times">
+              <span class="alarm-card__foot-time">
+                {{ formatAlarmTime(item.alarmTime) }}
+              </span>
+              <span
+                v-if="item.resolvedTime"
+                class="alarm-card__foot-time alarm-card__foot-time--resolved"
+              >
+                {{ formatAlarmTime(item.resolvedTime) }} 解除
+              </span>
+            </div>
             <div class="alarm-card__actions">
               <button
                 v-if="item.status !== 0"
@@ -607,16 +607,6 @@ watch(
   box-shadow: 0 0 4px rgba(255, 59, 48, 0.55);
 }
 
-.alarm-card__head-time {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: bold;
-  line-height: 17.34px;
-  letter-spacing: 0;
-  color: #94a3b8;
-  white-space: nowrap;
-}
-
 .alarm-card__rows {
   position: relative;
   z-index: 1;
@@ -720,14 +710,23 @@ watch(
   min-height: 34px;
 }
 
-.alarm-card__foot-time {
+.alarm-card__foot-times {
+  display: flex;
+  align-items: center;
   flex: 1;
   min-width: 0;
+}
+
+.alarm-card__foot-time {
   font-size: 12px;
   font-weight: bold;
   line-height: 17.34px;
   color: #94a3b8;
   white-space: nowrap;
+}
+
+.alarm-card__foot-time--resolved {
+  margin-left: 30px;
 }
 
 .alarm-card__stamp {

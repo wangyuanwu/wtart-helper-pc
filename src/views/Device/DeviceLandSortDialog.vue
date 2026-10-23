@@ -38,13 +38,17 @@
       >
         <img
           class="device-land-sort-dialog__img"
-          :src="outletIcon"
+          :src="getOrderDeviceIcon(item)"
           alt=""
         />
         <div class="device-land-sort-dialog__info">
           <div class="device-land-sort-dialog__name-row">
-            <span class="device-land-sort-dialog__name">{{ item.name || '出水桩' }}</span>
-            <span class="device-land-sort-dialog__type">——出水桩</span>
+            <span class="device-land-sort-dialog__name">
+              {{ item.name || getOrderDeviceTypeLabel(item) }}
+            </span>
+            <span class="device-land-sort-dialog__type"
+              >——{{ getOrderDeviceTypeLabel(item) }}</span
+            >
           </div>
           <div class="device-land-sort-dialog__code">{{ item.deviceCode || '--' }}</div>
         </div>
@@ -61,14 +65,28 @@ import { Operation } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { deviceSort, getDeviceList } from '@/api/device'
 import outletIcon from '@/assets/map/outlet-device-online.svg'
+import fertIcon from '@/assets/device/add/farm_img_fis.png'
+
+const FISMART_DEVICE_TYPE = 52
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   farmId: { type: [Number, String], default: null },
-  landId: { type: [Number, String], default: null },
-  /** 出水桩固定 50 */
-  devType: { type: [Number, String], default: 50 }
+  landId: { type: [Number, String], default: null }
 })
+
+/** 对齐移动端 getOrderDeviceTypeLabel / getOrderDeviceIcon */
+function isFertilizerDevice(item) {
+  return Number(item?.type) === FISMART_DEVICE_TYPE
+}
+
+function getOrderDeviceTypeLabel(item) {
+  return isFertilizerDevice(item) ? '施肥机' : '出水桩'
+}
+
+function getOrderDeviceIcon(item) {
+  return isFertilizerDevice(item) ? fertIcon : outletIcon
+}
 
 const emit = defineEmits(['update:modelValue', 'saved'])
 
@@ -88,10 +106,10 @@ async function fetchList() {
   }
   loading.value = true
   try {
+    // 对齐移动端 pop_order_device：不传 devType，返回地块下全部设备
     const res = await getDeviceList({
       farmId: props.farmId,
-      landId: props.landId,
-      devType: props.devType
+      landId: props.landId
     })
     deviceList.value = Array.isArray(res?.data) ? res.data.map((d) => ({ ...d })) : []
   } catch (e) {

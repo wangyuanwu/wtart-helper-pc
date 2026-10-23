@@ -300,14 +300,14 @@
             class="program-tip__btn is-cancel"
             @click="onEnableFailCancel"
           >
-            否
+            取消
           </button>
           <button
             type="button"
             class="program-tip__btn is-confirm"
             @click="onEnableFailConfirm"
           >
-            是
+            去设置
           </button>
         </div>
       </div>

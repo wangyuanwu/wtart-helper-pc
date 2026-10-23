@@ -57,13 +57,15 @@ const deviceTypes = [
   }
 ]
 
-/** 对齐移动端 toAdd：出水桩进编号页，其余研发中 */
+/** 对齐移动端 toAdd：出水桩进编号页，物联网设备进添加页，摄像头研发中 */
 function toAdd(index) {
   switch (index) {
     case 0:
       router.push('/device/add-number')
       break
     case 1:
+      router.push('/device/add-iot')
+      break
     case 2:
       ElMessage.info('研发中')
       break

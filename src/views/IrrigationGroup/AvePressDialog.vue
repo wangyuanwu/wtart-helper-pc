@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="modelValue"
     title="一键均压"
-    width="720px"
+    width="670px"
     append-to-body
     destroy-on-close
     draggable
@@ -50,14 +50,16 @@
                 已打开{{ formatOpening(item.currentOpening) }}%
               </span>
             </div>
-            <div class="ave-press__bar">
-              <div
-                class="ave-press__bar-fill"
-                :style="{ width: `${pressureBarWidth(item.pressure)}%` }"
-              ></div>
+            <div class="ave-press__bar-row">
               <span class="ave-press__bar-label">
                 水压{{ formatPressure(item.pressure) }}bar公斤
               </span>
+              <div class="ave-press__bar">
+                <div
+                  class="ave-press__bar-fill"
+                  :style="{ width: `${pressureBarWidth(item.pressure)}%` }"
+                ></div>
+              </div>
             </div>
           </article>
 
@@ -502,9 +504,24 @@ function onClosed() {
   font-size: 12px;
 }
 
+.ave-press__bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ave-press__bar-label {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .ave-press__bar {
-  position: relative;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: 28px;
   border-radius: 14px;
   background: rgba(99, 153, 237, 0.25);
@@ -516,20 +533,6 @@ function onClosed() {
   background: #6399ed;
   border-radius: 0 14px 14px 0;
   transition: width 0.3s ease;
-}
-
-.ave-press__bar-label {
-  position: absolute;
-  left: 12px;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  pointer-events: none;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
 .ave-press__empty {

@@ -168,6 +168,20 @@ export function getFarmWaterOutletStatus(farmId) {
   })
 }
 
+/** 农场下施肥机最新状态（对齐移动端 getFarmFismartStatus / fismart/status-by-farm） */
+export function getFarmFismartStatus(farmId, config = {}) {
+  return request({
+    url: '/api/fismart/status-by-farm',
+    method: 'GET',
+    params: { farmId },
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent !== false
+  })
+}
+
 /** 农场下正在定时/轮灌运行的出水桩（对齐移动端 getWaterOutetRuning） */
 export function getWaterOutletRunning(params = {}, config = {}) {
   return request({
@@ -289,6 +303,36 @@ export function getDeviceStatusHistory(params = {}, config = {}) {
 export function getNetCard(iccid, config = {}) {
   return request({
     url: `/api/netcard/${iccid}`,
+    method: 'GET',
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+/** 施肥机 RRPC（对齐移动端 fismartRrpc，超时 30s） */
+export function fismartRrpc(deviceId, body = {}, config = {}) {
+  return request({
+    url: `/api/fismart/${deviceId}/rrpc`,
+    method: 'POST',
+    data: body,
+    timeout: config.timeout ?? 30000,
+    headers: {
+      'X-Timezone': 'Asia/Shanghai',
+      ...(config.headers || {})
+    },
+    silent: config.silent === true,
+    loading: config.loading === true
+  })
+}
+
+/** 施肥机详情（对齐移动端 getFismartInfo） */
+export function getFismartInfo(deviceId, config = {}) {
+  return request({
+    url: `/api/fismart/${deviceId}/info`,
     method: 'GET',
     headers: {
       'X-Timezone': 'Asia/Shanghai',

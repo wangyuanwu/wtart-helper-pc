@@ -48,8 +48,19 @@ export const useFarmStore = defineStore(
     /** 定位结果（成功/失败列表），对齐移动端 vuex_edit_device_map */
     const s_edit_device_map = ref({
       deviceListOK: [],
-      deviceListNo: []
+      deviceListNo: [],
+      returnOnly: false
     })
+    /**
+     * 添加物联网设备页草稿（PC 跳转地图选点会卸载表单页，需持久）
+     * 对齐移动端 add_iot_device 栈内保活表单
+     */
+    const s_add_iot_draft = ref(null)
+    /**
+     * 施肥机地图选点回传缓冲（对齐移动端 deviceMsg addLocationConform）
+     * PC 表单页未挂载时先落缓冲，重新挂载后消费
+     */
+    const s_pending_iot_location = ref(null)
     /** 地图编辑页确认回传，对齐移动端 deviceMsg editConform */
     const s_pending_device_edit = ref(null)
     /** 新建轮灌组草稿，对齐移动端 vuex_add_group */
@@ -241,7 +252,8 @@ export const useFarmStore = defineStore(
       if (Array.isArray(payload)) {
         s_edit_device_map.value = {
           deviceListOK: payload.map((item) => ({ ...item })),
-          deviceListNo: []
+          deviceListNo: [],
+          returnOnly: false
         }
         return
       }
@@ -253,8 +265,41 @@ export const useFarmStore = defineStore(
         : []
       s_edit_device_map.value = {
         deviceListOK: ok,
-        deviceListNo: no
+        deviceListNo: no,
+        /** 对齐移动端 vuex_edit_device_map.returnOnly：仅回传位置不落库 */
+        returnOnly: !!payload?.returnOnly
       }
+    }
+
+    function setAddIotDraft(draft) {
+      if (!draft || typeof draft !== 'object') {
+        s_add_iot_draft.value = null
+        return
+      }
+      s_add_iot_draft.value = {
+        name: draft.name || '',
+        deviceCode: draft.deviceCode || '',
+        address: draft.address || '',
+        longitude: draft.longitude ?? null,
+        latitude: draft.latitude ?? null,
+        landIds: Array.isArray(draft.landIds) ? [...draft.landIds] : []
+      }
+    }
+
+    function clearAddIotDraft() {
+      s_add_iot_draft.value = null
+    }
+
+    function setPendingIotLocation(list) {
+      s_pending_iot_location.value = Array.isArray(list)
+        ? list.map((item) => ({ ...item }))
+        : null
+    }
+
+    function consumePendingIotLocation() {
+      const list = s_pending_iot_location.value
+      s_pending_iot_location.value = null
+      return list
     }
 
     function setPendingDeviceEdit(list) {
@@ -436,7 +481,13 @@ export const useFarmStore = defineStore(
       s_pending_map_device_id.value = null
       s_pending_add_new_device.value = false
       s_edit_device.value = []
-      s_edit_device_map.value = { deviceListOK: [], deviceListNo: [] }
+      s_edit_device_map.value = {
+        deviceListOK: [],
+        deviceListNo: [],
+        returnOnly: false
+      }
+      s_add_iot_draft.value = null
+      s_pending_iot_location.value = null
       s_pending_device_edit.value = null
     }
 
@@ -460,6 +511,8 @@ export const useFarmStore = defineStore(
       s_map_layer,
       s_edit_device,
       s_edit_device_map,
+      s_add_iot_draft,
+      s_pending_iot_location,
       s_pending_device_edit,
       s_add_group,
       s_landId_group,
@@ -488,6 +541,10 @@ export const useFarmStore = defineStore(
       setMapLayer,
       setEditDevice,
       setEditDeviceMap,
+      setAddIotDraft,
+      clearAddIotDraft,
+      setPendingIotLocation,
+      consumePendingIotLocation,
       setPendingDeviceEdit,
       consumePendingDeviceEdit,
       setAddGroup,

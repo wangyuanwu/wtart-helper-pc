@@ -206,7 +206,7 @@
               <button
                 type="button"
                 class="edit-farm-device-btn"
-                @click="onDeviceList(15, item.id)"
+                @click="onDeviceList(52, item.id)"
               >
                 <img
                   class="edit-farm-device-btn__img"
@@ -237,7 +237,7 @@
       <FarmLandDeviceDialog
         v-model="deviceDialogVisible"
         :land-id="deviceDialogLandId"
-        :dv-type="50"
+        :dv-type="deviceDialogDvType"
         @deleted="onDeviceDeleted"
       />
       <EditFarmMemberDialog
@@ -311,6 +311,8 @@ const memberList = ref([])
 const landList = ref([])
 const deviceDialogVisible = ref(false)
 const deviceDialogLandId = ref(null)
+/** 50 出水桩 / 52 物联网（施肥机） */
+const deviceDialogDvType = ref(50)
 const memberDialogVisible = ref(false)
 const memberDialogType = ref('add')
 const memberDialogMember = ref(null)
@@ -485,9 +487,11 @@ async function onLandDetail(land) {
 }
 
 function onDeviceList(type, landId) {
-  if (Number(type) === 50) {
-    // 对齐移动端 device_list?dvType=50&landId=，PC 用弹窗承载
+  const dvType = Number(type)
+  // 50 出水桩 → device_list；52 物联网/施肥机 → iot_device_list；PC 均用弹窗承载
+  if (dvType === 50 || dvType === 52) {
     deviceDialogLandId.value = landId
+    deviceDialogDvType.value = dvType
     deviceDialogVisible.value = true
     return
   }

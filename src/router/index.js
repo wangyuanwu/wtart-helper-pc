@@ -83,6 +83,11 @@ const routes = [
         meta: { title: '添加出水桩', requiresAuth: true }
       },
       {
+        path: 'device/add-iot',
+        component: () => import('../views/Device/AddIotDevice.vue'),
+        meta: { title: '添加物联网设备', requiresAuth: true }
+      },
+      {
         path: 'device/add-location',
         component: () => import('../views/Device/AddDeviceLocation.vue'),
         meta: { title: '设备定位', requiresAuth: true }
@@ -93,9 +98,29 @@ const routes = [
         meta: { title: '添加设备', requiresAuth: true }
       },
       {
+        path: 'map/edit-fismart',
+        component: () => import('../views/Map/MapEditFismart.vue'),
+        meta: { title: '添加施肥机', requiresAuth: true }
+      },
+      {
         path: 'device/control',
         component: () => import('../views/Device/ControlDevice.vue'),
         meta: { title: '设备控制', requiresAuth: true }
+      },
+      {
+        path: 'device/control-fertilizer',
+        component: () => import('../views/Device/ControlFertilizer.vue'),
+        meta: { title: '施肥机控制', requiresAuth: true }
+      },
+      {
+        path: 'device/edit-fertilizer',
+        component: () => import('../views/Device/EditFertilizer.vue'),
+        meta: { title: '编辑施肥机', requiresAuth: true }
+      },
+      {
+        path: 'device/fertilizer-timer-list',
+        component: () => import('../views/Device/FertilizerTimerList.vue'),
+        meta: { title: '施肥机定时', requiresAuth: true }
       },
       {
         path: 'device/detail',

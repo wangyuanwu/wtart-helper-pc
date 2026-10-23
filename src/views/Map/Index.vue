@@ -141,6 +141,12 @@
         :device="activeWaterDv"
         @close="onWaterDvPopupClose"
       />
+      <FertilizerPopup
+        ref="fertilizerPopupRef"
+        v-model="fertilizerPopupVisible"
+        :device="activeWaterDv"
+        @close="onFertilizerPopupClose"
+      />
       <FarmPopup
         v-model="farmPopupVisible"
         :farm="clickedFarm"
@@ -185,17 +191,24 @@ import { parseAreaJson, prepareFarmMapResources, formatAreaMu } from '@/utils/fa
 import { createFarmMarkerDrawer } from '@/utils/farmMapMarker'
 import { createLandPolygonDrawer } from '@/utils/farmMapLand'
 import { createLandGroupPolygonDrawer } from '@/utils/farmMapLandGroup'
-import { createWaterDvMarkerDrawer } from '@/utils/farmMapWaterDv'
+import {
+  createWaterDvMarkerDrawer,
+  isFertilizerDevice
+} from '@/utils/farmMapWaterDv'
 import LandEmptyDialog from './LandEmptyDialog.vue'
 import FarmIrrStatsDrawer from './FarmIrrStatsDrawer.vue'
 import WaterDvPopup from './WaterDvPopup.vue'
+import FertilizerPopup from './FertilizerPopup.vue'
 import FarmPopup from './FarmPopup.vue'
 import LandPopup from './LandPopup.vue'
 import LandEditPopup from './LandEditPopup.vue'
 import LandGroupPopup from './LandGroupPopup.vue'
 import locatePinIcon from '@/assets/map/locate-pin.png'
 import { px2rem } from '@/utils/rem'
-import { getFarmWaterOutletStatus } from '@/api/device'
+import {
+  getFarmFismartStatus,
+  getFarmWaterOutletStatus
+} from '@/api/device'
 import { getGroupList } from '@/api/irrigationGroup'
 import { deleteLand, getFarmInfo, updateLand } from '@/api/map'
 
@@ -263,6 +276,9 @@ const selectedWaterDvIndex = ref(-1)
 const waterDvPopupVisible = ref(false)
 const activeWaterDv = ref(null)
 const waterDvPopupRef = ref(null)
+/** 施肥机弹窗（对齐移动端 pop_fertilizer_control） */
+const fertilizerPopupVisible = ref(false)
+const fertilizerPopupRef = ref(null)
 
 /** 农场点击弹窗（左上角详情卡） */
 const farmPopupVisible = ref(false)
@@ -286,10 +302,11 @@ const isClickedCurrentFarm = computed(() => {
   return String(currentId) === String(clickId)
 })
 
-/** 农场出水桩状态轮询（对齐移动端 status-by-farm，3s） */
+/** 农场设备状态轮询（对齐移动端 setTimer：出水桩 + 施肥机，3s） */
 const FARM_DEVICE_STATUS_POLL_MS = 3000
 let farmDeviceStatusTimer = null
 let farmDeviceStatusRequestId = 0
+let farmFismartStatusRequestId = 0
 
 /** 农场轮灌组状态轮询（对齐移动端 getGroupList，15s） */
 const FARM_GROUP_STATUS_POLL_MS = 15000
@@ -301,8 +318,9 @@ async function logic_farmClick(farmItem) {
   console.log('[Map] logic_farmClick', farmItem)
   if (!farmItem?.id) return
 
-  // 关闭出水桩/地块弹窗，保留农场轻量卡由 marker 侧展示
+  // 关闭出水桩/施肥机/地块弹窗，保留农场轻量卡由 marker 侧展示
   waterDvPopupVisible.value = false
+  fertilizerPopupVisible.value = false
   activeWaterDv.value = null
   selectedWaterDvIndex.value = -1
   waterDvMarkerDrawer.resetAllWaterDvMarkers()
@@ -369,6 +387,7 @@ function logic_landClick(landItem, index) {
 
   // 关闭其它业务弹窗，保留地块选中描边
   waterDvPopupVisible.value = false
+  fertilizerPopupVisible.value = false
   activeWaterDv.value = null
   selectedWaterDvIndex.value = -1
   waterDvMarkerDrawer.resetAllWaterDvMarkers()
@@ -417,6 +436,7 @@ function logic_landGroupClick(groupItem, index) {
 
   // 关闭其它业务弹窗，保留轮灌组选中描边
   waterDvPopupVisible.value = false
+  fertilizerPopupVisible.value = false
   activeWaterDv.value = null
   selectedWaterDvIndex.value = -1
   waterDvMarkerDrawer.resetAllWaterDvMarkers()
@@ -460,7 +480,7 @@ function logic_landGroupClick(groupItem, index) {
   landGroupPopupVisible.value = true
 }
 
-/** 预留：出水桩点击业务（写 Store / 控制弹窗等） */
+/** 对齐移动端 setSelect：type=52 施肥机弹窗出口；其余出水桩弹窗 */
 function logic_clickSingleWaterDv(payload) {
   console.log('[Map] logic_clickSingleWaterDv', payload)
   if (payload?.index != null) {
@@ -468,10 +488,10 @@ function logic_clickSingleWaterDv(payload) {
   }
   const device = payload?.device || null
   if (!device?.id) {
-    console.warn('[Map] 出水桩缺少 id，无法打开弹窗')
+    console.warn('[Map] 设备缺少 id，无法打开弹窗')
     return
   }
-  // 打开出水桩弹窗时关闭农场/地块/轮灌组弹窗
+  // 打开设备弹窗时关闭农场/地块/轮灌组弹窗
   farmPopupVisible.value = false
   clickedFarm.value = null
   clickedFarmDetail.value = null
@@ -484,7 +504,18 @@ function logic_clickSingleWaterDv(payload) {
   landGroupPopupVisible.value = false
   clickedLandGroup.value = null
   landGroupPolygonDrawer.resetAllLandGroupBorder()
+
   activeWaterDv.value = device
+  farmStore.setControlDevice?.(device)
+
+  // 施肥机：对齐移动端 popFertilizerControl.openPoup(device)
+  if (isFertilizerDevice(device)) {
+    waterDvPopupVisible.value = false
+    fertilizerPopupVisible.value = true
+    return
+  }
+
+  fertilizerPopupVisible.value = false
   waterDvPopupVisible.value = true
 }
 
@@ -554,6 +585,7 @@ const waterDvMarkerDrawer = createWaterDvMarkerDrawer({
 const resetAllPopups = () => {
   selectedWaterDvIndex.value = -1
   waterDvPopupVisible.value = false
+  fertilizerPopupVisible.value = false
   activeWaterDv.value = null
   farmPopupVisible.value = false
   farmPopupLoading.value = false
@@ -577,6 +609,11 @@ const resetAllPopups = () => {
 
 const onWaterDvPopupClose = () => {
   waterDvPopupVisible.value = false
+  activeWaterDv.value = null
+}
+
+const onFertilizerPopupClose = () => {
+  fertilizerPopupVisible.value = false
   activeWaterDv.value = null
 }
 
@@ -777,7 +814,8 @@ const onEnterClickedFarm = (farm) => {
 }
 
 /**
- * 对齐移动端 syncDeviceRealStatus：把 status-by-farm 实时状态写入 waterDvList
+ * 对齐移动端 syncDeviceRealStatus：出水桩 status-by-farm → waterDvList
+ * 施肥机(type=52)跳过，由 syncFertilizerRealStatus 处理
  */
 const syncDeviceRealStatus = (farmDeviceStatusList) => {
   if (
@@ -794,6 +832,8 @@ const syncDeviceRealStatus = (farmDeviceStatusList) => {
       (dev) => String(dev.id) === String(realDev.id)
     )
     if (!target) return
+    // 施肥机走 fismart/status-by-farm
+    if (isFertilizerDevice(target)) return
 
     target.isOnline = realDev.isOnline
     if (realDev.batteryPercent != null) {
@@ -837,11 +877,70 @@ const syncDeviceRealStatus = (farmDeviceStatusList) => {
     layerOptions: layerOptions.value
   })
 
-  if (waterDvPopupVisible.value && activeWaterDv.value?.id != null) {
+  if (
+    waterDvPopupVisible.value &&
+    activeWaterDv.value?.id != null &&
+    !isFertilizerDevice(activeWaterDv.value)
+  ) {
     const live = waterDvList.value.find(
       (d) => String(d.id) === String(activeWaterDv.value.id)
     )
     waterDvPopupRef.value?.mergeFromFarmDevice?.(live)
+  }
+}
+
+/**
+ * 对齐移动端 syncFertilizerRealStatus：fismart/status-by-farm → type=52
+ */
+const syncFertilizerRealStatus = (fismartStatusList) => {
+  if (
+    !Array.isArray(waterDvList.value) ||
+    !waterDvList.value.length ||
+    !Array.isArray(fismartStatusList) ||
+    !fismartStatusList.length
+  ) {
+    return
+  }
+
+  fismartStatusList.forEach((realDev) => {
+    const target = waterDvList.value.find(
+      (dev) => String(dev.id) === String(realDev.id)
+    )
+    if (!target || !isFertilizerDevice(target)) return
+
+    if (realDev.isOnline !== undefined && realDev.isOnline !== null) {
+      target.isOnline = realDev.isOnline
+    }
+    if (realDev.batteryPercent !== undefined && realDev.batteryPercent !== null) {
+      target.batteryPercent = realDev.batteryPercent
+    }
+    if (realDev.specificData) {
+      target.specificData = {
+        ...(target.specificData || {}),
+        ...realDev.specificData
+      }
+    }
+  })
+
+  if (Array.isArray(farmInfo.value?.devices)) {
+    farmInfo.value.devices = waterDvList.value
+  }
+
+  waterDvMarkerDrawer.refreshWaterDvMarkerStatus(waterDvList.value, {
+    activeDvId: activeWaterDv.value?.id ?? null,
+    map: mapInstance.value,
+    layerOptions: layerOptions.value
+  })
+
+  if (
+    fertilizerPopupVisible.value &&
+    activeWaterDv.value?.id != null &&
+    isFertilizerDevice(activeWaterDv.value)
+  ) {
+    const live = waterDvList.value.find(
+      (d) => String(d.id) === String(activeWaterDv.value.id)
+    )
+    fertilizerPopupRef.value?.mergeFromFarmDevice?.(live)
   }
 }
 
@@ -864,12 +963,32 @@ const getFarmDeviceStatusHttp = async () => {
   }
 }
 
+/** 对齐移动端 getFarmFismartStatusHttp */
+const getFarmFismartStatusHttp = async () => {
+  const farmId =
+    farmStore.selectFarm?.id ?? farmInfo.value?.id ?? null
+  if (farmId == null || !mapInited.value) return
+
+  const requestId = ++farmFismartStatusRequestId
+  try {
+    const res = await getFarmFismartStatus(farmId, { silent: true })
+    if (requestId !== farmFismartStatusRequestId) return
+    if (Array.isArray(res?.data)) {
+      syncFertilizerRealStatus(res.data)
+    }
+  } catch (e) {
+    if (requestId !== farmFismartStatusRequestId) return
+    console.warn('[Map] 获取农场施肥机状态失败', e)
+  }
+}
+
 const clearFarmDeviceStatusTimer = () => {
   if (farmDeviceStatusTimer) {
     clearInterval(farmDeviceStatusTimer)
     farmDeviceStatusTimer = null
   }
   farmDeviceStatusRequestId += 1
+  farmFismartStatusRequestId += 1
 }
 
 /**
@@ -956,21 +1075,26 @@ const setFarmGroupStatusTimer = () => {
   }, FARM_GROUP_STATUS_POLL_MS)
 }
 
-/** 对齐移动端 setTimer：进入地图 / 切换农场后轮询 status-by-farm */
+/**
+ * 对齐移动端 setTimer：进入地图 / 切换农场后
+ * 同时轮询出水桩 status-by-farm + 施肥机 fismart/status-by-farm
+ */
 const setFarmDeviceStatusTimer = () => {
   clearFarmDeviceStatusTimer()
   if (!mapInited.value) return
   if (farmStore.selectFarm?.id == null && farmInfo.value?.id == null) return
 
   getFarmDeviceStatusHttp()
+  getFarmFismartStatusHttp()
   farmDeviceStatusTimer = setInterval(() => {
     if (farmInfo.value != null || farmStore.selectFarm?.id != null) {
       getFarmDeviceStatusHttp()
+      getFarmFismartStatusHttp()
     }
   }, FARM_DEVICE_STATUS_POLL_MS)
 }
 
-/** 启动地图侧实时状态轮询（出水桩 + 轮灌组） */
+/** 启动地图侧实时状态轮询（出水桩 + 施肥机 + 轮灌组） */
 const setMapStatusTimers = () => {
   setFarmDeviceStatusTimer()
   setFarmGroupStatusTimer()
@@ -1147,6 +1271,7 @@ const resetFarmMapResources = () => {
   landGroupList.value = []
   selectedWaterDvIndex.value = -1
   waterDvPopupVisible.value = false
+  fertilizerPopupVisible.value = false
   activeWaterDv.value = null
   farmPopupVisible.value = false
   farmPopupLoading.value = false
