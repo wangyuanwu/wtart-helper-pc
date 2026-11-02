@@ -37,7 +37,7 @@
         </div>
       </div>
 
-      <!-- 开始时间 / 施肥量 / 施肥时长 -->
+      <!-- 开始时间 / 施肥参数(按 fertMode) / 施肥时长 -->
       <div class="fertilizer-timer-edit__trio">
         <div class="fertilizer-timer-edit__field">
           <div class="fertilizer-timer-edit__section-label">开始时间</div>
@@ -52,7 +52,7 @@
           />
         </div>
         <div class="fertilizer-timer-edit__field">
-          <div class="fertilizer-timer-edit__section-label">施肥量</div>
+          <div class="fertilizer-timer-edit__section-label">{{ fertParamLabel }}</div>
           <button
             type="button"
             class="fertilizer-timer-edit__picker"
@@ -255,10 +255,26 @@ const paramInfo = ref({
   }
 })
 
+/** 对齐移动端：0 施肥流量 / 1 施肥量 / 2 水/肥比例 */
+const fertParamLabel = computed(() => {
+  const mode = Number(modeIndex.value)
+  if (mode === 0) return '施肥流量'
+  if (mode === 2) return '水/肥比例'
+  return '施肥量'
+})
+
+const fertParamUnit = computed(() => {
+  const mode = Number(modeIndex.value)
+  if (mode === 0) return 'm³/h'
+  if (mode === 2) return ''
+  return 'm³'
+})
+
 const fertAmountText = computed(() => {
   const val = paramInfo.value.actionConfig.fertAmount
   if (val === null || val === undefined || val === '') return '--'
-  return `${val}m³`
+  const unit = fertParamUnit.value
+  return unit ? `${val}${unit}` : String(val)
 })
 
 const durationText = computed(() => {
@@ -403,17 +419,48 @@ function durationToSeconds(val) {
   return 0
 }
 
+function getFertValueByMode(fertParam, mode) {
+  const fert = fertParam || {}
+  if (Number(mode) === 0) return fert.fertFlow
+  if (Number(mode) === 2) return fert.fertRatio
+  return fert.fertVolum
+}
+
+/** 整数原样；科学计数法按 0 处理，便于编辑 */
+function normalizeFertFieldValue(val) {
+  if (val === null || val === undefined || val === '') return 0
+  const num = Number(val)
+  if (!Number.isFinite(num)) return 0
+  if (Number.isInteger(num)) return num
+  if (/e/i.test(String(val))) return 0
+  return num
+}
+
 function syncFertMode(mode) {
   if (!proItemLocal.value) return
   if (!proItemLocal.value.fertParam) proItemLocal.value.fertParam = {}
-  proItemLocal.value.fertParam.fertMode = Number(mode) || 0
+  const fertMode = Number(mode) || 0
+  proItemLocal.value.fertParam.fertMode = fertMode
+  paramInfo.value.actionConfig.fertAmount = normalizeFertFieldValue(
+    getFertValueByMode(proItemLocal.value.fertParam, fertMode)
+  )
 }
 
-function syncFertVolum(amount) {
+function syncFertParamValue(amount) {
   if (!proItemLocal.value?.fertParam) return
   const val =
     amount !== undefined ? amount : paramInfo.value.actionConfig.fertAmount
-  proItemLocal.value.fertParam.fertVolum = Number(val) || 0
+  const num = Number(val) || 0
+  const mode = Number(modeIndex.value)
+  if (mode === 0) {
+    proItemLocal.value.fertParam.fertFlow = num
+    return
+  }
+  if (mode === 2) {
+    proItemLocal.value.fertParam.fertRatio = num
+    return
+  }
+  proItemLocal.value.fertParam.fertVolum = num
 }
 
 function syncDuration(duration) {
@@ -462,7 +509,7 @@ function syncRunDate() {
 
 function syncAllMappedFields() {
   syncFertMode(modeIndex.value)
-  syncFertVolum()
+  syncFertParamValue()
   syncDuration()
   syncStartTime()
   syncRunDate()
@@ -485,7 +532,9 @@ function fillFormFromProItem(pro) {
   const fert = pro.fertParam || {}
   modeIndex.value = Number(fert.fertMode) || 0
   paramInfo.value.actionConfig.duration = Number(pro.SumRunTime) || 0
-  paramInfo.value.actionConfig.fertAmount = Number(fert.fertVolum) || 0
+  paramInfo.value.actionConfig.fertAmount = normalizeFertFieldValue(
+    getFertValueByMode(fert, modeIndex.value)
+  )
 
   const startTime =
     pro.StartTimeArr && pro.StartTimeArr.length ? pro.StartTimeArr[0] : ''
@@ -510,19 +559,22 @@ function onPickDuration() {
 }
 
 async function onPickFertAmount() {
+  const label = fertParamLabel.value
+  const unit = fertParamUnit.value
   const current = paramInfo.value.actionConfig.fertAmount
+  const promptText = unit ? `请输入${label}（${unit}）` : `请输入${label}`
   try {
-    const { value } = await ElMessageBox.prompt('请输入施肥量（m³）', '施肥量', {
+    const { value } = await ElMessageBox.prompt(promptText, label, {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      inputValue: current != null && current !== '' ? String(current) : '5',
+      inputValue: current != null && current !== '' ? String(current) : '0',
       inputPattern: /^\d+(\.\d+)?$/,
       inputErrorMessage: '请输入有效数字',
       appendTo: 'body'
     })
     const num = Number(value)
     if (!(num >= 0 && num <= 9999)) {
-      ElMessage.warning('施肥量需在 0~9999 之间')
+      ElMessage.warning(`${label}需在 0~9999 之间`)
       return
     }
     paramInfo.value.actionConfig.fertAmount = Math.round(num * 10) / 10
@@ -585,7 +637,7 @@ async function onSave() {
   }
   const amount = Number(paramInfo.value.actionConfig.fertAmount)
   if (!(amount > 0)) {
-    ElMessage.warning('请设置施肥量')
+    ElMessage.warning(`请设置${fertParamLabel.value}`)
     return
   }
 
@@ -695,7 +747,7 @@ function onOpened() {
     paramInfo.value.timerConfig.repeatType = 0
     paramInfo.value.timerConfig.intervalDays = 1
     paramInfo.value.timerConfig.weekDays = []
-    // 对齐移动端新增默认：打开时长 4800s、施肥量 5
+    // 对齐移动端新增默认：打开时长 4800s；施肥参数由 syncFertMode 按模式字段回填
     paramInfo.value.actionConfig.duration = 4800
     paramInfo.value.actionConfig.fertAmount = 5
     syncStartDateTimeField()
@@ -711,7 +763,7 @@ watch(
 )
 watch(
   () => paramInfo.value.actionConfig.fertAmount,
-  (val) => syncFertVolum(val)
+  (val) => syncFertParamValue(val)
 )
 watch(
   () => paramInfo.value.timerConfig.time,

@@ -66,7 +66,7 @@
             </div>
             <div class="fertilizer-timer-card__row">
               <i class="iconfont icon-device_ic_hourglass"></i>
-              <span>施肥量: {{ item.fertAmountText }}</span>
+              <span>{{ item.fertParamLabel }}: {{ item.fertParamText }}</span>
             </div>
           </div>
         </article>
@@ -191,10 +191,45 @@ function formatDuration(seconds) {
   return second2Time(seconds)
 }
 
-function formatFertVolum(fertParam) {
-  const val = fertParam?.fertVolum
+/** 施肥流量 / 水肥比例：整数原样展示，科学计数法展示 0.0 */
+function formatIntOrScientificValue(val) {
+  if (val === null || val === undefined || val === '') return '--'
+  const num = Number(val)
+  if (!Number.isFinite(num)) return '--'
+  if (Number.isInteger(num)) return String(num)
+  if (/e/i.test(String(val))) return '0.0'
+  return String(val)
+}
+
+function formatFertVolumText(val) {
   if (val === null || val === undefined || val === '') return '--'
   return `${val}m³`
+}
+
+/**
+ * 对齐移动端 formatFertParamDisplay
+ * fertMode：0 施肥流量 fertFlow(m³/h)；1 施肥量 fertVolum(m³)；2 水/肥比例 fertRatio(无单位)
+ */
+function formatFertParamDisplay(fertParam) {
+  const fert = fertParam || {}
+  const mode = Number(fert.fertMode)
+  if (mode === 0) {
+    const text = formatIntOrScientificValue(fert.fertFlow)
+    return {
+      fertParamLabel: '施肥流量',
+      fertParamText: text === '--' ? '--' : `${text}m³/h`
+    }
+  }
+  if (mode === 2) {
+    return {
+      fertParamLabel: '水/肥比例',
+      fertParamText: formatIntOrScientificValue(fert.fertRatio)
+    }
+  }
+  return {
+    fertParamLabel: '施肥量',
+    fertParamText: formatFertVolumText(fert.fertVolum)
+  }
 }
 
 function mapProItem(pro, index) {
@@ -207,7 +242,7 @@ function mapProItem(pro, index) {
     enabled: !!pro?.Enable,
     repeatText: getRepeatText(runDate),
     durationText: formatDuration(pro?.SumRunTime),
-    fertAmountText: formatFertVolum(pro?.fertParam)
+    ...formatFertParamDisplay(pro?.fertParam)
   }
 }
 
